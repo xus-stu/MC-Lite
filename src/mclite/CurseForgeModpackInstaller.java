@@ -1,0 +1,224 @@
+package mclite;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
+
+public final class CurseForgeModpackInstaller {
+    private final Config config;
+    private final ProgressSink progress;
+    private final CancellationToken token;
+    private final Net net;
+    private final CurseForge curseForge;
+
+    public CurseForgeModpackInstaller(Config config, ProgressSink progress, CancellationToken token) {
+        this.config = config;
+        this.progress = progress;
+        this.token = token;
+        this.net = new Net(progress, token);
+        this.curseForge = new CurseForge(config.curseForgeApiKey(), progress, token);
+    }
+
+    public ContentInstaller.Result install(Modrinth.Project project, Modrinth.Version version,
+                                           String gameVersion) throws IOException {
+        RegionGate.requireGameDownloadAllowed();
+        Modrinth.File packFile = version.primaryFile();
+        if (packFile == null) {
+            throw new IOException("CurseForge 整合包没有可下载文件");
+        }
+        Path cache = config.cacheDir().resolve("packs");
+        Files.createDirectories(cache);
+        Path zipFile = cache.resolve(packFile.filename());
+        if (packFile.size() > 0) {
+            progress.addTotal(packFile.size());
+        }
+        net.download(packFile.url(), zipFile, packFile.sha1(), packFile.size(),
+                packFile.filename(), true);
+        Manifest manifest = readManifest(zipFile);
+        String minecraft = manifest.minecraft;
+        Path instances = config.gameDir().resolve("instances");
+        String slug = project.slug() == null ? "curseforge-pack" : project.slug();
+        slug = slug.replaceAll("[^A-Za-z0-9._-]", "-");
+        Path instance = instances.resolve(slug);
+        if (Files.exists(instance)) {
+            instance = instances.resolve(slug + "-" + System.currentTimeMillis() % 100000);
+        }
+        Files.createDirectories(instance);
+        Config instanceConfig = config.copyForGameDir(instance);
+
+        Versions.FetchResult fetched = Versions.fetch(config, progress, token);
+        VersionManifest.VersionEntry vanilla = fetched.manifest().find(minecraft);
+        if (vanilla == null) {
+            throw new IOException("官方清单中找不到 Minecraft " + minecraft);
+        }
+        progress.stage("安装 Minecraft " + minecraft + " 到整合包实例…");
+        new Installer(instanceConfig, token, progress).install(vanilla, config.downloadAssets());
+
+        String loaderId = null;
+        if (manifest.loaderType != null) {
+            progress.stage("安装 " + manifest.loaderType + " " + manifest.loaderVersion + "…");
+            java.util.List<JavaManager.JavaInfo> javas = new JavaManager(instanceConfig, progress,
+                    token).detectAll();
+            int required = 8;
+            String component = null;
+            try {
+                VersionMeta meta = VersionMeta.parse(Files.readString(
+                        new GamePaths(instance).versionJson(minecraft)), minecraft);
+                required = meta.javaMajor();
+                component = meta.javaComponent();
+            } catch (Exception ignored) {
+            }
+            JavaManager.JavaInfo java = JavaManager.choose(javas, required, component);
+            if (java == null) {
+                throw new IOException("安装加载器需要 Java");
+            }
+            loaderId = new LoaderInstaller(instanceConfig, progress, token)
+                    .install(manifest.loaderType, minecraft, manifest.loaderVersion, java);
+        }
+
+        downloadFiles(instance, manifest.files);
+        extractOverrides(zipFile, instance);
+        Path marker = instance.resolve(".mclite/modpack.properties");
+        Files.createDirectories(marker.getParent());
+        Files.writeString(marker, "project=" + project.id() + "\nversion=" + version.id()
+                + "\nminecraft=" + minecraft + "\nloader=" + manifest.loaderType + "\n", StandardCharsets.UTF_8);
+        return new ContentInstaller.Result(instance, loaderId == null ? minecraft : loaderId,
+                project.title() + " · " + minecraft);
+    }
+
+    private record Manifest(String minecraft, String loaderType, String loaderVersion,
+                            List<FileRef> files) {
+    }
+
+    private record FileRef(long projectId, long fileId) {
+    }
+
+    private Manifest readManifest(Path zipFile) throws IOException {
+        try (ZipFile zip = new ZipFile(zipFile.toFile())) {
+            var entry = zip.getEntry("manifest.json");
+            if (entry == null) {
+                throw new IOException("CurseForge 整合包缺少 manifest.json");
+            }
+            Map<String, Object> root;
+            try (InputStream in = zip.getInputStream(entry)) {
+                root = Json.obj(Json.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8)));
+            }
+            Map<String, Object> mc = Json.obj(root.get("minecraft"));
+            String minecraft = Json.str(mc, "version");
+            String loaderId = null;
+            for (Object raw : Json.arr(mc.get("modLoaders"))) {
+                Map<String, Object> loader = Json.obj(raw);
+                if (Json.bool(loader, "primary", false)) {
+                    loaderId = Json.str(loader, "id");
+                    break;
+                }
+            }
+            if (loaderId == null) {
+                for (Object raw : Json.arr(mc.get("modLoaders"))) {
+                    loaderId = Json.str(Json.obj(raw), "id");
+                    if (loaderId != null) {
+                        break;
+                    }
+                }
+            }
+            String loaderType = null;
+            String loaderVersion = null;
+            if (loaderId != null) {
+                int dash = loaderId.indexOf('-');
+                if (dash > 0) {
+                    loaderType = loaderId.substring(0, dash);
+                    loaderVersion = loaderId.substring(dash + 1);
+                }
+            }
+            List<FileRef> files = new ArrayList<>();
+            for (Object raw : Json.arr(root.get("files"))) {
+                Map<String, Object> file = Json.obj(raw);
+                if (!Json.bool(file, "required", true)) {
+                    continue;
+                }
+                files.add(new FileRef(Json.lng(file, "projectID", 0),
+                        Json.lng(file, "fileID", 0)));
+            }
+            if (minecraft == null) {
+                throw new IOException("manifest.json 缺少 Minecraft 版本");
+            }
+            return new Manifest(minecraft, loaderType, loaderVersion, files);
+        }
+    }
+
+    private void downloadFiles(Path instance, List<FileRef> refs) throws IOException {
+        if (refs.isEmpty()) {
+            return;
+        }
+        ExecutorService pool = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable, "mclite-cf-pack");
+            thread.setDaemon(true);
+            return thread;
+        });
+        try {
+            List<Future<?>> futures = new ArrayList<>();
+            for (FileRef ref : refs) {
+                futures.add(pool.submit(() -> {
+                    token.check();
+                    Modrinth.Version file = curseForge.file("cf:" + ref.projectId(),
+                            "cf:" + ref.fileId());
+                    Modrinth.File download = file == null ? null : file.primaryFile();
+                    if (download == null) {
+                        return null;
+                    }
+                    Path mods = instance.resolve("mods");
+                    Files.createDirectories(mods);
+                    Path target = GamePaths.resolveUnder(mods, download.filename());
+                    if (download.size() > 0) {
+                        progress.addTotal(download.size());
+                    }
+                    net.download(download.url(), target, download.sha1(), download.size(),
+                            download.filename(), true);
+                    return null;
+                }));
+            }
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    token.cancel();
+                    throw new CancellationToken.CancelledException();
+                } catch (ExecutionException ex) {
+                    token.cancel();
+                    throw new IOException("整合包文件下载失败: " + ex.getCause(), ex.getCause());
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private void extractOverrides(Path zipFile, Path instance) throws IOException {
+        try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(zipFile))) {
+            var entry = zip.getNextEntry();
+            while (entry != null) {
+                String name = entry.getName();
+                if (!entry.isDirectory() && name.startsWith("overrides/")) {
+                    Path target = GamePaths.resolveUnder(instance, name.substring("overrides/".length()));
+                    Files.createDirectories(target.getParent());
+                    Files.copy(zip, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+                zip.closeEntry();
+                entry = zip.getNextEntry();
+            }
+        }
+    }
+}

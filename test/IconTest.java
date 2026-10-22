@@ -1,0 +1,2 @@
+package mclite;
+public class IconTest { public static void main(String[] a) throws Exception { String u="https://cdn.modrinth.com/data/u6dRKJwZ/4a3f18ac0d096c9f8e9176984c44be4e58f94c89_96.webp"; ImageCache.load(u,()->System.out.println("loaded cb")); for(int i=0;i<20;i++){Thread.sleep(500); if(ImageCache.get(u)!=null){System.out.println("got "+ImageCache.get(u).getWidth(null));return;}} System.out.println("null"); } }

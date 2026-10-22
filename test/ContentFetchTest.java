@@ -1,0 +1,2 @@
+package mclite;
+public class ContentFetchTest { public static void main(String[] a)throws Exception{ var m=new Modrinth(ProgressSink.NOOP,new CancellationToken()); for(String t:new String[]{"mod","resourcepack","modpack","shader"}){ try{var r=m.search("",t,"1.20.1",null,0,20); System.out.println(t+" "+r.size()+" "+(r.isEmpty()?"":r.get(0).title()));}catch(Exception e){System.out.println(t+" ERR "+e);} } } }
