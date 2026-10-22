@@ -1,0 +1,2 @@
+import java.nio.file.*; import java.io.*;
+public class SipsTest { public static void main(String[] a) throws Exception { byte[] b=Files.readAllBytes(Path.of("/tmp/ic.webp")); Path in=Files.createTempFile("ic-",".webp"), out=Files.createTempFile("ic-",".png"); Files.write(in,b); Process p=new ProcessBuilder("/usr/bin/sips","-s","format","png",in.toString(),"--out",out.toString()).redirectErrorStream(true).start(); String s=new String(p.getInputStream().readAllBytes()); int code=p.waitFor(); System.out.println("code="+code+" out="+out+" size="+Files.size(out)+" msg="+s); } }

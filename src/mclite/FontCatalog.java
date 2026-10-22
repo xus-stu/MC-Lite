@@ -1,0 +1,62 @@
+package mclite;
+
+import java.awt.GraphicsEnvironment;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+public final class FontCatalog {
+    public record Choice(String label, String family) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    private FontCatalog() {
+    }
+
+    public static List<Choice> choices() {
+        List<Choice> result = new ArrayList<>();
+        result.add(new Choice("系统默认", ""));
+        Set<String> installed = new LinkedHashSet<>(List.of(
+                GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
+        String kaiti = pick(installed, "Kaiti SC", "Kaiti TC", "STKaiti", "KaiTi", "Kaiti",
+                "AR PL UKai CN", "Noto Serif CJK SC");
+        if (kaiti != null) {
+            result.add(new Choice("楷体 · " + kaiti, kaiti));
+        }
+        String handwriting = pick(installed, "Hannotate SC", "Hannotate TC", "HanziPen SC",
+                "HanziPen TC", "Xingkai SC", "STXingkai", "Weibei SC");
+        if (handwriting != null && !handwriting.equals(kaiti)) {
+            result.add(new Choice("手写楷体 · " + handwriting, handwriting));
+        }
+        if (kaiti == null && handwriting == null) {
+            result.add(new Choice("未检测到系统楷体", ""));
+        }
+        return result;
+    }
+
+    public static boolean available(String family) {
+        if (family == null || family.isBlank()) {
+            return true;
+        }
+        for (String name : GraphicsEnvironment.getLocalGraphicsEnvironment()
+                .getAvailableFontFamilyNames()) {
+            if (name.equals(family)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String pick(Set<String> installed, String... candidates) {
+        for (String candidate : candidates) {
+            if (installed.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+}

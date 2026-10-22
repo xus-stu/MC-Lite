@@ -1,0 +1,6 @@
+package mclite;
+import javax.imageio.ImageIO; import javax.swing.*; import java.awt.*; import java.awt.image.*; import java.io.*; import java.lang.reflect.*;
+public class StyleShotTest {
+ static JScrollPane find(Component c){ if(c instanceof JScrollPane s){ var b=s.getVerticalScrollBar(); if(b!=null && b.getMaximum()>b.getVisibleAmount()+100) return s;} if(c instanceof Container ct){ for(Component x:ct.getComponents()){ var r=find(x); if(r!=null)return r;}} return null; }
+ public static void main(String[] a)throws Exception{ SwingUtilities.invokeAndWait(()->{ try { Config c=Config.load(); c.autoJvmTuning(false); LauncherFrame f=new LauncherFrame(c); f.setSize(1180,900); f.setVisible(true); f.selectPage("settings"); new Timer(1200,e->{ JScrollPane s=find(f.getContentPane()); if(s!=null) s.getVerticalScrollBar().setValue(s.getVerticalScrollBar().getMaximum()); new Timer(500,x->{ try{ var img=new BufferedImage(f.getContentPane().getWidth(),f.getContentPane().getHeight(),BufferedImage.TYPE_INT_RGB); var g=img.createGraphics(); f.getContentPane().paint(g); g.dispose(); ImageIO.write(img,"png",new File("build/style-shot.png")); }catch(Exception ex){ex.printStackTrace();} f.dispose(); System.exit(0); }).start(); }).start(); }catch(Exception ex){ex.printStackTrace();System.exit(1);} }); }
+}

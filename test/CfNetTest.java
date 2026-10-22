@@ -1,0 +1,2 @@
+import java.net.http.*; import java.net.*; import java.time.*;
+public class CfNetTest { public static void main(String[] a) throws Exception { HttpClient c=HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(20)).build(); try { var r=c.send(HttpRequest.newBuilder(URI.create("https://api.curseforge.com/v1/mods/search?gameId=432")).header("User-Agent","MCLite/1.0").GET().build(),HttpResponse.BodyHandlers.ofString()); System.out.println(r.statusCode()+" "+r.body().length()); } catch(Exception e){System.out.println("ERR "+e);} } }

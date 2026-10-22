@@ -1,0 +1,3 @@
+package mclite;
+import java.nio.file.*;
+public class CrashTest { public static void main(String[] a)throws Exception{ Path d=Files.createTempDirectory("crash"); Files.createDirectories(d.resolve("mods")); Files.writeString(d.resolve("mods/examplemod-1.2.jar"),"x"); Files.createDirectories(d.resolve("crash-reports")); Files.writeString(d.resolve("crash-reports/crash-1.txt"),"Description: Exception in server tick loop\njava.lang.NullPointerException\n at com.example.examplemod.Foo.bar(Foo.java:1)\n"); Files.writeString(d.resolve("latest.log"),"examplemod failed\n"); var r=CrashAnalyzer.analyze(d.resolve("latest.log"),d); System.out.println(r.summary()); System.out.println(r.suspectMods()); System.out.println(r.tail()); } }
