@@ -4293,6 +4293,14 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
+    TaskCenter taskCenter() {
+        return taskCenter;
+    }
+
+    void refreshTasksUi() {
+        refreshTasksButton();
+    }
+
     private void openTasksDialog() {
         new TasksDialog(this, taskCenter, this::cancelTask).setVisible(true);
     }
