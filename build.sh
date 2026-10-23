@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
+VERSION="$(cat VERSION)"
+NORMAL_JAR="MCLite_v${VERSION}.jar"
+REGION_JAR="MCLite_v${VERSION}-region.jar"
+MAC_ZIP="MC-Lite_v${VERSION}_macOS.zip"
+REGION_MAC_ZIP="MC-Lite_v${VERSION}_region_macOS.zip"
+WIN_ZIP="MC-Lite_v${VERSION}_region_Windows.zip"
+APP="dist/MC Lite v${VERSION}.app"
+REGION_APP="dist/MC Lite Region v${VERSION}.app"
 
 echo "[1/4] 编译 Java 源码…"
 rm -rf build/classes
@@ -11,28 +19,28 @@ if [ -d src/mclite/assets ]; then
   mkdir -p build/classes/mclite/assets
   cp src/mclite/assets/*.png build/classes/mclite/assets/
 fi
-mkdir -p build/classes/META-INF build/region-marker/mclite
+mkdir -p build/classes/META-INF build/region-marker/mclite build/classes/mclite
 cp LICENSE NOTICE TRADEMARK.md build/classes/META-INF/
+printf 'version=%s\n' "$VERSION" > build/classes/mclite/version.properties
 : > build/region-marker/mclite/region.lock
 
-echo "[2/4] 打包 MCLite.jar…"
-jar --create --file dist/MCLite.jar --main-class Main -C build/classes .
-jar --create --file dist/MCLite-region.jar --main-class mclite.RegionLauncherApp -C build/classes . -C build/region-marker .
-rm -f dist/MC-Lite-macOS.zip
+echo "[2/4] 打包 ${NORMAL_JAR}…"
+rm -f "dist/${NORMAL_JAR}" "dist/${REGION_JAR}" "dist/${MAC_ZIP}" "dist/${REGION_MAC_ZIP}" "dist/${WIN_ZIP}"
+jar --create --file "dist/${NORMAL_JAR}" --main-class Main -C build/classes .
+jar --create --file "dist/${REGION_JAR}" --main-class mclite.RegionLauncherApp -C build/classes . -C build/region-marker .
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "[3/4] 生成 macOS 应用包…"
-  APP="dist/MC Lite.app"
   rm -rf "$APP"
   mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-  cp dist/MCLite.jar "$APP/Contents/Resources/MCLite.jar"
-  cat > "$APP/Contents/Info.plist" <<'PLIST'
+  cp "dist/${NORMAL_JAR}" "$APP/Contents/Resources/${NORMAL_JAR}"
+  cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleDisplayName</key>
-    <string>MC Lite</string>
+    <string>MC Lite v${VERSION}</string>
     <key>CFBundleExecutable</key>
     <string>MCLite</string>
     <key>CFBundleIdentifier</key>
@@ -40,13 +48,13 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>MC Lite</string>
+    <string>MC Lite v${VERSION}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.1</string>
+    <string>${VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>1.0.1</string>
+    <string>${VERSION}</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.games</string>
     <key>LSMinimumSystemVersion</key>
@@ -61,7 +69,7 @@ PLIST
 #!/bin/bash
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-JAR="$HERE/../Resources/MCLite.jar"
+JAR="$HERE/../Resources/@JAR@"
 JAVA=""
 if [ -x /usr/libexec/java_home ]; then
   for candidate in 21 22 23 24 25; do
@@ -104,27 +112,27 @@ if ! echo "$VERSION_OUTPUT" | grep -Eq ' version "(2[1-9]|[3-9][0-9])'; then
 fi
 exec "$JAVA" -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "$JAR" "$@"
 LAUNCHER
+  perl -0pi -e "s/\@JAR\@/${NORMAL_JAR}/g" "$APP/Contents/MacOS/MCLite"
   chmod +x "$APP/Contents/MacOS/MCLite"
   if command -v ditto >/dev/null 2>&1; then
-    ditto -c -k --norsrc --keepParent "$APP" dist/MC-Lite-macOS.zip
+    ditto -c -k --norsrc --keepParent "$APP" "dist/${MAC_ZIP}"
   fi
-  REGION_APP="dist/MC Lite Region.app"
   rm -rf "$REGION_APP"
   cp -R "$APP" "$REGION_APP"
-  rm -f "$REGION_APP/Contents/Resources/MCLite.jar"
-  cp dist/MCLite-region.jar "$REGION_APP/Contents/Resources/MCLite-region.jar"
-  if ! unzip -p "$REGION_APP/Contents/Resources/MCLite-region.jar" META-INF/MANIFEST.MF | grep -q RegionLauncherApp; then
+  rm -f "$REGION_APP/Contents/Resources/${NORMAL_JAR}"
+  cp "dist/${REGION_JAR}" "$REGION_APP/Contents/Resources/${REGION_JAR}"
+  if ! unzip -p "$REGION_APP/Contents/Resources/${REGION_JAR}" META-INF/MANIFEST.MF | grep -q RegionLauncherApp; then
     echo "错误：地区版 app 内的 jar 不是 RegionLauncherApp" >&2
     exit 1
   fi
-  if ! unzip -l "$REGION_APP/Contents/Resources/MCLite-region.jar" | grep -q 'mclite/region.lock'; then
+  if ! unzip -l "$REGION_APP/Contents/Resources/${REGION_JAR}" | grep -q 'mclite/region.lock'; then
     echo "错误：地区版 app 内的 jar 缺少 region.lock" >&2
     exit 1
   fi
-  perl -0pi -e 's/MCLite\.jar/MCLite-region.jar/g' "$REGION_APP/Contents/MacOS/MCLite"
-  perl -0pi -e 's/<string>MC Lite<\/string>/<string>MC Lite Region<\/string>/g; s/com\.mclite\.launcher/com.mclite.launcher.region/g' "$REGION_APP/Contents/Info.plist"
+  perl -0pi -e "s/${NORMAL_JAR}/${REGION_JAR}/g" "$REGION_APP/Contents/MacOS/MCLite"
+  perl -0pi -e "s/MC Lite v${VERSION}/MC Lite Region v${VERSION}/g; s/com\.mclite\.launcher/com.mclite.launcher.region/g" "$REGION_APP/Contents/Info.plist"
   if command -v ditto >/dev/null 2>&1; then
-    ditto -c -k --norsrc --keepParent "$REGION_APP" dist/MC-Lite-region-macOS.zip
+    ditto -c -k --norsrc --keepParent "$REGION_APP" "dist/${REGION_MAC_ZIP}"
   fi
 else
   echo "[3/4] 非 macOS，跳过应用包。"
@@ -134,11 +142,12 @@ cat > run.sh <<'RUN'
 #!/bin/bash
 set -e
 cd "$(dirname "$0")"
-if [ ! -f dist/MCLite.jar ]; then
+if [ ! -f "dist/@NORMAL_JAR@" ]; then
   ./build.sh
 fi
-exec java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar dist/MCLite.jar "$@"
+exec java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist/@NORMAL_JAR@" "$@"
 RUN
+perl -0pi -e "s/\@NORMAL_JAR\@/${NORMAL_JAR}/g" run.sh
 chmod +x run.sh
 
 cat > 启动器.command <<'CMD'
@@ -152,11 +161,12 @@ cat > run-region.sh <<'RUN'
 #!/bin/bash
 set -e
 cd "$(dirname "$0")"
-if [ ! -f dist/MCLite-region.jar ]; then
+if [ ! -f "dist/@REGION_JAR@" ]; then
   ./build.sh
 fi
-exec java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar dist/MCLite-region.jar "$@"
+exec java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist/@REGION_JAR@" "$@"
 RUN
+perl -0pi -e "s/\@REGION_JAR\@/${REGION_JAR}/g" run-region.sh
 chmod +x run-region.sh
 
 cat > 启动器-地区版.command <<'REGIONCMD'
@@ -170,31 +180,47 @@ cat > run-region.bat <<'BAT'
 @echo off
 setlocal
 cd /d "%~dp0"
-if not exist "dist\MCLite-region.jar" (
-  echo MCLite-region.jar not found.
+if not exist "dist\@REGION_JAR@" (
+  echo @REGION_JAR@ not found.
   pause
   exit /b 1
 )
-java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist\MCLite-region.jar" %*
+java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist\@REGION_JAR@" %*
 BAT
+perl -0pi -e "s/\@REGION_JAR\@/${REGION_JAR}/g" run-region.bat
+
+cat > run.bat <<'BAT'
+@echo off
+setlocal
+cd /d "%~dp0"
+if not exist "dist\@NORMAL_JAR@" (
+  echo @NORMAL_JAR@ not found.
+  pause
+  exit /b 1
+)
+java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist\@NORMAL_JAR@" %*
+BAT
+perl -0pi -e "s/\@NORMAL_JAR\@/${NORMAL_JAR}/g" run.bat
 
 rm -rf build/windows
 mkdir -p build/windows/MC-Lite-Region
-cp dist/MCLite-region.jar build/windows/MC-Lite-Region/
+cp "dist/${REGION_JAR}" build/windows/MC-Lite-Region/
 cp LICENSE NOTICE TRADEMARK.md build/windows/MC-Lite-Region/
 cp packaging/windows/start.bat packaging/windows/debug.bat packaging/windows/README.txt packaging/windows/java-download.txt build/windows/MC-Lite-Region/
-(cd build/windows && zip -rq ../../dist/MC-Lite-region-Windows.zip MC-Lite-Region)
-rm -f dist/MC-Lite-region-Windows.zip.sha256
+perl -0pi -e "s/MCLite-region\.jar/${REGION_JAR}/g" build/windows/MC-Lite-Region/start.bat build/windows/MC-Lite-Region/debug.bat
+(cd build/windows && zip -rq "../../dist/${WIN_ZIP}" MC-Lite-Region)
+rm -f "dist/${WIN_ZIP}.sha256"
 
 if command -v shasum >/dev/null 2>&1; then
-  (cd dist && files="MCLite-region.jar"; for z in MC-Lite-region-macOS.zip MC-Lite-region-Windows.zip; do [ -f "$z" ] && files="$files $z"; done; shasum -a 256 $files > SHA256SUMS.txt)
+  (cd dist && files="${REGION_JAR}"; for z in "${REGION_MAC_ZIP}" "${WIN_ZIP}"; do [ -f "$z" ] && files="$files $z"; done; shasum -a 256 $files > SHA256SUMS.txt)
 else
-  (cd dist && files="MCLite-region.jar"; for z in MC-Lite-region-macOS.zip MC-Lite-region-Windows.zip; do [ -f "$z" ] && files="$files $z"; done; sha256sum $files > SHA256SUMS.txt)
+  (cd dist && files="${REGION_JAR}"; for z in "${REGION_MAC_ZIP}" "${WIN_ZIP}"; do [ -f "$z" ] && files="$files $z"; done; sha256sum $files > SHA256SUMS.txt)
 fi
 
 echo "[4/4] 完成。"
-echo "  图形界面: dist/MC Lite.app（macOS）"
-echo "  macOS 压缩包: dist/MC-Lite-macOS.zip"
-echo "  通用 JAR : dist/MCLite.jar"
-echo "  地区版   : dist/MCLite-region.jar"
+echo "  图形界面: ${APP}（macOS）"
+echo "  macOS 压缩包: dist/${MAC_ZIP}"
+echo "  通用 JAR : dist/${NORMAL_JAR}"
+echo "  地区版   : dist/${REGION_JAR}"
+echo "  Windows 包: dist/${WIN_ZIP}"
 echo "  校验值   : dist/SHA256SUMS.txt"
