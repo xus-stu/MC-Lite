@@ -116,14 +116,15 @@ public final class SkinStore {
         Object listValue = root.get("loadlist");
         List<Object> loadlist = listValue instanceof List<?>
                 ? new ArrayList<>(Json.arr(listValue)) : new ArrayList<>();
-        boolean hasLocal = false;
-        for (Object item : loadlist) {
-            if ("LocalSkin".equals(Json.str(Json.obj(item), "name"))) {
-                hasLocal = true;
+        int localIndex = -1;
+        for (int i = 0; i < loadlist.size(); i++) {
+            if ("LocalSkin".equals(Json.str(Json.obj(loadlist.get(i)), "name"))) {
+                localIndex = i;
                 break;
             }
         }
-        if (!hasLocal) {
+        boolean changed = false;
+        if (localIndex < 0) {
             Map<String, Object> local = new LinkedHashMap<>();
             local.put("name", "LocalSkin");
             local.put("type", "Legacy");
@@ -133,6 +134,13 @@ public final class SkinStore {
             local.put("cape", "LocalSkin/capes/{USERNAME}.png");
             local.put("elytra", "LocalSkin/elytra/{USERNAME}.png");
             loadlist.add(0, local);
+            changed = true;
+        } else if (localIndex > 0) {
+            Object local = loadlist.remove(localIndex);
+            loadlist.add(0, local);
+            changed = true;
+        }
+        if (changed) {
             root.put("loadlist", loadlist);
             Files.writeString(configFile, toJson(root));
         }
