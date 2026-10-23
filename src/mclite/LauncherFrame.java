@@ -1716,6 +1716,11 @@ public final class LauncherFrame extends JFrame {
         settingsActions.setLayout(new BoxLayout(settingsActions, BoxLayout.X_AXIS));
         settingsActions.add(openLogs);
         settingsActions.add(Ui.hgap(6));
+        Ui.AccentButton checkUpdate = Ui.smallButton("检查更新", Ui.AccentButton.Style.GHOST);
+        checkUpdate.addActionListener(e -> Updater.checkNow(config, this, taskCenter,
+                this::refreshTasksUi));
+        settingsActions.add(checkUpdate);
+        settingsActions.add(Ui.hgap(6));
         settingsActions.add(openData);
         page.add(pageHeader("设置", "性能、窗口和下载选项会自动保存", settingsActions), BorderLayout.NORTH);
         JScrollPane scroll = Ui.scroll(buildSettingsForm());
