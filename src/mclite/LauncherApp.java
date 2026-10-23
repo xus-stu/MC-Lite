@@ -35,7 +35,13 @@ public final class LauncherApp {
         }
 
         Config config = Config.load();
-        if (config.metalRendering()) {
+        boolean softwareRender = false;
+        for (String arg : args) {
+            if (arg.equals("--software-render")) {
+                softwareRender = true;
+            }
+        }
+        if (!softwareRender && config.metalRendering()) {
             System.setProperty("sun.java2d.metal", "true");
             System.setProperty("sun.java2d.opengl", "false");
         } else {
