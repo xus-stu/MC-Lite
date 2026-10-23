@@ -23,6 +23,8 @@ public final class Updater {
     private static final String REPO = "xus-stu/MC-Lite";
     private static final String API = "https://api.github.com/repos/" + REPO + "/releases/latest";
 
+    private static volatile String ignoredVersion;
+
     private Updater() {
     }
 
@@ -100,10 +102,31 @@ public final class Updater {
         Thread thread = new Thread(() -> check(config, parent, taskCenter, refreshTasks), "mclite-update");
         thread.setDaemon(true);
         thread.start();
+        java.util.Timer timer = new java.util.Timer("mclite-update-check", true);
+        timer.scheduleAtFixedRate(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                check(config, parent, taskCenter, refreshTasks, false);
+            }
+        }, 30L * 60 * 1000, 30L * 60 * 1000);
+    }
+
+    public static void checkNow(Config config, java.awt.Component parent,
+                                TaskCenter taskCenter, Runnable refreshTasks) {
+        ignoredVersion = null;
+        Thread thread = new Thread(() -> check(config, parent, taskCenter, refreshTasks, true),
+                "mclite-update-now");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private static void check(Config config, java.awt.Component parent,
                               TaskCenter taskCenter, Runnable refreshTasks) {
+        check(config, parent, taskCenter, refreshTasks, false);
+    }
+
+    private static void check(Config config, java.awt.Component parent,
+                              TaskCenter taskCenter, Runnable refreshTasks, boolean manual) {
         try {
             Log.info("检查启动器更新…");
             HttpClient client = HttpClient.newBuilder()
@@ -139,9 +162,16 @@ public final class Updater {
             String downloadVersion = version;
             String downloadUrl = url;
             if (!config.autoUpdate() && "normal".equals(channel)) {
+                if (!manual && version.equals(ignoredVersion)) {
+                    return;
+                }
                 SwingUtilities.invokeLater(() -> {
                     UpdateDialog dialog = new UpdateDialog(parent, Version.VALUE, downloadVersion);
                     dialog.setVisible(true);
+                    if (!dialog.confirmed()) {
+                        ignoredVersion = downloadVersion;
+                        return;
+                    }
                     if (dialog.confirmed()) {
                         Thread downloader = new Thread(() -> downloadUpdate(
                                 config, downloadVersion, channel, downloadUrl, null,
