@@ -18,4 +18,5 @@ case "${1:-patch}" in
 esac
 next="$major.$minor.$patch"
 printf '%s\n' "$next" > VERSION
+perl -0pi -e "s/return \"[0-9.]+\";/return \"$next\";/" src/mclite/Version.java
 echo "$current -> $next"
