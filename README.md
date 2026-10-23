@@ -20,7 +20,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 
 ## 运行
 
-当前版本：V1.0.1
+当前版本：V1.0.2
 
 需要 Java 21 或更高版本。
 
@@ -28,7 +28,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.0.2.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -39,7 +39,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite-region.jar
+java -jar dist/MCLite_v1.0.2-region.jar
 ```
 
 ## 地区限制
@@ -58,6 +58,22 @@ java -jar dist/MCLite-region.jar
 
 为遵守相关法律法规，我们不对中国大陆地区提供游戏本体和整合包下载服务，模组下载服务可用，请前往官网自行下载。
 
+## 版本命名
+
+- 小版本：`x.y.(z+1)`
+- 大版本：`x.(y+1).(z+5)`
+
+构建文件、应用包和启动器内部版本都使用同一个版本号。
+
+升级版本：
+
+```bash
+./bump-version.sh patch
+./bump-version.sh major
+```
+
+然后重新运行 `./build.sh`。
+
 ## 构建
 
 ```bash
@@ -67,14 +83,14 @@ java -jar dist/MCLite-region.jar
 会生成：
 
 ```text
-dist/MCLite-region.jar
-dist/MC Lite Region.app
-dist/MC-Lite-region-macOS.zip
-dist/MC-Lite-region-Windows.zip
+dist/MCLite_v1.0.2-region.jar
+dist/MC Lite Region v1.0.2.app
+dist/MC-Lite_v1.0.2_region_macOS.zip
+dist/MC-Lite_v1.0.2_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite-region-Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.0.2_region_Windows.zip`，双击 `start.bat`。
 
 ## Java 和游戏目录
 

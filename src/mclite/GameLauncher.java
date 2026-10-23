@@ -17,7 +17,7 @@ import java.util.UUID;
 
 public final class GameLauncher {
     public static final String LAUNCHER_NAME = "MCLite";
-    public static final String LAUNCHER_VERSION = "1.0.1";
+    public static final String LAUNCHER_VERSION = Version.VALUE;
 
     private GameLauncher() {
     }
