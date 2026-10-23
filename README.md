@@ -70,10 +70,11 @@ java -jar dist/MCLite-region.jar
 dist/MCLite-region.jar
 dist/MC Lite Region.app
 dist/MC-Lite-region-macOS.zip
+dist/MC-Lite-region-Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 可以直接运行 `run-region.bat`。
+Windows 解压 `dist/MC-Lite-region-Windows.zip`，双击 `start.bat`。
 
 ## Java 和游戏目录
 
