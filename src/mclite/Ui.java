@@ -1200,6 +1200,8 @@ public final class Ui {
             int size = Math.min(getWidth(), getHeight());
             g2.setColor(Theme.CARD_ALT);
             g2.fillRoundRect(0, 0, size, size, 10, 10);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g2.setClip(new RoundRectangle2D.Float(0, 0, size, size, 10, 10));
             if (skin == null || skin.getWidth(null) < 16) {
                 drawFallback(g2, size);

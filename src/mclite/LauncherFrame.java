@@ -3889,6 +3889,7 @@ public final class LauncherFrame extends JFrame {
 
         Path gameContentDir = config.effectiveGameDir(entry.id());
         lastGameContentDir = gameContentDir;
+        SkinStore.copyForGame(config, config.accountId(), gameContentDir);
         launching = true;
         LaunchProgress launchProgress = new LaunchProgress(this, entry.id());
         launchProgress.setVisible(true);
