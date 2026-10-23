@@ -1,0 +1,5 @@
+Java 21:
+https://adoptium.net/zh-CN/temurin/releases/?version=21
+
+Minecraft 官网:
+https://www.minecraft.net/zh-hans/download

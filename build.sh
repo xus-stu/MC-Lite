@@ -178,10 +178,18 @@ if not exist "dist\MCLite-region.jar" (
 java -Xms32m -Xmx256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist\MCLite-region.jar" %*
 BAT
 
+rm -rf build/windows
+mkdir -p build/windows/MC-Lite-Region
+cp dist/MCLite-region.jar build/windows/MC-Lite-Region/
+cp LICENSE NOTICE TRADEMARK.md build/windows/MC-Lite-Region/
+cp packaging/windows/start.bat packaging/windows/debug.bat packaging/windows/README.txt packaging/windows/java-download.txt build/windows/MC-Lite-Region/
+(cd build/windows && zip -rq ../../dist/MC-Lite-region-Windows.zip MC-Lite-Region)
+rm -f dist/MC-Lite-region-Windows.zip.sha256
+
 if command -v shasum >/dev/null 2>&1; then
-  (cd dist && files="MCLite-region.jar"; for z in MC-Lite-region-macOS.zip; do [ -f "$z" ] && files="$files $z"; done; shasum -a 256 $files > SHA256SUMS.txt)
+  (cd dist && files="MCLite-region.jar"; for z in MC-Lite-region-macOS.zip MC-Lite-region-Windows.zip; do [ -f "$z" ] && files="$files $z"; done; shasum -a 256 $files > SHA256SUMS.txt)
 else
-  (cd dist && files="MCLite-region.jar"; for z in MC-Lite-region-macOS.zip; do [ -f "$z" ] && files="$files $z"; done; sha256sum $files > SHA256SUMS.txt)
+  (cd dist && files="MCLite-region.jar"; for z in MC-Lite-region-macOS.zip MC-Lite-region-Windows.zip; do [ -f "$z" ] && files="$files $z"; done; sha256sum $files > SHA256SUMS.txt)
 fi
 
 echo "[4/4] 完成。"
