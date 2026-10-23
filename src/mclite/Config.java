@@ -33,6 +33,7 @@ public final class Config {
     private boolean autoJvmTuning = true;
     private boolean autoDownloadJava = true;
     private boolean metalRendering;
+    private boolean autoUpdate = true;
     private boolean sidebarCollapsed;
     private String filter = "release";
     private String lastVersion = "";
@@ -112,6 +113,8 @@ public final class Config {
                     properties.getProperty("autoDownloadJava", "true"));
             config.metalRendering = Boolean.parseBoolean(
                     properties.getProperty("metalRendering", "false"));
+            config.autoUpdate = Boolean.parseBoolean(
+                    properties.getProperty("autoUpdate", "true"));
             config.sidebarCollapsed = Boolean.parseBoolean(
                     properties.getProperty("sidebarCollapsed", "false"));
             String savedFilter = properties.getProperty("filter", "release");
@@ -151,6 +154,7 @@ public final class Config {
         copy.autoJvmTuning = autoJvmTuning;
         copy.autoDownloadJava = autoDownloadJava;
         copy.metalRendering = metalRendering;
+        copy.autoUpdate = autoUpdate;
         copy.sidebarCollapsed = sidebarCollapsed;
         copy.filter = filter;
         copy.lastVersion = lastVersion;
@@ -299,6 +303,14 @@ public final class Config {
 
     public void forceModTranslation(boolean value) {
         this.forceModTranslation = value;
+    }
+
+    public boolean autoUpdate() {
+        return autoUpdate;
+    }
+
+    public void autoUpdate(boolean value) {
+        this.autoUpdate = value;
     }
 
     public boolean metalRendering() {
@@ -484,6 +496,7 @@ public final class Config {
             properties.setProperty("autoJvmTuning", Boolean.toString(autoJvmTuning));
             properties.setProperty("autoDownloadJava", Boolean.toString(autoDownloadJava));
             properties.setProperty("metalRendering", Boolean.toString(metalRendering));
+            properties.setProperty("autoUpdate", Boolean.toString(autoUpdate));
             properties.setProperty("sidebarCollapsed", Boolean.toString(sidebarCollapsed));
             properties.setProperty("filter", filter);
             properties.setProperty("lastVersion", lastVersion);
