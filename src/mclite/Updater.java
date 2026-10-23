@@ -1,6 +1,8 @@
 package mclite;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -90,16 +92,18 @@ public final class Updater {
         }
     }
 
-    public static void startBackground(Config config, java.awt.Component parent) {
+    public static void startBackground(Config config, java.awt.Component parent,
+                                      TaskCenter taskCenter, Runnable refreshTasks) {
         if (!config.autoUpdate() && "region".equals(channel())) {
             return;
         }
-        Thread thread = new Thread(() -> check(config, parent), "mclite-update");
+        Thread thread = new Thread(() -> check(config, parent, taskCenter, refreshTasks), "mclite-update");
         thread.setDaemon(true);
         thread.start();
     }
 
-    private static void check(Config config, java.awt.Component parent) {
+    private static void check(Config config, java.awt.Component parent,
+                              TaskCenter taskCenter, Runnable refreshTasks) {
         try {
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(12))
@@ -146,7 +150,8 @@ public final class Updater {
                             "发现新版本 V" + version + "。\n\n是否现在下载？下载完成后下次启动生效。");
                     if (yes) {
                         Thread downloader = new Thread(() -> downloadUpdate(
-                                config, version, channel, downloadUrl, downloadDigest),
+                                config, version, channel, downloadUrl, downloadDigest,
+                                taskCenter, refreshTasks),
                                 "mclite-update-download");
                         downloader.setDaemon(true);
                         downloader.start();
@@ -154,45 +159,76 @@ public final class Updater {
                 });
                 return;
             }
-            downloadUpdate(config, version, channel, downloadUrl, downloadDigest);
+            downloadUpdate(config, version, channel, downloadUrl, downloadDigest,
+                    taskCenter, refreshTasks);
         } catch (Exception ex) {
             Log.warn("检查启动器更新失败: " + ex.getMessage());
         }
     }
 
     private static void downloadUpdate(Config config, String version, String channel,
-                                       String url, String digest) {
+                                       String url, String digest,
+                                       TaskCenter taskCenter, Runnable refreshTasks) {
+        DownloadTask task = taskCenter.start("启动器更新 V" + version, "GitHub Release");
+        if (refreshTasks != null) {
+            SwingUtilities.invokeLater(refreshTasks);
+        }
+        TaskProgress progress = new TaskProgress();
+        progress.stage("连接更新源…");
         try {
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(12))
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .build();
-            HttpRequest download = HttpRequest.newBuilder(URI.create(url))
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                     .timeout(Duration.ofMinutes(5))
                     .header("User-Agent", "MCLite/" + Version.VALUE)
                     .GET().build();
-            HttpResponse<byte[]> bytes = client.send(download,
-                    HttpResponse.BodyHandlers.ofByteArray());
-            if (bytes.statusCode() != 200 || bytes.body().length < 1024) {
-                return;
+            HttpResponse<InputStream> response = client.send(request,
+                    HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() != 200) {
+                throw new IOException("HTTP " + response.statusCode());
             }
-            if (digest != null && digest.startsWith("sha256:")) {
-                String actual = sha256(bytes.body());
-                if (!digest.substring("sha256:".length()).equalsIgnoreCase(actual)) {
-                    Log.warn("启动器更新哈希不匹配");
-                    return;
-                }
-            }
+            long length = response.headers().firstValueAsLong("content-length").orElse(-1);
+            progress.total(length);
+            progress.stage("下载更新文件…");
+            Path folder = config.appHome().resolve("updates/v" + version);
+            Files.createDirectories(folder);
             boolean patch = "normal".equals(channel) && config.removeRegionLimits();
             String wanted = "MCLite_v" + version
                     + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
-            Path folder = config.appHome().resolve("updates/v" + version);
-            Files.createDirectories(folder);
             Path target = folder.resolve("MCLite_v" + version
                     + ("region".equals(channel) ? "-region.jar" : ".jar"));
             Path source = folder.resolve(wanted + ".part");
-            Files.write(source, bytes.body());
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            try (InputStream in = response.body();
+                 OutputStream out = Files.newOutputStream(source)) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = in.read(buffer)) >= 0) {
+                    if (read == 0) {
+                        continue;
+                    }
+                    out.write(buffer, 0, read);
+                    sha.update(buffer, 0, read);
+                    progress.add(read);
+                    taskCenter.update(task, progress);
+                    if (refreshTasks != null) {
+                        SwingUtilities.invokeLater(refreshTasks);
+                    }
+                }
+            }
+            if (digest != null && digest.startsWith("sha256:")) {
+                String actual = java.util.HexFormat.of().formatHex(sha.digest());
+                if (!digest.substring("sha256:".length()).equalsIgnoreCase(actual)) {
+                    Files.deleteIfExists(source);
+                    throw new IOException("更新文件哈希不匹配");
+                }
+            }
+            progress.stage("准备更新…");
+            taskCenter.update(task, progress);
             if (patch) {
+                task.stage("移除地区限制…");
                 RegionPatcher.makeUnrestricted(source, target);
                 Files.deleteIfExists(source);
             } else {
@@ -206,8 +242,17 @@ public final class Updater {
             try (var out = Files.newOutputStream(marker)) {
                 pending.store(out, null);
             }
+            task.stage("下载完成，下次启动生效");
+            taskCenter.finish(task);
+            if (refreshTasks != null) {
+                SwingUtilities.invokeLater(refreshTasks);
+            }
             Log.info("已下载启动器更新 v" + version + "，下次启动生效");
         } catch (Exception ex) {
+            taskCenter.fail(task, ex.getMessage());
+            if (refreshTasks != null) {
+                SwingUtilities.invokeLater(refreshTasks);
+            }
             Log.warn("下载启动器更新失败: " + ex.getMessage());
         }
     }
