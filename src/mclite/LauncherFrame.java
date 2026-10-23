@@ -86,6 +86,7 @@ public final class LauncherFrame extends JFrame {
     private Ui.ToggleChip autoMemoryToggle;
     private Ui.ToggleChip autoJvmToggle;
     private Ui.ToggleChip autoJavaToggle;
+    private Ui.ToggleChip metalToggle;
     private Ui.ValueSlider widthSlider;
     private Ui.ValueSlider heightSlider;
     private JToggleButton assetsToggle;
@@ -1783,6 +1784,23 @@ public final class LauncherFrame extends JFrame {
             updateLaunchInfo();
         });
         performance.add(autoJvmToggle);
+        if (isMac()) {
+            performance.add(Ui.vgap(8));
+            metalToggle = new Ui.ToggleChip("强制使用 Metal 渲染（实验性，重启生效）");
+            metalToggle.setSelected(config.metalRendering());
+            metalToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+            metalToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+            metalToggle.setToolTipText("启用后使用 Metal 绘制界面；如果出现黑屏或花屏，关闭此选项并重启");
+            metalToggle.addActionListener(e -> {
+                config.metalRendering(metalToggle.isSelected());
+                config.save();
+                ModernDialogs.message(this, "渲染设置",
+                        metalToggle.isSelected()
+                                ? "已启用 Metal 渲染，重启启动器后生效。\n如果界面黑屏，请编辑配置关闭 metalRendering。"
+                                : "已恢复软件渲染，重启启动器后生效。");
+            });
+            performance.add(metalToggle);
+        }
         performance.add(Ui.vgap(10));
 
         JLabel jvmLabel = Ui.label("额外 JVM 参数", Theme.TINY, Theme.DIM);
@@ -4602,6 +4620,10 @@ public final class LauncherFrame extends JFrame {
             return fallback;
         }
         return message + (fallback == null || fallback.isBlank() ? "" : "\n\n" + fallback);
+    }
+
+    private static boolean isMac() {
+        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
     }
 
     private static boolean isWindows() {

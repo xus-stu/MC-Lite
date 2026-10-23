@@ -82,6 +82,8 @@ Windows 解压 `dist/MC-Lite-region-Windows.zip`，双击 `start.bat`。
 
 Windows 便携版内置独立的 Java 21 运行时，使用自己的 `runtime`，不会修改或覆盖系统 JDK。
 
+macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界面，重启后生效；如果开启后黑屏，关闭它再重启。
+
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
 
 ```text

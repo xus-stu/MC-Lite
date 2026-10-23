@@ -35,6 +35,13 @@ public final class LauncherApp {
         }
 
         Config config = Config.load();
+        if (config.metalRendering()) {
+            System.setProperty("sun.java2d.metal", "true");
+            System.setProperty("sun.java2d.opengl", "false");
+        } else {
+            System.setProperty("sun.java2d.metal", "false");
+            System.setProperty("sun.java2d.opengl", "false");
+        }
         Log.init(config.logsDir().resolve("launcher.log"));
         Theme.applyCss(config.uiCssFile());
         if (!config.uiFontFamily().isBlank()) {
