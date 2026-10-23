@@ -108,6 +108,8 @@ MCLite_v版本.jar             普通版
 MCLite_v版本-region.jar      地区版
 ```
 
+只有 tag、没有 jar 附件的 Release 不会触发更新。普通版自动更新要求普通版 jar 也作为 Release 附件提供，这会与“普通版不公开”的要求冲突，需要单独取舍。
+
 ## Java 和游戏目录
 
 默认目录是 `~/.mclite`。游戏目录可以在启动器配置里修改，也可以直接导入 HMCL 的目录。
