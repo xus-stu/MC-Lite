@@ -102,7 +102,7 @@ if ! echo "$VERSION_OUTPUT" | grep -Eq ' version "(2[1-9]|[3-9][0-9])'; then
   osascript -e "display dialog \"当前 Java 版本过低：\n$VERSION_LINE\n\nMC Lite 需要 Java 21 或更高版本。\" buttons {\"好\"} default button 1 with icon caution" >/dev/null 2>&1 || true
   exit 1
 fi
-exec "$JAVA" -Xms32m -Xmx256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "$JAR" "$@"
+exec "$JAVA" -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "$JAR" "$@"
 LAUNCHER
   chmod +x "$APP/Contents/MacOS/MCLite"
   if command -v ditto >/dev/null 2>&1; then
@@ -137,7 +137,7 @@ cd "$(dirname "$0")"
 if [ ! -f dist/MCLite.jar ]; then
   ./build.sh
 fi
-exec java -Xms32m -Xmx256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar dist/MCLite.jar "$@"
+exec java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar dist/MCLite.jar "$@"
 RUN
 chmod +x run.sh
 
@@ -155,7 +155,7 @@ cd "$(dirname "$0")"
 if [ ! -f dist/MCLite-region.jar ]; then
   ./build.sh
 fi
-exec java -Xms32m -Xmx256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar dist/MCLite-region.jar "$@"
+exec java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar dist/MCLite-region.jar "$@"
 RUN
 chmod +x run-region.sh
 
@@ -175,7 +175,7 @@ if not exist "dist\MCLite-region.jar" (
   pause
   exit /b 1
 )
-java -Xms32m -Xmx256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist\MCLite-region.jar" %*
+java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist\MCLite-region.jar" %*
 BAT
 
 rm -rf build/windows

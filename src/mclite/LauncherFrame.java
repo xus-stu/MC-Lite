@@ -244,11 +244,49 @@ public final class LauncherFrame extends JFrame {
             public void windowClosing(WindowEvent e) {
                 closeApplication();
             }
+
+            @Override
+            public void windowActivated(WindowEvent e) {
+                repaintAfterWake();
+            }
+
+            @Override
+            public void windowDeiconified(WindowEvent e) {
+                repaintAfterWake();
+            }
+        });
+        addWindowFocusListener(new java.awt.event.WindowFocusListener() {
+            @Override
+            public void windowGainedFocus(java.awt.event.WindowEvent e) {
+                repaintAfterWake();
+            }
+
+            @Override
+            public void windowLostFocus(java.awt.event.WindowEvent e) {
+            }
         });
         refreshInstalledCache();
         refreshJavaChoices(null);
         startJavaDetection();
         loadManifest();
+    }
+
+    private void repaintAfterWake() {
+        SwingUtilities.invokeLater(() -> {
+            repaintTree(this);
+            invalidate();
+            validate();
+        });
+    }
+
+    private static void repaintTree(java.awt.Component component) {
+        component.invalidate();
+        component.repaint();
+        if (component instanceof java.awt.Container container) {
+            for (java.awt.Component child : container.getComponents()) {
+                repaintTree(child);
+            }
+        }
     }
 
     private JPanel buildRoot() {
@@ -1666,7 +1704,15 @@ public final class LauncherFrame extends JFrame {
         page.setBackground(Theme.BG);
         Ui.AccentButton openData = Ui.smallButton("打开数据目录", Ui.AccentButton.Style.GHOST);
         openData.addActionListener(e -> openConfigDirectory());
-        page.add(pageHeader("设置", "性能、窗口和下载选项会自动保存", openData), BorderLayout.NORTH);
+        Ui.AccentButton openLogs = Ui.smallButton("打开日志目录", Ui.AccentButton.Style.GHOST);
+        openLogs.addActionListener(e -> openLogsDirectory());
+        JPanel settingsActions = new JPanel();
+        settingsActions.setOpaque(false);
+        settingsActions.setLayout(new BoxLayout(settingsActions, BoxLayout.X_AXIS));
+        settingsActions.add(openLogs);
+        settingsActions.add(Ui.hgap(6));
+        settingsActions.add(openData);
+        page.add(pageHeader("设置", "性能、窗口和下载选项会自动保存", settingsActions), BorderLayout.NORTH);
         JScrollPane scroll = Ui.scroll(buildSettingsForm());
         page.add(scroll, BorderLayout.CENTER);
         SwingUtilities.invokeLater(() -> {
@@ -3216,6 +3262,15 @@ public final class LauncherFrame extends JFrame {
         config.jvmArgs(jvmArgsField.getText());
         config.save();
         updateLaunchInfo();
+    }
+
+    private void openLogsDirectory() {
+        try {
+            Files.createDirectories(config.logsDir());
+            openPath(config.logsDir());
+        } catch (IOException ex) {
+            showError("无法打开日志目录", ex.getMessage());
+        }
     }
 
     private void openConfigDirectory() {

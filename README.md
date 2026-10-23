@@ -80,6 +80,14 @@ Windows 解压 `dist/MC-Lite-region-Windows.zip`，双击 `start.bat`。
 
 默认目录是 `~/.mclite`。游戏目录可以在启动器配置里修改，也可以直接导入 HMCL 的目录。
 
+Windows 便携版内置独立的 Java 21 运行时，使用自己的 `runtime`，不会修改或覆盖系统 JDK。
+
+启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
+
+```text
+C:\Users\<用户名>\.mclite\logs
+```
+
 版本隔离默认开启。关闭后，所有版本共用同一个 `.minecraft`。
 
 ## 下载内容
