@@ -84,6 +84,12 @@ Windows 便携版内置独立的 Java 21 运行时，使用自己的 `runtime`�
 
 macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界面，重启后生效；如果开启后黑屏，关闭它再重启。
 
+紧急恢复时可以加参数启动：
+
+```bash
+java -jar dist/MCLite.jar --software-render
+```
+
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
 
 ```text
