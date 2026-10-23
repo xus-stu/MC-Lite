@@ -963,7 +963,7 @@ public final class Ui {
         public ThinProgress() {
             setPreferredSize(new Dimension(100, 3));
             setMinimumSize(new Dimension(40, 3));
-            timer = new Timer(70, e -> {
+            timer = new Timer(30, e -> {
                 if (indeterminate && isShowing()) {
                     repaint();
                 }
@@ -1259,7 +1259,7 @@ public final class Ui {
             setPreferredSize(new Dimension(size, size));
             setMinimumSize(new Dimension(size, size));
             setMaximumSize(new Dimension(size, size));
-            shimmer = new Timer(80, e -> {
+            shimmer = new Timer(45, e -> {
                 if (image != null || ImageCache.get(url) != null) {
                     ((Timer) e.getSource()).stop();
                     return;
