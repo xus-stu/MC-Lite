@@ -1259,7 +1259,7 @@ public final class Ui {
             setPreferredSize(new Dimension(size, size));
             setMinimumSize(new Dimension(size, size));
             setMaximumSize(new Dimension(size, size));
-            shimmer = new Timer(45, e -> {
+            shimmer = new Timer(80, e -> {
                 if (image != null || ImageCache.get(url) != null) {
                     ((Timer) e.getSource()).stop();
                     return;
