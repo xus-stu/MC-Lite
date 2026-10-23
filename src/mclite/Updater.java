@@ -160,7 +160,7 @@ public final class Updater {
                     + version + "/" + wanted;
             Log.info("发现启动器更新 V" + version + "（" + channel + "）");
             String downloadVersion = version;
-            String downloadUrl = url;
+            java.util.List<String> downloadUrls = updateUrls(url);
             if (!config.autoUpdate() && "normal".equals(channel)) {
                 if (!manual && version.equals(ignoredVersion)) {
                     return;
@@ -174,7 +174,7 @@ public final class Updater {
                     }
                     if (dialog.confirmed()) {
                         Thread downloader = new Thread(() -> downloadUpdate(
-                                config, downloadVersion, channel, downloadUrl, null,
+                                config, downloadVersion, channel, downloadUrls, null,
                                 taskCenter, refreshTasks),
                                 "mclite-update-download");
                         downloader.setDaemon(true);
@@ -183,7 +183,7 @@ public final class Updater {
                 });
                 return;
             }
-            downloadUpdate(config, downloadVersion, channel, downloadUrl, null,
+            downloadUpdate(config, downloadVersion, channel, downloadUrls, null,
                     taskCenter, refreshTasks);
         } catch (Exception ex) {
             Log.warn("检查启动器更新失败: " + ex.getMessage());
@@ -213,8 +213,30 @@ public final class Updater {
         return null;
     }
 
+    private static String hostOf(String url) {
+        try {
+            String host = URI.create(url).getHost();
+            return host == null ? "更新源" : host;
+        } catch (Exception ex) {
+            return "更新源";
+        }
+    }
+
+    private static java.util.List<String> updateUrls(String direct) {
+        java.util.LinkedHashSet<String> urls = new java.util.LinkedHashSet<>();
+        urls.add(direct);
+        for (String prefix : new String[]{
+                "https://ghproxy.net/",
+                "https://gh-proxy.com/",
+                "https://ghfast.top/",
+                "https://github.moeyy.xyz/"}) {
+            urls.add(prefix + direct);
+        }
+        return new java.util.ArrayList<>(urls);
+    }
+
     private static void downloadUpdate(Config config, String version, String channel,
-                                       String url, String digest,
+                                       java.util.List<String> urls, String digest,
                                        TaskCenter taskCenter, Runnable refreshTasks) {
         DownloadTask task = taskCenter.start("启动器更新 · V" + version, "GitHub Releases");
         if (refreshTasks != null) {
@@ -228,14 +250,26 @@ public final class Updater {
                     .connectTimeout(Duration.ofSeconds(12))
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .build();
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                    .timeout(Duration.ofMinutes(5))
-                    .header("User-Agent", "MCLite/" + Version.VALUE)
-                    .GET().build();
-            HttpResponse<InputStream> response = client.send(request,
-                    HttpResponse.BodyHandlers.ofInputStream());
-            if (response.statusCode() != 200) {
-                throw new IOException("HTTP " + response.statusCode());
+            HttpResponse<InputStream> response = null;
+            for (String url : urls) {
+                try {
+                    task.stage("连接更新源 · " + hostOf(url));
+                    HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                            .timeout(Duration.ofMinutes(2))
+                            .header("User-Agent", "MCLite/" + Version.VALUE)
+                            .GET().build();
+                    HttpResponse<InputStream> candidate = client.send(request,
+                            HttpResponse.BodyHandlers.ofInputStream());
+                    if (candidate.statusCode() == 200) {
+                        response = candidate;
+                        break;
+                    }
+                } catch (Exception ex) {
+                    Log.warn("更新源失败 " + hostOf(url) + ": " + ex.getMessage());
+                }
+            }
+            if (response == null) {
+                throw new IOException("所有更新源均不可用");
             }
             long length = response.headers().firstValueAsLong("content-length").orElse(-1);
             progress.total(length);
