@@ -49,12 +49,22 @@ public final class LoaderInstaller {
     }
 
     public String latestVersion(String type) throws IOException {
+        return latestVersion(type, null);
+    }
+
+    public String latestVersion(String type, String minecraftVersion) throws IOException {
+        if ("forge".equals(type)) {
+            return latestForge(minecraftVersion, false);
+        }
+        if ("neoforge".equals(type)) {
+            return latestForge(minecraftVersion, true);
+        }
         String url = "fabric".equals(type)
                 ? "https://meta.fabricmc.net/v2/versions/loader"
                 : "quilt".equals(type)
                 ? "https://meta.quiltmc.org/v3/versions/loader" : null;
         if (url == null) {
-            throw new IOException("Forge / NeoForge 需要手动填写加载器版本");
+            throw new IOException("不支持的加载器: " + type);
         }
         byte[] bytes = net.getUnverifiedBytes(url, type + " 加载器版本列表");
         String fallback = null;
@@ -75,6 +85,78 @@ public final class LoaderInstaller {
             throw new IOException("没有找到可用的 " + type + " 加载器版本");
         }
         return fallback;
+    }
+
+    private String latestForge(String minecraftVersion, boolean neoForge) throws IOException {
+        if (minecraftVersion == null || minecraftVersion.isBlank()) {
+            throw new IOException("缺少 Minecraft 版本");
+        }
+        String url = neoForge
+                ? "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml"
+                : "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml";
+        String prefix = neoForge ? neoPrefix(minecraftVersion) : minecraftVersion + "-";
+        byte[] bytes = net.getUnverifiedBytes(url,
+                (neoForge ? "NeoForge" : "Forge") + " 版本列表");
+        String text = new String(bytes, StandardCharsets.UTF_8);
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("<version>([^<]+)</version>").matcher(text);
+        String best = null;
+        while (matcher.find()) {
+            String full = matcher.group(1).trim();
+            if (!full.startsWith(prefix)) {
+                continue;
+            }
+            String candidate = full.substring(prefix.length());
+            if (candidate.isBlank()) {
+                continue;
+            }
+            if (best == null || compareVersion(candidate, best) > 0) {
+                best = candidate;
+            }
+        }
+        if (best == null) {
+            throw new IOException("没有找到 " + minecraftVersion + " 的最新 "
+                    + (neoForge ? "NeoForge" : "Forge") + " 版本");
+        }
+        return best;
+    }
+
+    private static String neoPrefix(String minecraftVersion) {
+        if ("1.20.1".equals(minecraftVersion)) {
+            return "47.1.";
+        }
+        if (minecraftVersion.startsWith("1.20.")) {
+            return "20." + minecraftVersion.substring("1.20.".length()) + ".";
+        }
+        if (minecraftVersion.startsWith("1.21")) {
+            String[] parts = minecraftVersion.split("\\.");
+            String minor = parts.length > 1 ? parts[1] : "0";
+            String patch = parts.length > 2 ? parts[2] : "0";
+            return minor + "." + patch + ".";
+        }
+        return minecraftVersion.replaceFirst("^1\\.", "") + ".";
+    }
+
+    private static int compareVersion(String a, String b) {
+        String[] left = a.split("[.-]");
+        String[] right = b.split("[.-]");
+        int count = Math.max(left.length, right.length);
+        for (int i = 0; i < count; i++) {
+            int l = i < left.length ? parseInt(left[i]) : 0;
+            int r = i < right.length ? parseInt(right[i]) : 0;
+            if (l != r) {
+                return Integer.compare(l, r);
+            }
+        }
+        return a.compareTo(b);
+    }
+
+    private static int parseInt(String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 
     private String installFromMeta(String type, String url, String minecraftVersion)
