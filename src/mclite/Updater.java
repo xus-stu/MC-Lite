@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import javax.swing.SwingUtilities;
 
 public final class Updater {
     private static final String REPO = "xus-stu/MC-Lite";
@@ -89,16 +90,16 @@ public final class Updater {
         }
     }
 
-    public static void startBackground(Config config) {
-        if (!config.autoUpdate()) {
+    public static void startBackground(Config config, java.awt.Component parent) {
+        if (!config.autoUpdate() && "region".equals(channel())) {
             return;
         }
-        Thread thread = new Thread(() -> check(config), "mclite-update");
+        Thread thread = new Thread(() -> check(config, parent), "mclite-update");
         thread.setDaemon(true);
         thread.start();
     }
 
-    private static void check(Config config) {
+    private static void check(Config config, java.awt.Component parent) {
         try {
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(12))
@@ -137,6 +138,35 @@ public final class Updater {
             if (url == null) {
                 return;
             }
+            String downloadUrl = url;
+            String downloadDigest = digest;
+            if (!config.autoUpdate() && "normal".equals(channel)) {
+                SwingUtilities.invokeLater(() -> {
+                    boolean yes = ModernDialogs.confirm(parent, "发现启动器更新",
+                            "发现新版本 V" + version + "。\n\n是否现在下载？下载完成后下次启动生效。");
+                    if (yes) {
+                        Thread downloader = new Thread(() -> downloadUpdate(
+                                config, version, channel, downloadUrl, downloadDigest),
+                                "mclite-update-download");
+                        downloader.setDaemon(true);
+                        downloader.start();
+                    }
+                });
+                return;
+            }
+            downloadUpdate(config, version, channel, downloadUrl, downloadDigest);
+        } catch (Exception ex) {
+            Log.warn("检查启动器更新失败: " + ex.getMessage());
+        }
+    }
+
+    private static void downloadUpdate(Config config, String version, String channel,
+                                       String url, String digest) {
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(12))
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .build();
             HttpRequest download = HttpRequest.newBuilder(URI.create(url))
                     .timeout(Duration.ofMinutes(5))
                     .header("User-Agent", "MCLite/" + Version.VALUE)
@@ -153,6 +183,9 @@ public final class Updater {
                     return;
                 }
             }
+            boolean patch = "normal".equals(channel) && config.removeRegionLimits();
+            String wanted = "MCLite_v" + version
+                    + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
             Path folder = config.appHome().resolve("updates/v" + version);
             Files.createDirectories(folder);
             Path target = folder.resolve("MCLite_v" + version
@@ -175,7 +208,7 @@ public final class Updater {
             }
             Log.info("已下载启动器更新 v" + version + "，下次启动生效");
         } catch (Exception ex) {
-            Log.warn("检查启动器更新失败: " + ex.getMessage());
+            Log.warn("下载启动器更新失败: " + ex.getMessage());
         }
     }
 

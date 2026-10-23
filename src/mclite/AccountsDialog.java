@@ -45,8 +45,8 @@ public final class AccountsDialog extends JDialog {
             selectedId = data.selectedId();
         }
 
-        JPanel root = new JPanel(new BorderLayout(0, 14));
-        root.setBackground(Theme.BG);
+        JPanel root = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 18);
+        root.setLayout(new BorderLayout(0, 14));
         root.setBorder(new EmptyBorder(20, 20, 18, 20));
         setContentPane(root);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
@@ -62,21 +62,13 @@ public final class AccountsDialog extends JDialog {
         root.add(header, BorderLayout.NORTH);
 
         list.setBackground(Theme.CARD);
-        list.setSelectionBackground(Theme.SELECTED);
+        list.setSelectionBackground(Theme.CARD);
         list.setSelectionForeground(Theme.TEXT);
-        list.setFixedCellHeight(34);
+        list.setFixedCellHeight(58);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setCellRenderer((jlist, value, index, isSelected, cellHasFocus) -> {
-            JLabel label = new JLabel("  " + value.name() + "    ·    离线账户");
-            label.setOpaque(true);
-            label.setFont(Theme.BODY);
-            label.setBackground(isSelected ? Theme.SELECTED : Theme.CARD);
-            label.setForeground(isSelected ? Theme.TEXT : Theme.MUTED);
-            label.setBorder(new EmptyBorder(4, 8, 4, 8));
-            return label;
-        });
+        list.setCellRenderer(new AccountCell());
         JScrollPane scroll = new JScrollPane(list);
-        scroll.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
+        scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
         scroll.getViewport().setBackground(Theme.CARD);
         list.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
@@ -108,6 +100,8 @@ public final class AccountsDialog extends JDialog {
         removeSkin.addActionListener(e -> removeSkin());
         skinPanel.add(removeSkin);
         skinPanel.setPreferredSize(new Dimension(130, 0));
+        skinPanel.setBorder(new EmptyBorder(10, 12, 10, 12));
+        skinPanel.setBackground(Theme.CARD);
         accountArea.add(skinPanel, BorderLayout.EAST);
         root.add(accountArea, BorderLayout.CENTER);
 
@@ -163,7 +157,7 @@ public final class AccountsDialog extends JDialog {
         root.add(bottom, BorderLayout.SOUTH);
 
         selectCurrent();
-        setSize(600, 540);
+        setSize(660, 590);
         setLocationRelativeTo(owner);
     }
 
@@ -305,4 +299,57 @@ public final class AccountsDialog extends JDialog {
     private static String shorten(String text) {
         return text.length() <= 58 ? text : "…" + text.substring(text.length() - 57);
     }
+    private final class AccountCell extends JPanel
+            implements javax.swing.ListCellRenderer<AccountStore.Account> {
+        private final JLabel name = new JLabel();
+        private final JLabel meta = new JLabel("离线账户");
+        private final Ui.SkinHead head = new Ui.SkinHead(34);
+        private final java.util.Map<String, java.awt.Image> skins = new java.util.HashMap<>();
+
+        private AccountCell() {
+            setOpaque(false);
+            setLayout(new BorderLayout(12, 0));
+            setBorder(new EmptyBorder(7, 12, 7, 12));
+            name.setFont(Theme.BODY_BOLD);
+            name.setForeground(Theme.TEXT);
+            meta.setFont(Theme.TINY);
+            meta.setForeground(Theme.DIM);
+            JPanel text = new JPanel(new BorderLayout(0, 2));
+            text.setOpaque(false);
+            text.add(name, BorderLayout.NORTH);
+            text.add(meta, BorderLayout.CENTER);
+            add(head, BorderLayout.WEST);
+            add(text, BorderLayout.CENTER);
+        }
+
+        @Override
+        public java.awt.Component getListCellRendererComponent(
+                javax.swing.JList<? extends AccountStore.Account> list,
+                AccountStore.Account value, int index, boolean selected, boolean focus) {
+            name.setText(value.name());
+            java.awt.Image image = skins.computeIfAbsent(value.id(),
+                    id -> SkinStore.load(config, id));
+            head.setSkin(image);
+            putClientProperty("selected", selected);
+            name.setForeground(selected ? Theme.TEXT : Theme.TEXT);
+            meta.setForeground(selected ? Theme.MUTED : Theme.DIM);
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(java.awt.Graphics g) {
+            java.awt.Graphics2D g2 = Ui.prepare(g);
+            java.awt.Color fill = Boolean.TRUE.equals(getClientProperty("selected"))
+                    ? Theme.CARD_ALT : Theme.CARD;
+            g2.setColor(fill);
+            g2.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 12, 12);
+            if (Boolean.TRUE.equals(getClientProperty("selected"))) {
+                g2.setColor(Theme.ACCENT);
+                g2.fillRoundRect(2, 10, 3, getHeight() - 20, 3, 3);
+            }
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
 }

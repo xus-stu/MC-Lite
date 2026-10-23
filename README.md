@@ -20,7 +20,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 
 ## 运行
 
-当前版本：V1.0.7
+当前版本：V1.0.8
 
 需要 Java 21 或更高版本。
 
@@ -28,7 +28,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.0.7.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.0.8.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -39,7 +39,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.0.7-region.jar
+java -jar dist/MCLite_v1.0.8-region.jar
 ```
 
 ## 地区限制
@@ -83,14 +83,14 @@ java -jar dist/MCLite_v1.0.7-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.0.7-region.jar
-dist/MC Lite Region v1.0.7.app
-dist/MC-Lite_v1.0.7_region_macOS.zip
-dist/MC-Lite_v1.0.7_region_Windows.zip
+dist/MCLite_v1.0.8-region.jar
+dist/MC Lite Region v1.0.8.app
+dist/MC-Lite_v1.0.8_region_macOS.zip
+dist/MC-Lite_v1.0.8_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.0.7_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.0.8_region_Windows.zip`，双击 `start.bat`。
 
 ## 自动更新
 
