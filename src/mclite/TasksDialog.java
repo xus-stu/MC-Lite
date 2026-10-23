@@ -72,7 +72,7 @@ public final class TasksDialog extends JDialog {
         root.add(bottom, BorderLayout.SOUTH);
 
         setContentPane(root);
-        refresh = new Timer(280, e -> refreshNow());
+        refresh = new Timer(50, e -> refreshNow());
         refresh.start();
         refreshNow();
         addWindowListener(new java.awt.event.WindowAdapter() {

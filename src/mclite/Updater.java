@@ -261,7 +261,7 @@ public final class Updater {
                     sha.update(buffer, 0, read);
                     progress.add(read);
                     long now = System.currentTimeMillis();
-                    if (now - lastUi[0] >= 300) {
+                    if (now - lastUi[0] >= 50) {
                         lastUi[0] = now;
                         taskCenter.update(task, progress);
                         if (refreshTasks != null) {
