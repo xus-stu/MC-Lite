@@ -105,19 +105,17 @@ public final class Updater {
     private static void check(Config config, java.awt.Component parent,
                               TaskCenter taskCenter, Runnable refreshTasks) {
         try {
+            Log.info("检查启动器更新…");
             HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(12))
+                    .connectTimeout(Duration.ofSeconds(10))
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .build();
-            String version = null;
-            String url = null;
-            String digest = null;
             String channel = channel();
             boolean patch = "normal".equals(channel) && config.removeRegionLimits();
-            String wanted = null;
-            try {
+            String version = latestFromHtml(client);
+            if (version == null || version.isBlank()) {
                 HttpRequest request = HttpRequest.newBuilder(URI.create(API))
-                        .timeout(Duration.ofSeconds(20))
+                        .timeout(Duration.ofSeconds(15))
                         .header("Accept", "application/vnd.github+json")
                         .header("User-Agent", "MCLite/" + Version.VALUE)
                         .GET().build();
@@ -127,45 +125,26 @@ public final class Updater {
                     Map<String, Object> release = Json.obj(Json.parse(response.body()));
                     String tag = Json.str(release, "tag_name", "").trim();
                     version = tag.startsWith("v") ? tag.substring(1) : tag;
-                    wanted = "MCLite_v" + version
-                            + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
-                    for (Object raw : Json.arr(release.get("assets"))) {
-                        Map<String, Object> asset = Json.obj(raw);
-                        if (wanted.equals(Json.str(asset, "name", ""))) {
-                            url = Json.str(asset, "browser_download_url");
-                            digest = Json.str(asset, "digest");
-                            break;
-                        }
-                    }
                 }
-            } catch (Exception ex) {
-                Log.warn("GitHub API 检查失败，尝试 Release 页面: " + ex.getMessage());
-            }
-            if (version == null || version.isBlank()) {
-                version = latestFromHtml(client);
             }
             if (version == null || version.isBlank()
                     || compare(version, Version.VALUE) <= 0) {
                 return;
             }
-            if (wanted == null) {
-                wanted = "MCLite_v" + version
-                        + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
-            }
-            if (url == null) {
-                url = "https://github.com/" + REPO + "/releases/download/v"
-                        + version + "/" + wanted;
-            }
-            String downloadUrl = url;
-            String downloadDigest = digest;
+            String wanted = "MCLite_v" + version
+                    + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
+            String url = "https://github.com/" + REPO + "/releases/download/v"
+                    + version + "/" + wanted;
+            Log.info("发现启动器更新 V" + version + "（" + channel + "）");
             String downloadVersion = version;
+            String downloadUrl = url;
             if (!config.autoUpdate() && "normal".equals(channel)) {
                 SwingUtilities.invokeLater(() -> {
-                    boolean yes = ModernDialogs.confirm(parent, "发现启动器更新",
-                            "发现新版本 V" + downloadVersion + "。\n\n是否现在下载？下载完成后下次启动生效。");
-                    if (yes) {
+                    UpdateDialog dialog = new UpdateDialog(parent, Version.VALUE, downloadVersion);
+                    dialog.setVisible(true);
+                    if (dialog.confirmed()) {
                         Thread downloader = new Thread(() -> downloadUpdate(
-                                config, downloadVersion, channel, downloadUrl, downloadDigest,
+                                config, downloadVersion, channel, downloadUrl, null,
                                 taskCenter, refreshTasks),
                                 "mclite-update-download");
                         downloader.setDaemon(true);
@@ -174,7 +153,7 @@ public final class Updater {
                 });
                 return;
             }
-            downloadUpdate(config, downloadVersion, channel, downloadUrl, downloadDigest,
+            downloadUpdate(config, downloadVersion, channel, downloadUrl, null,
                     taskCenter, refreshTasks);
         } catch (Exception ex) {
             Log.warn("检查启动器更新失败: " + ex.getMessage());
@@ -207,7 +186,7 @@ public final class Updater {
     private static void downloadUpdate(Config config, String version, String channel,
                                        String url, String digest,
                                        TaskCenter taskCenter, Runnable refreshTasks) {
-        DownloadTask task = taskCenter.start("启动器更新 V" + version, "GitHub Release");
+        DownloadTask task = taskCenter.start("启动器更新 · V" + version, "GitHub Releases");
         if (refreshTasks != null) {
             SwingUtilities.invokeLater(refreshTasks);
         }
