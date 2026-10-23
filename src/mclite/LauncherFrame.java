@@ -87,6 +87,7 @@ public final class LauncherFrame extends JFrame {
     private Ui.ToggleChip autoJvmToggle;
     private Ui.ToggleChip autoJavaToggle;
     private Ui.ToggleChip metalToggle;
+    private Ui.ToggleChip autoUpdateToggle;
     private Ui.ValueSlider widthSlider;
     private Ui.ValueSlider heightSlider;
     private JToggleButton assetsToggle;
@@ -1899,6 +1900,16 @@ public final class LauncherFrame extends JFrame {
             }
         });
         download.add(forceTranslationToggle);
+        download.add(Ui.vgap(8));
+        autoUpdateToggle = new Ui.ToggleChip("自动检查启动器更新（后台下载，下次启动生效）");
+        autoUpdateToggle.setSelected(config.autoUpdate());
+        autoUpdateToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        autoUpdateToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        autoUpdateToggle.addActionListener(e -> {
+            config.autoUpdate(autoUpdateToggle.isSelected());
+            config.save();
+        });
+        download.add(autoUpdateToggle);
         download.add(Ui.vgap(12));
         JLabel keyLabel = Ui.label("CurseForge API Key", Theme.TINY, Theme.DIM);
         keyLabel.setAlignmentX(Component.LEFT_ALIGNMENT);

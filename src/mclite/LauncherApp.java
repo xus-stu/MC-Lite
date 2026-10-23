@@ -35,6 +35,9 @@ public final class LauncherApp {
         }
 
         Config config = Config.load();
+        if (Updater.applyPending(args, config)) {
+            System.exit(0);
+        }
         boolean softwareRender = false;
         for (String arg : args) {
             if (arg.equals("--software-render")) {
@@ -81,6 +84,9 @@ public final class LauncherApp {
             try {
                 LauncherFrame frame = new LauncherFrame(config);
                 frame.setVisible(true);
+                if (!finalCrashDemo && !"true".equals(System.getProperty("mclite.offline"))) {
+                    Updater.startBackground(config);
+                }
                 if (finalCrashDemo) {
                     Timer demo = new Timer(500, e -> frame.showCrashDemo());
                     demo.setRepeats(false);
