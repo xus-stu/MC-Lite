@@ -109,48 +109,63 @@ public final class Updater {
                     .connectTimeout(Duration.ofSeconds(12))
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .build();
-            HttpRequest request = HttpRequest.newBuilder(URI.create(API))
-                    .timeout(Duration.ofSeconds(20))
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "MCLite/" + Version.VALUE)
-                    .GET().build();
-            HttpResponse<String> response = client.send(request,
-                    HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                return;
-            }
-            Map<String, Object> release = Json.obj(Json.parse(response.body()));
-            String tag = Json.str(release, "tag_name", "").trim();
-            String version = tag.startsWith("v") ? tag.substring(1) : tag;
-            if (version.isBlank() || compare(version, Version.VALUE) <= 0) {
-                return;
-            }
-            String channel = channel();
-            boolean patch = "normal".equals(channel) && config.removeRegionLimits();
-            String wanted = "MCLite_v" + version
-                    + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
+            String version = null;
             String url = null;
             String digest = null;
-            for (Object raw : Json.arr(release.get("assets"))) {
-                Map<String, Object> asset = Json.obj(raw);
-                if (wanted.equals(Json.str(asset, "name", ""))) {
-                    url = Json.str(asset, "browser_download_url");
-                    digest = Json.str(asset, "digest");
-                    break;
+            String channel = channel();
+            boolean patch = "normal".equals(channel) && config.removeRegionLimits();
+            String wanted = null;
+            try {
+                HttpRequest request = HttpRequest.newBuilder(URI.create(API))
+                        .timeout(Duration.ofSeconds(20))
+                        .header("Accept", "application/vnd.github+json")
+                        .header("User-Agent", "MCLite/" + Version.VALUE)
+                        .GET().build();
+                HttpResponse<String> response = client.send(request,
+                        HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    Map<String, Object> release = Json.obj(Json.parse(response.body()));
+                    String tag = Json.str(release, "tag_name", "").trim();
+                    version = tag.startsWith("v") ? tag.substring(1) : tag;
+                    wanted = "MCLite_v" + version
+                            + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
+                    for (Object raw : Json.arr(release.get("assets"))) {
+                        Map<String, Object> asset = Json.obj(raw);
+                        if (wanted.equals(Json.str(asset, "name", ""))) {
+                            url = Json.str(asset, "browser_download_url");
+                            digest = Json.str(asset, "digest");
+                            break;
+                        }
+                    }
                 }
+            } catch (Exception ex) {
+                Log.warn("GitHub API 检查失败，尝试 Release 页面: " + ex.getMessage());
+            }
+            if (version == null || version.isBlank()) {
+                version = latestFromHtml(client);
+            }
+            if (version == null || version.isBlank()
+                    || compare(version, Version.VALUE) <= 0) {
+                return;
+            }
+            if (wanted == null) {
+                wanted = "MCLite_v" + version
+                        + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
             }
             if (url == null) {
-                return;
+                url = "https://github.com/" + REPO + "/releases/download/v"
+                        + version + "/" + wanted;
             }
             String downloadUrl = url;
             String downloadDigest = digest;
+            String downloadVersion = version;
             if (!config.autoUpdate() && "normal".equals(channel)) {
                 SwingUtilities.invokeLater(() -> {
                     boolean yes = ModernDialogs.confirm(parent, "发现启动器更新",
-                            "发现新版本 V" + version + "。\n\n是否现在下载？下载完成后下次启动生效。");
+                            "发现新版本 V" + downloadVersion + "。\n\n是否现在下载？下载完成后下次启动生效。");
                     if (yes) {
                         Thread downloader = new Thread(() -> downloadUpdate(
-                                config, version, channel, downloadUrl, downloadDigest,
+                                config, downloadVersion, channel, downloadUrl, downloadDigest,
                                 taskCenter, refreshTasks),
                                 "mclite-update-download");
                         downloader.setDaemon(true);
@@ -159,11 +174,34 @@ public final class Updater {
                 });
                 return;
             }
-            downloadUpdate(config, version, channel, downloadUrl, downloadDigest,
+            downloadUpdate(config, downloadVersion, channel, downloadUrl, downloadDigest,
                     taskCenter, refreshTasks);
         } catch (Exception ex) {
             Log.warn("检查启动器更新失败: " + ex.getMessage());
         }
+    }
+
+    private static String latestFromHtml(HttpClient client) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(
+                            URI.create("https://github.com/" + REPO + "/releases/latest"))
+                    .timeout(Duration.ofSeconds(20))
+                    .header("User-Agent", "MCLite/" + Version.VALUE)
+                    .GET().build();
+            HttpResponse<String> response = client.send(request,
+                    HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                return null;
+            }
+            String uri = response.uri().toString();
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("/releases/tag/v?([0-9][0-9A-Za-z._-]*)").matcher(uri);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private static void downloadUpdate(Config config, String version, String channel,
