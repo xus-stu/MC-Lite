@@ -46,8 +46,15 @@ public final class Updater {
             clean(pending, jar);
             return false;
         }
-        Path staged = Path.of(jar).toAbsolutePath().normalize();
-        Path root = config.appHome().resolve("updates").toAbsolutePath().normalize();
+        Path staged;
+        Path root;
+        try {
+            staged = Path.of(jar).toAbsolutePath().normalize();
+            root = config.appHome().resolve("updates").toAbsolutePath().normalize();
+        } catch (RuntimeException ex) {
+            clean(pending, null);
+            return false;
+        }
         if (!staged.startsWith(root) || !Files.isRegularFile(staged)) {
             clean(pending, jar);
             return false;
@@ -168,7 +175,10 @@ public final class Updater {
         try {
             Files.deleteIfExists(marker);
             if (jar != null && !jar.isBlank()) {
-                Files.deleteIfExists(Path.of(jar));
+                try {
+                    Files.deleteIfExists(Path.of(jar));
+                } catch (RuntimeException ignored) {
+                }
             }
         } catch (IOException ignored) {
         }
