@@ -7,6 +7,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public final class SkinStore {
     private SkinStore() {
@@ -64,19 +68,127 @@ public final class SkinStore {
     }
 
     public static void copyForGame(Config config, String accountId) {
+        copyForGame(config, accountId, config.gameDir());
+    }
+
+    public static void copyForGame(Config config, String accountId, Path gameDir) {
         Path source = skinFile(config, accountId);
-        if (source == null || !Files.isRegularFile(source)) {
+        if (source == null || !Files.isRegularFile(source) || gameDir == null) {
             return;
         }
         try {
-            Path gameSkin = config.gameDir().resolve("skin.png");
+            Files.createDirectories(gameDir);
+            Path gameSkin = gameDir.resolve("skin.png");
             Files.copy(source, gameSkin, StandardCopyOption.REPLACE_EXISTING);
-            Path csl = config.gameDir().resolve("CustomSkinLoader/LocalSkin/skins")
+            Path csl = gameDir.resolve("CustomSkinLoader/LocalSkin/skins")
                     .resolve(config.username() + ".png");
             Files.createDirectories(csl.getParent());
             Files.copy(source, csl, StandardCopyOption.REPLACE_EXISTING);
+            ensureCustomSkinLoaderConfig(gameDir);
         } catch (IOException ex) {
             Log.warn("复制皮肤到游戏目录失败: " + ex.getMessage());
         }
+    }
+
+    private static void ensureCustomSkinLoaderConfig(Path gameDir) throws IOException {
+        Path configFile = gameDir.resolve("CustomSkinLoader/CustomSkinLoader.json");
+        Files.createDirectories(configFile.getParent());
+        Map<String, Object> root = null;
+        if (Files.isRegularFile(configFile)) {
+            try {
+                root = Json.obj(Json.parse(Files.readString(configFile)));
+            } catch (RuntimeException ignored) {
+            }
+        }
+        if (root == null) {
+            root = new LinkedHashMap<>();
+            root.put("version", "15.0.2");
+            root.put("build", 15);
+            Map<String, Object> mojang = new LinkedHashMap<>();
+            mojang.put("name", "Mojang");
+            mojang.put("type", "MojangAPI");
+            mojang.put("apiRoot", "https://api.mojang.com/");
+            mojang.put("sessionRoot", "https://sessionserver.mojang.com/");
+            List<Object> defaults = new ArrayList<>();
+            defaults.add(mojang);
+            root.put("loadlist", defaults);
+        }
+        Object listValue = root.get("loadlist");
+        List<Object> loadlist = listValue instanceof List<?>
+                ? new ArrayList<>(Json.arr(listValue)) : new ArrayList<>();
+        boolean hasLocal = false;
+        for (Object item : loadlist) {
+            if ("LocalSkin".equals(Json.str(Json.obj(item), "name"))) {
+                hasLocal = true;
+                break;
+            }
+        }
+        if (!hasLocal) {
+            Map<String, Object> local = new LinkedHashMap<>();
+            local.put("name", "LocalSkin");
+            local.put("type", "Legacy");
+            local.put("checkPNG", false);
+            local.put("skin", "LocalSkin/skins/{USERNAME}.png");
+            local.put("model", "auto");
+            local.put("cape", "LocalSkin/capes/{USERNAME}.png");
+            local.put("elytra", "LocalSkin/elytra/{USERNAME}.png");
+            loadlist.add(0, local);
+            root.put("loadlist", loadlist);
+            Files.writeString(configFile, toJson(root));
+        }
+    }
+
+    private static String toJson(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof String text) {
+            return quote(text);
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value.toString();
+        }
+        if (value instanceof Map<?, ?> map) {
+            StringBuilder out = new StringBuilder("{");
+            boolean first = true;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (!first) out.append(',');
+                first = false;
+                out.append(quote(String.valueOf(entry.getKey()))).append(':')
+                        .append(toJson(entry.getValue()));
+            }
+            return out.append('}').toString();
+        }
+        if (value instanceof List<?> list) {
+            StringBuilder out = new StringBuilder("[");
+            for (int i = 0; i < list.size(); i++) {
+                if (i > 0) out.append(',');
+                out.append(toJson(list.get(i)));
+            }
+            return out.append(']').toString();
+        }
+        return quote(String.valueOf(value));
+    }
+
+    private static String quote(String text) {
+        StringBuilder out = new StringBuilder("\"");
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            switch (c) {
+                case '"' -> out.append("\\\"");
+                case '\\' -> out.append("\\\\");
+                case '\n' -> out.append("\\n");
+                case '\r' -> out.append("\\r");
+                case '\t' -> out.append("\\t");
+                default -> {
+                    if (c < 0x20) {
+                        out.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        out.append(c);
+                    }
+                }
+            }
+        }
+        return out.append('"').toString();
     }
 }
