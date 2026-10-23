@@ -85,7 +85,7 @@ public final class LauncherApp {
                 LauncherFrame frame = new LauncherFrame(config);
                 frame.setVisible(true);
                 if (!finalCrashDemo && !"true".equals(System.getProperty("mclite.offline"))) {
-                    Updater.startBackground(config);
+                    Updater.startBackground(config, frame);
                 }
                 if (finalCrashDemo) {
                     Timer demo = new Timer(500, e -> frame.showCrashDemo());
