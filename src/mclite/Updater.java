@@ -121,7 +121,9 @@ public final class Updater {
                 return;
             }
             String channel = channel();
-            String wanted = "MCLite_v" + version + ("region".equals(channel) ? "-region.jar" : ".jar");
+            boolean patch = "normal".equals(channel) && config.removeRegionLimits();
+            String wanted = "MCLite_v" + version
+                    + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
             String url = null;
             String digest = null;
             for (Object raw : Json.arr(release.get("assets"))) {
@@ -153,10 +155,16 @@ public final class Updater {
             }
             Path folder = config.appHome().resolve("updates/v" + version);
             Files.createDirectories(folder);
-            Path target = folder.resolve(wanted);
-            Path temp = folder.resolve(wanted + ".part");
-            Files.write(temp, bytes.body());
-            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+            Path target = folder.resolve("MCLite_v" + version
+                    + ("region".equals(channel) ? "-region.jar" : ".jar"));
+            Path source = folder.resolve(wanted + ".part");
+            Files.write(source, bytes.body());
+            if (patch) {
+                RegionPatcher.makeUnrestricted(source, target);
+                Files.deleteIfExists(source);
+            } else {
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            }
             Properties pending = new Properties();
             pending.setProperty("version", version);
             pending.setProperty("channel", channel);

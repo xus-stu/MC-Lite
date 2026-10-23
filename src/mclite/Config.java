@@ -34,6 +34,7 @@ public final class Config {
     private boolean autoDownloadJava = true;
     private boolean metalRendering;
     private boolean autoUpdate = true;
+    private boolean removeRegionLimits = true;
     private boolean sidebarCollapsed;
     private String filter = "release";
     private String lastVersion = "";
@@ -115,6 +116,8 @@ public final class Config {
                     properties.getProperty("metalRendering", "false"));
             config.autoUpdate = Boolean.parseBoolean(
                     properties.getProperty("autoUpdate", "true"));
+            config.removeRegionLimits = Boolean.parseBoolean(
+                    properties.getProperty("removeRegionLimits", "true"));
             config.sidebarCollapsed = Boolean.parseBoolean(
                     properties.getProperty("sidebarCollapsed", "false"));
             String savedFilter = properties.getProperty("filter", "release");
@@ -155,6 +158,7 @@ public final class Config {
         copy.autoDownloadJava = autoDownloadJava;
         copy.metalRendering = metalRendering;
         copy.autoUpdate = autoUpdate;
+        copy.removeRegionLimits = removeRegionLimits;
         copy.sidebarCollapsed = sidebarCollapsed;
         copy.filter = filter;
         copy.lastVersion = lastVersion;
@@ -303,6 +307,14 @@ public final class Config {
 
     public void forceModTranslation(boolean value) {
         this.forceModTranslation = value;
+    }
+
+    public boolean removeRegionLimits() {
+        return removeRegionLimits;
+    }
+
+    public void removeRegionLimits(boolean value) {
+        this.removeRegionLimits = value;
     }
 
     public boolean autoUpdate() {
@@ -497,6 +509,7 @@ public final class Config {
             properties.setProperty("autoDownloadJava", Boolean.toString(autoDownloadJava));
             properties.setProperty("metalRendering", Boolean.toString(metalRendering));
             properties.setProperty("autoUpdate", Boolean.toString(autoUpdate));
+            properties.setProperty("removeRegionLimits", Boolean.toString(removeRegionLimits));
             properties.setProperty("sidebarCollapsed", Boolean.toString(sidebarCollapsed));
             properties.setProperty("filter", filter);
             properties.setProperty("lastVersion", lastVersion);

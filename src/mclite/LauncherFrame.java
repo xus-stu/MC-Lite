@@ -88,6 +88,7 @@ public final class LauncherFrame extends JFrame {
     private Ui.ToggleChip autoJavaToggle;
     private Ui.ToggleChip metalToggle;
     private Ui.ToggleChip autoUpdateToggle;
+    private Ui.ToggleChip removeRegionLimitsToggle;
     private Ui.ValueSlider widthSlider;
     private Ui.ValueSlider heightSlider;
     private JToggleButton assetsToggle;
@@ -1910,6 +1911,18 @@ public final class LauncherFrame extends JFrame {
             config.save();
         });
         download.add(autoUpdateToggle);
+        if (!RegionGate.locked()) {
+            download.add(Ui.vgap(8));
+            removeRegionLimitsToggle = new Ui.ToggleChip("更新时移除地区限制（仅普通版）");
+            removeRegionLimitsToggle.setSelected(config.removeRegionLimits());
+            removeRegionLimitsToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+            removeRegionLimitsToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+            removeRegionLimitsToggle.addActionListener(e -> {
+                config.removeRegionLimits(removeRegionLimitsToggle.isSelected());
+                config.save();
+            });
+            download.add(removeRegionLimitsToggle);
+        }
         download.add(Ui.vgap(12));
         JLabel keyLabel = Ui.label("CurseForge API Key", Theme.TINY, Theme.DIM);
         keyLabel.setAlignmentX(Component.LEFT_ALIGNMENT);

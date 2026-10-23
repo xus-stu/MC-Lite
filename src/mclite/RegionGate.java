@@ -13,6 +13,8 @@ import java.util.TimeZone;
 public final class RegionGate {
     private static boolean restricted;
     private static boolean locked = RegionGate.class.getResource("/mclite/region.lock") != null;
+    private static final boolean UNRESTRICTED =
+            RegionGate.class.getResource("/mclite/unrestricted") != null;
     private static String mode = "";
     private static String source = "";
 
@@ -28,6 +30,12 @@ public final class RegionGate {
     }
 
     public static void configure(String[] args) {
+        if (UNRESTRICTED) {
+            restricted = false;
+            mode = "";
+            source = "unrestricted";
+            return;
+        }
         String requested = null;
         for (String arg : args) {
             if (arg.startsWith("--region=")) {
