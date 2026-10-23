@@ -224,3 +224,6 @@ echo "  通用 JAR : dist/${NORMAL_JAR}"
 echo "  地区版   : dist/${REGION_JAR}"
 echo "  Windows 包: dist/${WIN_ZIP}"
 echo "  校验值   : dist/SHA256SUMS.txt"
+if [ -x ./backup.sh ]; then
+  ./backup.sh
+fi
