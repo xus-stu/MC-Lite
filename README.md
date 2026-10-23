@@ -20,7 +20,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 
 ## 运行
 
-当前版本：V1.0.6
+当前版本：V1.0.7
 
 需要 Java 21 或更高版本。
 
@@ -28,7 +28,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.0.6.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.0.7.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -39,7 +39,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.0.6-region.jar
+java -jar dist/MCLite_v1.0.7-region.jar
 ```
 
 ## 地区限制
@@ -83,32 +83,33 @@ java -jar dist/MCLite_v1.0.6-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.0.6-region.jar
-dist/MC Lite Region v1.0.6.app
-dist/MC-Lite_v1.0.6_region_macOS.zip
-dist/MC-Lite_v1.0.6_region_Windows.zip
+dist/MCLite_v1.0.7-region.jar
+dist/MC Lite Region v1.0.7.app
+dist/MC-Lite_v1.0.7_region_macOS.zip
+dist/MC-Lite_v1.0.7_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.0.6_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.0.7_region_Windows.zip`，双击 `start.bat`。
 
 ## 自动更新
 
 启动器会后台检查 GitHub 最新 Release，不影响正在运行的游戏。
 
-- 普通版下载普通版 jar
 - 地区版下载地区版 jar
+- 普通版默认下载地区版 jar，并在本地移除地区限制
 - 下载完成后，下次启动启动器时应用
-- 设置页可以关闭自动检查
+- 普通版可以在设置中关闭自动更新，也可以关闭“更新时移除地区限制”
 
-GitHub Release 需要上传对应资源：
+GitHub Release 只需要上传地区版资源：
 
 ```text
-MCLite_v版本.jar             普通版
-MCLite_v版本-region.jar      地区版
+MCLite_v版本-region.jar
 ```
 
-只有 tag、没有 jar 附件的 Release 不会触发更新。普通版自动更新要求普通版 jar 也作为 Release 附件提供，这会与“普通版不公开”的要求冲突，需要单独取舍。
+只有 tag、没有 jar 附件的 Release 不会触发更新。
+
+普通版更新使用地区版 jar 的副本，并在本地移除地区限制；普通版源码和普通版 jar 不发布。
 
 ## Java 和游戏目录
 
