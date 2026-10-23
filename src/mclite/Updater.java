@@ -222,6 +222,7 @@ public final class Updater {
         }
         TaskProgress progress = new TaskProgress();
         progress.stage("连接更新源…");
+        long[] lastUi = {0L};
         try {
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(12))
@@ -259,9 +260,13 @@ public final class Updater {
                     out.write(buffer, 0, read);
                     sha.update(buffer, 0, read);
                     progress.add(read);
-                    taskCenter.update(task, progress);
-                    if (refreshTasks != null) {
-                        SwingUtilities.invokeLater(refreshTasks);
+                    long now = System.currentTimeMillis();
+                    if (now - lastUi[0] >= 300) {
+                        lastUi[0] = now;
+                        taskCenter.update(task, progress);
+                        if (refreshTasks != null) {
+                            SwingUtilities.invokeLater(refreshTasks);
+                        }
                     }
                 }
             }
@@ -274,6 +279,9 @@ public final class Updater {
             }
             progress.stage("准备更新…");
             taskCenter.update(task, progress);
+            if (refreshTasks != null) {
+                SwingUtilities.invokeLater(refreshTasks);
+            }
             if (patch) {
                 task.stage("移除地区限制…");
                 RegionPatcher.makeUnrestricted(source, target);

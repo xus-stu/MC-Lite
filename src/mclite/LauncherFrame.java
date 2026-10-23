@@ -274,7 +274,14 @@ public final class LauncherFrame extends JFrame {
         loadManifest();
     }
 
+    private long lastWakeRepaint;
+
     private void repaintAfterWake() {
+        long now = System.currentTimeMillis();
+        if (now - lastWakeRepaint < 700) {
+            return;
+        }
+        lastWakeRepaint = now;
         SwingUtilities.invokeLater(() -> {
             repaintTree(this);
             invalidate();

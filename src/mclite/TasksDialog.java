@@ -85,9 +85,20 @@ public final class TasksDialog extends JDialog {
 
     private void refreshNow() {
         List<DownloadTask> tasks = center.snapshot();
-        model.clear();
-        for (DownloadTask task : tasks) {
-            model.addElement(task);
+        boolean same = tasks.size() == model.size();
+        if (same) {
+            for (int i = 0; i < tasks.size(); i++) {
+                if (model.get(i) != tasks.get(i)) {
+                    same = false;
+                    break;
+                }
+            }
+        }
+        if (!same) {
+            model.clear();
+            for (DownloadTask task : tasks) {
+                model.addElement(task);
+            }
         }
         list.repaint();
     }
