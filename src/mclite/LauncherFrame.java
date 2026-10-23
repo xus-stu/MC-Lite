@@ -1103,7 +1103,7 @@ public final class LauncherFrame extends JFrame {
         form.add(divider());
         form.add(Ui.vgap(30));
 
-        JPanel loader = section("模组启动器", "原版不需要加载器；Fabric / Quilt 可留空版本自动取最新");
+        JPanel loader = section("模组启动器", "原版不需要加载器；版本留空时自动获取最新版");
         JPanel loaderChoices = new JPanel();
         loaderChoices.setOpaque(false);
         loaderChoices.setLayout(new BoxLayout(loaderChoices, BoxLayout.X_AXIS));
@@ -1114,10 +1114,12 @@ public final class LauncherFrame extends JFrame {
             button.setSelected("vanilla".equals(choice[1]));
             button.addActionListener(e -> {
                 versionLoaderType = choice[1];
+                versionLoaderVersion.setText("");
                 if (versionInstallButton != null) {
                     versionInstallButton.setText("vanilla".equals(choice[1])
                             ? "下载原版" : "安装 " + choice[0] + " 并启动");
                 }
+                fetchLatestLoaderVersion(choice[1]);
             });
             loaders.add(button);
             loaderChoices.add(button);
@@ -1126,14 +1128,14 @@ public final class LauncherFrame extends JFrame {
         loaderChoices.setMaximumSize(new Dimension(720, 28));
         loader.add(loaderChoices);
         loader.add(Ui.vgap(10));
-        versionLoaderVersion = Ui.field("留空 = 最新（Fabric/Quilt）");
+        versionLoaderVersion = Ui.field("留空 = 自动获取最新版本");
         versionLoaderVersion.setPreferredSize(new Dimension(300, 32));
         versionLoaderVersion.setMaximumSize(new Dimension(300, 32));
         versionLoaderVersion.setAlignmentX(Component.LEFT_ALIGNMENT);
         loader.add(versionLoaderVersion);
         loader.add(Ui.vgap(7));
-        loader.add(sidebarNote("Forge / NeoForge 需要填写安装器版本，例如 47.2.0 / 20.4.237。"
-                + "安装完成后会生成一个本地实例。"));
+        loader.add(sidebarNote("Forge / NeoForge 会自动查询当前游戏版本对应的最新版本。"
+                + "也可以手动填写覆盖。"));
         form.add(lockedHeight(loader));
         form.add(Ui.vgap(30));
 
@@ -2281,6 +2283,39 @@ public final class LauncherFrame extends JFrame {
         return row;
     }
 
+    private void fetchLatestLoaderVersion(String type) {
+        if (selectedEntry == null || "vanilla".equals(type)) {
+            return;
+        }
+        String versionId = selectedEntry.id();
+        statusLabel.setText("正在获取最新 " + type + " 版本…");
+        statusLabel.setForeground(Theme.DIM);
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                return new LoaderInstaller(config, ProgressSink.NOOP, new CancellationToken())
+                        .latestVersion(type, versionId);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    String version = get();
+                    if (versionLoaderType.equals(type) && versionLoaderVersion.getText().isBlank()) {
+                        versionLoaderVersion.setText(version);
+                    }
+                    statusLabel.setText("最新 " + type + " 版本：" + version);
+                    statusLabel.setForeground(Theme.DIM);
+                } catch (Exception ex) {
+                    if (versionLoaderType.equals(type) && versionLoaderVersion.getText().isBlank()) {
+                        statusLabel.setText("无法获取最新版本，可直接安装重试，或手动填写");
+                        statusLabel.setForeground(Theme.WARNING);
+                    }
+                }
+            }
+        }.execute();
+    }
+
     private void openVersionDetail() {
         if (selectedEntry == null) {
             return;
@@ -2290,6 +2325,7 @@ public final class LauncherFrame extends JFrame {
         if (versionInstallButton != null) {
             versionInstallButton.setText("下载原版");
         }
+        versionLoaderVersion.setText("");
         versionLoaderVersion.setEnabled(true);
         versionDetailTitle.setText(selectedEntry.id());
         versionDetailMeta.setText(detailMeta == null ? ""
@@ -2325,11 +2361,6 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         String loaderVersion = versionLoaderVersion.getText().trim();
-        if (("forge".equals(loaderType) || "neoforge".equals(loaderType))
-                && loaderVersion.isBlank()) {
-            showError("缺少加载器版本", "Forge / NeoForge 需要填写具体版本，例如 47.2.0。");
-            return;
-        }
         VersionManifest.VersionEntry entry = selectedEntry;
         VersionMeta meta = selectedMeta;
         JavaManager.JavaInfo resolvedJava = resolveJava(meta);
@@ -2344,7 +2375,7 @@ public final class LauncherFrame extends JFrame {
                 String version = loaderVersion;
                 LoaderInstaller installer = new LoaderInstaller(config, taskProgress, taskToken);
                 if (version.isBlank()) {
-                    version = installer.latestVersion(loaderType);
+                    version = installer.latestVersion(loaderType, entry.id());
                 }
                 JavaManager.JavaInfo java = resolvedJava;
                 if (java == null) {
