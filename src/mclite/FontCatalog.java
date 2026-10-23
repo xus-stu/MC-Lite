@@ -32,8 +32,18 @@ public final class FontCatalog {
         if (handwriting != null && !handwriting.equals(kaiti)) {
             result.add(new Choice("手写楷体 · " + handwriting, handwriting));
         }
-        if (kaiti == null && handwriting == null) {
-            result.add(new Choice("未检测到系统楷体", ""));
+        List<String> ordinary = new ArrayList<>();
+        for (String family : installed) {
+            if (family == null || family.isBlank() || family.startsWith("@")) {
+                continue;
+            }
+            if (!family.equals(kaiti) && !family.equals(handwriting)) {
+                ordinary.add(family);
+            }
+        }
+        ordinary.sort(String.CASE_INSENSITIVE_ORDER);
+        for (String family : ordinary) {
+            result.add(new Choice(family, family));
         }
         return result;
     }
