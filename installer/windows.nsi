@@ -1,5 +1,7 @@
 Unicode true
 !include "MUI2.nsh"
+Icon "@ROOT@/assets/AppIcon.ico"
+UninstallIcon "@ROOT@/assets/AppIcon.ico"
 
 Name "MC Lite V@VERSION@"
 OutFile "@ROOT@/dist/MC-Lite_v@VERSION@_Setup.exe"

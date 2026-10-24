@@ -33,6 +33,7 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "[3/4] 生成 macOS 应用包…"
   rm -rf "$APP"
   mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+  cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
   cp "dist/${NORMAL_JAR}" "$APP/Contents/Resources/${NORMAL_JAR}"
   cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -61,6 +62,8 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     <string>10.15</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon.icns</string>
 </dict>
 </plist>
 PLIST
