@@ -69,7 +69,8 @@ public final class Theme {
     }
 
     public static void setFontFamily(String family) {
-        if (family != null && !family.isBlank() && mclite.FontCatalog.available(family)) {
+        if (family != null && !family.isBlank() && mclite.FontCatalog.available(family)
+                && mclite.FontCatalog.supportsChinese(family)) {
             FAMILY = family;
         } else {
             FAMILY = pickFamily();
@@ -296,7 +297,8 @@ public final class Theme {
                 GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
         String[] preferred = {
                 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
-                "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "SansSerif"
+                "SimHei", "SimSun", "Noto Sans CJK SC", "Source Han Sans SC",
+                "WenQuanYi Micro Hei", "Segoe UI", "SansSerif"
         };
         for (String family : preferred) {
             if (available.contains(family)) {
@@ -309,7 +311,10 @@ public final class Theme {
     private static String pickMonoFamily() {
         Set<String> available = new HashSet<>(Arrays.asList(
                 GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
-        for (String family : new String[]{"SF Mono", "Menlo", "JetBrains Mono", "Consolas", "Monospaced"}) {
+        for (String family : new String[]{
+                "Sarasa Mono SC", "Sarasa Mono HC", "Noto Sans Mono CJK SC",
+                "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC",
+                "Hiragino Sans GB", "Noto Sans CJK SC"}) {
             if (available.contains(family)) {
                 return family;
             }
