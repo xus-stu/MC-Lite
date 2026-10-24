@@ -1948,6 +1948,16 @@ public final class LauncherFrame extends JFrame {
             updateRecommendations(versionLoaderType);
         });
         download.add(recommendToggle);
+        download.add(Ui.vgap(8));
+        Ui.ToggleChip integrityToggle = new Ui.ToggleChip("启动前检查游戏文件完整性");
+        integrityToggle.setSelected(config.integrityCheck());
+        integrityToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        integrityToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        integrityToggle.addActionListener(e -> {
+            config.integrityCheck(integrityToggle.isSelected());
+            config.save();
+        });
+        download.add(integrityToggle);
         if (!RegionGate.locked()) {
             download.add(Ui.vgap(8));
             removeRegionLimitsToggle = new Ui.ToggleChip("更新时移除地区限制（仅普通版）");
@@ -1983,6 +1993,38 @@ public final class LauncherFrame extends JFrame {
                 + "HMCL 内置了它自己申请的 Key，本项目不能复用。"
                 + "资源对象在多个版本之间共享；删除后可通过「修复 / 更新」补全。"));
         form.add(lockedHeight(download));
+        form.add(Ui.vgap(30));
+        form.add(divider());
+        form.add(Ui.vgap(30));
+
+        JPanel benchmark = section("跑分模块", "可选下载，不随启动器捆绑，不强制安装");
+        JLabel benchmarkStatus = Ui.label(BenchmarkManager.installed(config)
+                ? "已安装" : "未下载", Theme.TINY, Theme.DIM);
+        benchmarkStatus.setAlignmentX(Component.LEFT_ALIGNMENT);
+        benchmark.add(benchmarkStatus);
+        benchmark.add(Ui.vgap(8));
+        JPanel benchmarkActions = new JPanel();
+        benchmarkActions.setOpaque(false);
+        benchmarkActions.setLayout(new BoxLayout(benchmarkActions, BoxLayout.X_AXIS));
+        Ui.AccentButton benchmarkDownload = Ui.smallButton("下载跑分模块",
+                Ui.AccentButton.Style.SECONDARY);
+        benchmarkDownload.addActionListener(e -> {
+            benchmarkStatus.setText("下载中…");
+            BenchmarkManager.download(config, benchmarkStatus::setText);
+        });
+        Ui.AccentButton benchmarkRun = Ui.smallButton("运行跑分",
+                Ui.AccentButton.Style.GHOST);
+        benchmarkRun.addActionListener(e -> BenchmarkManager.run(config, benchmarkStatus::setText));
+        benchmarkActions.add(benchmarkDownload);
+        benchmarkActions.add(Ui.hgap(8));
+        benchmarkActions.add(benchmarkRun);
+        benchmarkActions.add(Box.createHorizontalGlue());
+        benchmarkActions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        benchmarkActions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        benchmark.add(benchmarkActions);
+        benchmark.add(Ui.vgap(7));
+        benchmark.add(sidebarNote("模块独立运行，扫描 CPU、内存、系统和显卡；"
+                + "扫描不到硬件时显示未知硬件。"));        form.add(lockedHeight(download));
         form.add(Ui.vgap(30));
         form.add(divider());
         form.add(Ui.vgap(30));
@@ -4045,6 +4087,24 @@ public final class LauncherFrame extends JFrame {
             statusLabel.setForeground(Theme.WARNING);
             return;
         }
+        if (config.integrityCheck()) {
+            java.util.List<String> missing = Integrity.missing(config, selectedMeta, entry.id());
+            if (!missing.isEmpty()) {
+                Object[] options = {"补齐并启动", "仍要启动", "取消"};
+                int choice = JOptionPane.showOptionDialog(this,
+                        "检测到游戏文件不完整：\n\n" + Integrity.summary(missing)
+                                + "\n\n补齐会重新下载缺失文件。",
+                        "游戏文件不完整", JOptionPane.DEFAULT_OPTION,
+                        JOptionPane.WARNING_MESSAGE, null, options, options[0]);
+                if (choice == 0) {
+                    startInstall(true);
+                    return;
+                }
+                if (choice != 1) {
+                    return;
+                }
+            }
+        }
         launchWithMeta(entry, selectedMeta);
     }
 
@@ -4091,26 +4151,6 @@ public final class LauncherFrame extends JFrame {
         if (required <= 8 && java.major() > 8) {
             if (!askYesNo("兼容性提示", "此版本官方要求 Java 8，当前选择的是 Java " + java.major()
                     + "。\n旧版本可能无法正常启动。仍要继续吗？")) {
-                return;
-            }
-        }
-
-        if (selectedEntry != null && selectedEntry.id().equals(entry.id())
-                && isInstalled(entry)
-                && gamePaths.hasMarker(entry.id()) && !gamePaths.assetsComplete(entry.id())) {
-            if (RegionGate.restricted()) {
-                RegionGate.showGuide(this);
-                return;
-            }
-            if (config.downloadAssets()) {
-                if (askYesNo("资源不完整", "这个版本尚未下载完整资源（声音、语言、图标等）。\n"
-                        + "现代版本缺少资源会直接崩溃。现在下载完整资源并启动吗？")) {
-                    startInstall(true);
-                }
-                return;
-            }
-            if (!askYesNo("资源不完整", "你关闭了「完整资源」下载。\n"
-                    + "缺少资源文件时，现代版本可能无法启动或崩溃。仍要继续吗？")) {
                 return;
             }
         }

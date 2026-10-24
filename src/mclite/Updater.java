@@ -347,6 +347,41 @@ public final class Updater {
         }
     }
 
+    public static void cleanOldVersionsLater() {
+        if (!isWindows()) {
+            return;
+        }
+        Thread thread = new Thread(() -> {
+            try {
+                Thread.sleep(2500);
+                Path source = Path.of(Updater.class.getProtectionDomain()
+                        .getCodeSource().getLocation().toURI());
+                if (!Files.isRegularFile(source)) {
+                    return;
+                }
+                Path dir = source.getParent();
+                if (dir == null || !Files.isRegularFile(dir.resolve("Uninstall.exe"))) {
+                    return;
+                }
+                try (var files = Files.list(dir)) {
+                    files.filter(path -> path.getFileName().toString()
+                                    .matches("MCLite_v[0-9].*\\.jar"))
+                            .filter(path -> !path.getFileName().toString()
+                                    .equals("MCLite_v" + Version.VALUE + ".jar"))
+                            .forEach(path -> {
+                                try {
+                                    Files.deleteIfExists(path);
+                                } catch (IOException ignored) {
+                                }
+                            });
+                }
+            } catch (Exception ignored) {
+            }
+        }, "mclite-clean-old-version");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
     private static void clean(Path marker, String jar) {
         try {
             Files.deleteIfExists(marker);

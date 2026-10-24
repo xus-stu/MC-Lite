@@ -27,4 +27,5 @@ jobs:
           files: |
             dist/MCLite_v*-region.jar
             dist/MC-Lite_v*_region_Windows.zip
+            dist/MCLiteBenchmark.jar
           generate_release_notes: true
