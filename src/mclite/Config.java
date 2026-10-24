@@ -36,6 +36,7 @@ public final class Config {
     private boolean autoUpdate = true;
     private boolean removeRegionLimits = true;
     private boolean recommendMods = true;
+    private boolean integrityCheck = true;
     private boolean sidebarCollapsed;
     private String filter = "release";
     private String lastVersion = "";
@@ -121,6 +122,8 @@ public final class Config {
                     properties.getProperty("removeRegionLimits", "true"));
             config.recommendMods = Boolean.parseBoolean(
                     properties.getProperty("recommendMods", "true"));
+            config.integrityCheck = Boolean.parseBoolean(
+                    properties.getProperty("integrityCheck", "true"));
             config.sidebarCollapsed = Boolean.parseBoolean(
                     properties.getProperty("sidebarCollapsed", "false"));
             String savedFilter = properties.getProperty("filter", "release");
@@ -163,6 +166,7 @@ public final class Config {
         copy.autoUpdate = autoUpdate;
         copy.removeRegionLimits = removeRegionLimits;
         copy.recommendMods = recommendMods;
+        copy.integrityCheck = integrityCheck;
         copy.sidebarCollapsed = sidebarCollapsed;
         copy.filter = filter;
         copy.lastVersion = lastVersion;
@@ -311,6 +315,14 @@ public final class Config {
 
     public void forceModTranslation(boolean value) {
         this.forceModTranslation = value;
+    }
+
+    public boolean integrityCheck() {
+        return integrityCheck;
+    }
+
+    public void integrityCheck(boolean value) {
+        this.integrityCheck = value;
     }
 
     public boolean recommendMods() {
@@ -523,6 +535,7 @@ public final class Config {
             properties.setProperty("autoUpdate", Boolean.toString(autoUpdate));
             properties.setProperty("removeRegionLimits", Boolean.toString(removeRegionLimits));
             properties.setProperty("recommendMods", Boolean.toString(recommendMods));
+            properties.setProperty("integrityCheck", Boolean.toString(integrityCheck));
             properties.setProperty("sidebarCollapsed", Boolean.toString(sidebarCollapsed));
             properties.setProperty("filter", filter);
             properties.setProperty("lastVersion", lastVersion);

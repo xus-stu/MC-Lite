@@ -29,6 +29,13 @@ rm -f "dist/${NORMAL_JAR}" "dist/${REGION_JAR}" "dist/${MAC_ZIP}" "dist/${REGION
 jar --create --file "dist/${NORMAL_JAR}" --main-class Main -C build/classes .
 jar --create --file "dist/${REGION_JAR}" --main-class mclite.RegionLauncherApp -C build/classes . -C build/region-marker .
 
+echo "[2/4] 打包可选跑分模块…"
+rm -rf build/benchmark-classes
+mkdir -p build/benchmark-classes
+javac --release 21 -encoding UTF-8 -d build/benchmark-classes benchmark/src/mclite/benchmark/BenchmarkMain.java
+printf 'Main-Class: mclite.benchmark.BenchmarkMain\n' > build/benchmark-manifest.txt
+jar --create --file dist/MCLiteBenchmark.jar --manifest build/benchmark-manifest.txt -C build/benchmark-classes .
+
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "[3/4] 生成 macOS 应用包…"
   rm -rf "$APP"
