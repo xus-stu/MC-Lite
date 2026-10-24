@@ -2010,7 +2010,8 @@ public final class LauncherFrame extends JFrame {
                 Ui.AccentButton.Style.SECONDARY);
         benchmarkDownload.addActionListener(e -> {
             benchmarkStatus.setText("下载中…");
-            BenchmarkManager.download(config, benchmarkStatus::setText);
+            BenchmarkManager.download(config, taskCenter, this::refreshTasksUi,
+                    benchmarkStatus::setText);
         });
         Ui.AccentButton benchmarkRun = Ui.smallButton("运行跑分",
                 Ui.AccentButton.Style.GHOST);
