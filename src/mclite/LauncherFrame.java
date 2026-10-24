@@ -2392,7 +2392,8 @@ public final class LauncherFrame extends JFrame {
         recommendationPanel.add(Ui.vgap(8));
         recommendationPanel.add(Ui.label("推荐模组 · 可自行勾选", Theme.TINY, Theme.DIM));
         recommendationPanel.add(Ui.vgap(4));
-        for (Recommendations.Item item : Recommendations.forLoader(loader)) {
+        String gameVersion = selectedEntry == null ? null : selectedEntry.id();
+        for (Recommendations.Item item : Recommendations.forLoader(loader, gameVersion)) {
             Ui.ToggleChip chip = new Ui.ToggleChip(item.title() + "  ·  " + item.note());
             chip.setSelected(item.selected());
             chip.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
