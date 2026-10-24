@@ -83,6 +83,7 @@ public final class LauncherApp {
         SwingUtilities.invokeLater(() -> {
             try {
                 LauncherFrame frame = new LauncherFrame(config);
+                AppIcon.install(frame);
                 frame.setVisible(true);
                 if (!finalCrashDemo && !"true".equals(System.getProperty("mclite.offline"))) {
                     Updater.startBackground(config, frame, frame.taskCenter(), frame::refreshTasksUi);
