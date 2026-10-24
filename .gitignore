@@ -45,3 +45,6 @@ build/
 backup/
 
 神秘小文件/
+
+# isolated Windows VM
+.windows-sandbox/
