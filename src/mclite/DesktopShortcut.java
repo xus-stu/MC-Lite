@@ -30,22 +30,15 @@ public final class DesktopShortcut {
                 return staged;
             }
             String name = "MC Lite V" + version;
-            Path batch = installDir.resolve("start.bat");
-            String batchText = "@echo off\r\nsetlocal\r\ncd /d \"%~dp0\"\r\n"
-                    + "\"runtime\\bin\\javaw.exe\" -Xms32m -Xmx256m "
-                    + "-Dsun.java2d.opengl=false -Dsun.java2d.metal=false "
-                    + "-XX:+UseSerialGC -XX:MaxMetaspaceSize=96m "
-                    + "-XX:ReservedCodeCacheSize=48m -XX:-UsePerfData "
-                    + "-XX:TieredStopAtLevel=1 -jar \"" + target.getFileName() + "\"\r\n";
-            Files.writeString(batch, batchText);
+            String arguments = "-jar \"" + target + "\"";
             String script = "$ErrorActionPreference='SilentlyContinue';"
                     + "$ws=New-Object -ComObject WScript.Shell;"
                     + "Get-ChildItem ([Environment]::GetFolderPath('Desktop')) -Filter 'MC Lite*.lnk' | Remove-Item -Force;"
                     + "Get-ChildItem ([Environment]::GetFolderPath('Programs')) -Filter 'MC Lite*.lnk' | Remove-Item -Force;"
                     + "foreach($dir in @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('Programs'))){"
                     + "$s=$ws.CreateShortcut((Join-Path $dir '" + escape(name) + ".lnk'));"
-                    + "$s.TargetPath='" + escape(batch.toString()) + "';"
-                    + "$s.Arguments='';"
+                    + "$s.TargetPath='" + escape(java.toString()) + "';"
+                    + "$s.Arguments='" + escape(arguments) + "';"
                     + "$s.WorkingDirectory='" + escape(installDir.toString()) + "';"
                     + "$s.Save()};";
             Process process = new ProcessBuilder("powershell.exe", "-NoProfile",
