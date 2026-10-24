@@ -22,8 +22,8 @@ Section "MC Lite" SecMain
   WriteRegStr HKCU "Software\MCLite" "InstallDir" "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateDirectory "$SMPROGRAMS\MC Lite"
-  CreateShortCut "$SMPROGRAMS\MC Lite\MC Lite.lnk" "$INSTDIR\runtime\bin\javaw.exe" "-Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar $\"$INSTDIR\MCLite_v@VERSION@.jar$\""
-  CreateShortCut "$DESKTOP\MC Lite.lnk" "$INSTDIR\runtime\bin\javaw.exe" "-Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar $\"$INSTDIR\MCLite_v@VERSION@.jar$\""
+  CreateShortCut "$SMPROGRAMS\MC Lite\MC Lite V@VERSION@.lnk" "$INSTDIR\runtime\bin\javaw.exe" "-Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar $\"$INSTDIR\MCLite_v@VERSION@.jar$\""
+  CreateShortCut "$DESKTOP\MC Lite V@VERSION@.lnk" "$INSTDIR\runtime\bin\javaw.exe" "-Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar $\"$INSTDIR\MCLite_v@VERSION@.jar$\""
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\MCLite" "DisplayName" "MC Lite V@VERSION@"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\MCLite" "DisplayVersion" "@VERSION@"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\MCLite" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
@@ -32,7 +32,7 @@ SectionEnd
 
 Section "Uninstall"
   SetShellVarContext current
-  Delete "$DESKTOP\MC Lite.lnk"
+  Delete "$DESKTOP\MC Lite V@VERSION@.lnk"
   RMDir /r "$SMPROGRAMS\MC Lite"
   RMDir /r "$INSTDIR"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\MCLite"

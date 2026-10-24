@@ -184,6 +184,12 @@ public final class LauncherFrame extends JFrame {
     private JTextField versionLoaderVersion;
     private String versionDetailId;
     private Ui.AccentButton versionInstallButton;
+    private JPanel recommendationPanel;
+    private final java.util.List<RecommendationRow> recommendationRows = new java.util.ArrayList<>();
+    private Ui.ToggleChip recommendToggle;
+
+    private record RecommendationRow(Recommendations.Item item, Ui.ToggleChip toggle) {
+    }
     private Modrinth.Project detailProject;
     private JLabel projectDetailTitle;
     private JLabel projectDetailMeta;
@@ -1124,6 +1130,7 @@ public final class LauncherFrame extends JFrame {
             button.addActionListener(e -> {
                 versionLoaderType = choice[1];
                 versionLoaderVersion.setText("");
+                updateRecommendations(choice[1]);
                 if (versionInstallButton != null) {
                     versionInstallButton.setText("vanilla".equals(choice[1])
                             ? "下载原版" : "安装 " + choice[0] + " 并启动");
@@ -1145,7 +1152,14 @@ public final class LauncherFrame extends JFrame {
         loader.add(Ui.vgap(7));
         loader.add(sidebarNote("Forge / NeoForge 会自动查询当前游戏版本对应的最新版本。"
                 + "也可以手动填写覆盖。"));
-        form.add(lockedHeight(loader));
+        recommendationPanel = new JPanel();
+        recommendationPanel.setOpaque(false);
+        recommendationPanel.setLayout(new BoxLayout(recommendationPanel, BoxLayout.Y_AXIS));
+        recommendationPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        recommendationPanel.setVisible(false);
+        loader.add(recommendationPanel);
+        loader.add(Ui.vgap(4));
+        form.add(loader);
         form.add(Ui.vgap(30));
 
         JPanel actions = new JPanel();
@@ -1159,7 +1173,7 @@ public final class LauncherFrame extends JFrame {
         actions.setAlignmentX(Component.LEFT_ALIGNMENT);
         form.add(actions);
         form.add(Box.createVerticalGlue());
-        page.add(form, BorderLayout.CENTER);
+        page.add(Ui.scroll(form), BorderLayout.CENTER);
         return page;
     }
 
@@ -1923,6 +1937,17 @@ public final class LauncherFrame extends JFrame {
             config.save();
         });
         download.add(autoUpdateToggle);
+        download.add(Ui.vgap(8));
+        recommendToggle = new Ui.ToggleChip("安装加载器后显示推荐模组");
+        recommendToggle.setSelected(config.recommendMods());
+        recommendToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        recommendToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        recommendToggle.addActionListener(e -> {
+            config.recommendMods(recommendToggle.isSelected());
+            config.save();
+            updateRecommendations(versionLoaderType);
+        });
+        download.add(recommendToggle);
         if (!RegionGate.locked()) {
             download.add(Ui.vgap(8));
             removeRegionLimitsToggle = new Ui.ToggleChip("更新时移除地区限制（仅普通版）");
@@ -2352,6 +2377,62 @@ public final class LauncherFrame extends JFrame {
         }.execute();
     }
 
+    private void updateRecommendations(String loader) {
+        if (recommendationPanel == null) {
+            return;
+        }
+        recommendationPanel.removeAll();
+        recommendationRows.clear();
+        if (!config.recommendMods() || "vanilla".equals(loader)) {
+            recommendationPanel.setVisible(false);
+            recommendationPanel.revalidate();
+            recommendationPanel.repaint();
+            return;
+        }
+        recommendationPanel.add(Ui.vgap(8));
+        recommendationPanel.add(Ui.label("推荐模组 · 可自行勾选", Theme.TINY, Theme.DIM));
+        recommendationPanel.add(Ui.vgap(4));
+        for (Recommendations.Item item : Recommendations.forLoader(loader)) {
+            Ui.ToggleChip chip = new Ui.ToggleChip(item.title() + "  ·  " + item.note());
+            chip.setSelected(item.selected());
+            chip.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+            chip.setAlignmentX(Component.LEFT_ALIGNMENT);
+            recommendationPanel.add(chip);
+            recommendationPanel.add(Ui.vgap(3));
+            recommendationRows.add(new RecommendationRow(item, chip));
+        }
+        recommendationPanel.setVisible(true);
+        recommendationPanel.revalidate();
+        recommendationPanel.repaint();
+    }
+
+    private java.util.List<Recommendations.Item> selectedRecommendations() {
+        java.util.List<Recommendations.Item> result = new java.util.ArrayList<>();
+        for (RecommendationRow row : recommendationRows) {
+            if (row.toggle().isSelected()) {
+                result.add(row.item());
+            }
+        }
+        return result;
+    }
+
+    private void installRecommendations(java.util.List<Recommendations.Item> items,
+                                        String instanceId, String loader, String gameVersion) {
+        Config installConfig = config.copyForGameDir(config.effectiveGameDir(instanceId));
+        Modrinth modrinth = new Modrinth(taskProgress, taskToken);
+        for (Recommendations.Item item : items) {
+            taskToken.check();
+            try {
+                taskProgress.stage("推荐模组 · " + item.title());
+                Modrinth.Project project = modrinth.project(item.slug());
+                new ContentInstaller(installConfig, taskProgress, taskToken)
+                        .install(project, gameVersion, loader);
+            } catch (Exception ex) {
+                Log.warn("推荐模组安装失败 " + item.slug() + ": " + ex.getMessage());
+            }
+        }
+    }
+
     private void openVersionDetail() {
         if (selectedEntry == null) {
             return;
@@ -2363,6 +2444,7 @@ public final class LauncherFrame extends JFrame {
         }
         versionLoaderVersion.setText("");
         versionLoaderVersion.setEnabled(true);
+        updateRecommendations("vanilla");
         versionDetailTitle.setText(selectedEntry.id());
         versionDetailMeta.setText(detailMeta == null ? ""
                 : detailMeta.getText());
@@ -2400,6 +2482,7 @@ public final class LauncherFrame extends JFrame {
         VersionManifest.VersionEntry entry = selectedEntry;
         VersionMeta meta = selectedMeta;
         JavaManager.JavaInfo resolvedJava = resolveJava(meta);
+        java.util.List<Recommendations.Item> recommended = selectedRecommendations();
         beginTask("安装 " + entry.id() + " / " + versionLoaderType);
         new SwingWorker<String, Void>() {
             @Override
@@ -2421,7 +2504,11 @@ public final class LauncherFrame extends JFrame {
                 if (java == null) {
                     throw new IOException("安装加载器需要 Java");
                 }
-                return installer.install(loaderType, entry.id(), version, java);
+                String loaderId = installer.install(loaderType, entry.id(), version, java);
+                if (!recommended.isEmpty()) {
+                    installRecommendations(recommended, loaderId, loaderType, entry.id());
+                }
+                return loaderId;
             }
 
             @Override

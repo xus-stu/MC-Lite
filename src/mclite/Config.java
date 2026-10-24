@@ -35,6 +35,7 @@ public final class Config {
     private boolean metalRendering;
     private boolean autoUpdate = true;
     private boolean removeRegionLimits = true;
+    private boolean recommendMods = true;
     private boolean sidebarCollapsed;
     private String filter = "release";
     private String lastVersion = "";
@@ -118,6 +119,8 @@ public final class Config {
                     properties.getProperty("autoUpdate", "true"));
             config.removeRegionLimits = Boolean.parseBoolean(
                     properties.getProperty("removeRegionLimits", "true"));
+            config.recommendMods = Boolean.parseBoolean(
+                    properties.getProperty("recommendMods", "true"));
             config.sidebarCollapsed = Boolean.parseBoolean(
                     properties.getProperty("sidebarCollapsed", "false"));
             String savedFilter = properties.getProperty("filter", "release");
@@ -159,6 +162,7 @@ public final class Config {
         copy.metalRendering = metalRendering;
         copy.autoUpdate = autoUpdate;
         copy.removeRegionLimits = removeRegionLimits;
+        copy.recommendMods = recommendMods;
         copy.sidebarCollapsed = sidebarCollapsed;
         copy.filter = filter;
         copy.lastVersion = lastVersion;
@@ -307,6 +311,14 @@ public final class Config {
 
     public void forceModTranslation(boolean value) {
         this.forceModTranslation = value;
+    }
+
+    public boolean recommendMods() {
+        return recommendMods;
+    }
+
+    public void recommendMods(boolean value) {
+        this.recommendMods = value;
     }
 
     public boolean removeRegionLimits() {
@@ -510,6 +522,7 @@ public final class Config {
             properties.setProperty("metalRendering", Boolean.toString(metalRendering));
             properties.setProperty("autoUpdate", Boolean.toString(autoUpdate));
             properties.setProperty("removeRegionLimits", Boolean.toString(removeRegionLimits));
+            properties.setProperty("recommendMods", Boolean.toString(recommendMods));
             properties.setProperty("sidebarCollapsed", Boolean.toString(sidebarCollapsed));
             properties.setProperty("filter", filter);
             properties.setProperty("lastVersion", lastVersion);
