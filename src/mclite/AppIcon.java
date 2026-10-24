@@ -26,6 +26,10 @@ public final class AppIcon {
         }
     }
 
+    public static BufferedImage image(int size) {
+        return draw(size);
+    }
+
     private static BufferedImage draw(int size) {
         BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
