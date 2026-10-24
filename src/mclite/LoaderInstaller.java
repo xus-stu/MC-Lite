@@ -204,6 +204,47 @@ public final class LoaderInstaller {
         return id;
     }
 
+    private void ensureLauncherProfile(String minecraftVersion) throws IOException {
+        Path profile = paths.gameDir().resolve("launcher_profiles.json");
+        if (Files.isRegularFile(profile)) {
+            try {
+                String existing = Files.readString(profile, StandardCharsets.UTF_8);
+                if (existing.contains("\"profiles\"") && existing.length() > 40) {
+                    return;
+                }
+            } catch (IOException ignored) {
+            }
+        }
+        Files.createDirectories(paths.gameDir());
+        String now = java.time.OffsetDateTime.now().toString();
+        String json = """
+                {
+                  "profiles": {
+                    "mclite": {
+                      "name": "MC Lite",
+                      "type": "custom",
+                      "created": "%s",
+                      "lastUsed": "%s",
+                      "icon": "Grass",
+                      "lastVersionId": "%s"
+                    }
+                  },
+                  "settings": {
+                    "enableSnapshots": false,
+                    "enableAdvanced": false,
+                    "keepLauncherOpen": false,
+                    "showMenu": false,
+                    "soundOn": false
+                  },
+                  "version": 3
+                }
+                """.formatted(now, now, minecraftVersion);
+        Files.writeString(profile, json, StandardCharsets.UTF_8,
+                java.nio.file.StandardOpenOption.CREATE,
+                java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+        Log.info("已为 Forge 安装器创建 launcher_profiles.json");
+    }
+
     private String installForge(String minecraftVersion, String loaderVersion,
                                 JavaManager.JavaInfo java, boolean neoForge) throws IOException {
         String url;
@@ -223,6 +264,7 @@ public final class LoaderInstaller {
         }
         Path temp = config.cacheDir().resolve("loader-installer.jar");
         net.download(url, temp, sha1, -1, "加载器安装器", true);
+        ensureLauncherProfile(minecraftVersion);
 
         progress.stage("运行官方加载器安装器…");
         Files.createDirectories(config.logsDir());
