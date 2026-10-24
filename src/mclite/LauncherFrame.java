@@ -2449,7 +2449,9 @@ public final class LauncherFrame extends JFrame {
                 SwingUtilities.invokeLater(() -> status.setText("实际游戏分数 "
                         + result.score() + " · 启动 "
                         + result.startupMs() + " ms · CPU "
-                        + result.cpuMs() + " ms"
+                        + result.cpuMs() + " ms · 平均帧 "
+                        + (result.fpsMeasured()
+                        ? String.format("%.1f", result.averageFps()) : "不可用")
                         + (result.exited() ? " · 游戏提前退出" : "")));
             } catch (Exception ex) {
                 SwingUtilities.invokeLater(() -> status.setText("跑分失败：" + ex.getMessage()));

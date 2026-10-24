@@ -126,11 +126,18 @@ public final class BenchmarkManager {
             Path java = Path.of(System.getProperty("java.home"), "bin",
                     System.getProperty("os.name", "").toLowerCase().contains("win")
                             ? "javaw.exe" : "java");
-            new ProcessBuilder(java.toString(), "-Xmx512m", "-jar", module.toString()).start();
+            new ProcessBuilder(java.toString(), "-Xmx512m", "-jar", module.toString(),
+                    "--bg=" + hex(Theme.BG), "--card=" + hex(Theme.CARD),
+                    "--text=" + hex(Theme.TEXT), "--muted=" + hex(Theme.MUTED),
+                    "--dim=" + hex(Theme.DIM), "--accent=" + hex(Theme.ACCENT)).start();
             status.accept("跑分模块已启动");
         } catch (Exception ex) {
             status.accept("启动失败：" + ex.getMessage());
         }
+    }
+
+    private static String hex(java.awt.Color color) {
+        return String.format("%06X", color.getRGB() & 0xFFFFFF);
     }
 
     private static String host(String url) {

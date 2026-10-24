@@ -26,17 +26,38 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public final class BenchmarkMain {
-    private static final Color BG = new Color(0x0D0D0D);
-    private static final Color CARD = new Color(0x151515);
-    private static final Color TEXT = new Color(0xF5F5F5);
-    private static final Color MUTED = new Color(0xC9C9C9);
-    private static final Color DIM = new Color(0x8E8E8E);
-    private static final Color ACCENT = new Color(0xF2F2F2);
+    private static Color BG = new Color(0x0D0D0D);
+    private static Color CARD = new Color(0x151515);
+    private static Color TEXT = new Color(0xF5F5F5);
+    private static Color MUTED = new Color(0xC9C9C9);
+    private static Color DIM = new Color(0x8E8E8E);
+    private static Color ACCENT = new Color(0xF2F2F2);
 
     private JLabel scoreLabel;
     private JTextArea info;
 
     public static void main(String[] args) {
+        for (String arg : args) {
+            int eq = arg.indexOf('=');
+            if (!arg.startsWith("--") || eq < 0) {
+                continue;
+            }
+            String value = arg.substring(eq + 1);
+            try {
+                Color color = new Color(Integer.parseInt(value, 16));
+                switch (arg.substring(2, eq)) {
+                    case "bg" -> BG = color;
+                    case "card" -> CARD = color;
+                    case "text" -> TEXT = color;
+                    case "muted" -> MUTED = color;
+                    case "dim" -> DIM = color;
+                    case "accent" -> ACCENT = color;
+                    default -> {
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
         SwingUtilities.invokeLater(() -> new BenchmarkMain().show());
     }
 
@@ -128,7 +149,8 @@ public final class BenchmarkMain {
                 .append(" / ").append(System.getProperty("os.arch")).append('\n');
         text.append("处理器    ").append(cpuName()).append('\n');
         text.append("逻辑核心  ").append(Runtime.getRuntime().availableProcessors()).append('\n');
-        text.append("最大内存  ").append(Runtime.getRuntime().maxMemory() / 1024 / 1024)
+        text.append("物理内存  ").append(physicalMemory()).append('\n');
+        text.append("JVM 最大堆 ").append(Runtime.getRuntime().maxMemory() / 1024 / 1024)
                 .append(" MB\n");
         text.append("显卡      ").append(gpuName()).append('\n');
         text.append("Java      ").append(System.getProperty("java.version")).append('\n');
@@ -136,6 +158,30 @@ public final class BenchmarkMain {
                 ? "无界面" : "已连接").append('\n');
         text.append('\n').append("说明：分数用于同一台机器前后对比，跨机器仅供参考。\n");
         return text.toString();
+    }
+
+    private static String physicalMemory() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        try {
+            long bytes = -1;
+            if (os.contains("win")) {
+                String value = command("powershell.exe", "-NoProfile", "-Command",
+                        "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory");
+                bytes = Long.parseLong(value.trim());
+            } else if (os.contains("mac")) {
+                String value = command("sysctl", "-n", "hw.memsize");
+                bytes = Long.parseLong(value.trim());
+            } else {
+                String value = command("sh", "-c",
+                        "grep MemTotal /proc/meminfo | awk '{print $2}'");
+                bytes = Long.parseLong(value.trim()) * 1024;
+            }
+            if (bytes > 0) {
+                return String.format(Locale.ROOT, "%.1f GB", bytes / 1024.0 / 1024 / 1024);
+            }
+        } catch (Exception ignored) {
+        }
+        return "未知硬件";
     }
 
     private static String cpuName() {
