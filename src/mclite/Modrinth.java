@@ -111,6 +111,20 @@ public final class Modrinth {
         return results;
     }
 
+    public Project project(String slug) throws IOException {
+        byte[] bytes = net.getUnverifiedBytes(API + "/project/"
+                + URLEncoder.encode(slug, StandardCharsets.UTF_8), "Modrinth 项目");
+        Map<String, Object> item = Json.obj(Json.parse(new String(bytes, StandardCharsets.UTF_8)));
+        String id = Json.str(item, "id");
+        String title = Json.str(item, "title");
+        if (id == null || title == null) {
+            throw new IOException("项目不存在: " + slug);
+        }
+        return new Project(id, Json.str(item, "slug", slug), title,
+                Json.str(item, "description", ""), "", Json.lng(item, "downloads", 0),
+                Json.str(item, "icon_url"), Json.str(item, "project_type", "mod"));
+    }
+
     public List<Version> versions(String projectId, String gameVersion, String loader)
             throws IOException {
         StringBuilder url = new StringBuilder(API).append("/project/")

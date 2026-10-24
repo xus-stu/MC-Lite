@@ -65,6 +65,7 @@ public final class Updater {
             return false;
         }
         try {
+            Path launchJar = DesktopShortcut.updateIfInstalled(staged, version);
             Path java = Path.of(System.getProperty("java.home"), "bin",
                     isWindows() ? "java.exe" : "java");
             if (!Files.isRegularFile(java)) {
@@ -82,7 +83,7 @@ public final class Updater {
             command.add("-XX:-UsePerfData");
             command.add("-XX:TieredStopAtLevel=1");
             command.add("-jar");
-            command.add(staged.toString());
+            command.add(launchJar.toString());
             for (String arg : args) {
                 command.add(arg);
             }
