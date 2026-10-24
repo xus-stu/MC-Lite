@@ -2015,16 +2015,22 @@ public final class LauncherFrame extends JFrame {
         Ui.AccentButton benchmarkRun = Ui.smallButton("运行跑分",
                 Ui.AccentButton.Style.GHOST);
         benchmarkRun.addActionListener(e -> BenchmarkManager.run(config, benchmarkStatus::setText));
+        Ui.AccentButton benchmarkGame = Ui.smallButton("用当前实例跑分",
+                Ui.AccentButton.Style.SECONDARY);
+        benchmarkGame.addActionListener(e -> runGameBenchmark(benchmarkStatus));
         benchmarkActions.add(benchmarkDownload);
         benchmarkActions.add(Ui.hgap(8));
         benchmarkActions.add(benchmarkRun);
+        benchmarkActions.add(Ui.hgap(8));
+        benchmarkActions.add(benchmarkGame);
         benchmarkActions.add(Box.createHorizontalGlue());
         benchmarkActions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
         benchmarkActions.setAlignmentX(Component.LEFT_ALIGNMENT);
         benchmark.add(benchmarkActions);
         benchmark.add(Ui.vgap(7));
         benchmark.add(sidebarNote("模块独立运行，扫描 CPU、内存、系统和显卡；"
-                + "扫描不到硬件时显示未知硬件。"));        form.add(lockedHeight(download));
+                + "扫描不到硬件时显示未知硬件。"));
+        form.add(lockedHeight(benchmark));
         form.add(Ui.vgap(30));
         form.add(divider());
         form.add(Ui.vgap(30));
@@ -2417,6 +2423,37 @@ public final class LauncherFrame extends JFrame {
                 }
             }
         }.execute();
+    }
+
+    private void runGameBenchmark(JLabel status) {
+        if (selectedEntry == null || selectedMeta == null) {
+            status.setText("请先在启动页选择一个已安装版本");
+            return;
+        }
+        if (busy || launching) {
+            status.setText("当前有任务运行，稍后再试");
+            return;
+        }
+        VersionManifest.VersionEntry entry = selectedEntry;
+        VersionMeta meta = selectedMeta;
+        JavaManager.JavaInfo java = resolveJava(meta);
+        if (java == null || java.major() < meta.javaMajor()) {
+            status.setText("Java 不满足版本要求");
+            return;
+        }
+        status.setText("实际游戏跑分中，约 12 秒…");
+        new Thread(() -> {
+            try {
+                GameBenchmark.Result result = GameBenchmark.run(config, meta, entry, java);
+                SwingUtilities.invokeLater(() -> status.setText("实际游戏分数 "
+                        + result.score() + " · 启动 "
+                        + result.startupMs() + " ms · CPU "
+                        + result.cpuMs() + " ms"
+                        + (result.exited() ? " · 游戏提前退出" : "")));
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> status.setText("跑分失败：" + ex.getMessage()));
+            }
+        }, "mclite-game-benchmark").start();
     }
 
     private void updateRecommendations(String loader) {

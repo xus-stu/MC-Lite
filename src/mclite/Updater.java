@@ -363,6 +363,7 @@ public final class Updater {
                 if (dir == null || !Files.isRegularFile(dir.resolve("Uninstall.exe"))) {
                     return;
                 }
+                Path current = source;
                 try (var files = Files.list(dir)) {
                     files.filter(path -> path.getFileName().toString()
                                     .matches("MCLite_v[0-9].*\\.jar"))
@@ -370,7 +371,8 @@ public final class Updater {
                                     .equals("MCLite_v" + Version.VALUE + ".jar"))
                             .forEach(path -> {
                                 try {
-                                    Files.deleteIfExists(path);
+                                    Files.copy(current, path,
+                                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                                 } catch (IOException ignored) {
                                 }
                             });
