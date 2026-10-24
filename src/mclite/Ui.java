@@ -935,9 +935,9 @@ public final class Ui {
             Graphics2D g2 = prepare(g);
             float p = selectedProgress;
             g2.setColor(Theme.mix(Theme.CARD_ALT, Theme.SEL, p));
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 9, 9);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
             g2.setColor(Theme.mix(Theme.BORDER, Theme.alpha(Theme.ACCENT, 120), p));
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 9, 9);
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
             g2.setColor(Theme.mix(Theme.BORDER, Theme.ACCENT, p));
             g2.drawOval(9, getHeight() / 2 - 3, 6, 6);
             if (p > 0.02f) {

@@ -121,11 +121,13 @@ LAUNCHER
   cp -R "$APP" "$REGION_APP"
   rm -f "$REGION_APP/Contents/Resources/${NORMAL_JAR}"
   cp "dist/${REGION_JAR}" "$REGION_APP/Contents/Resources/${REGION_JAR}"
-  if ! unzip -p "$REGION_APP/Contents/Resources/${REGION_JAR}" META-INF/MANIFEST.MF | grep -q RegionLauncherApp; then
+  unzip -p "$REGION_APP/Contents/Resources/${REGION_JAR}" META-INF/MANIFEST.MF > build/region-manifest.txt
+  if ! grep -q RegionLauncherApp build/region-manifest.txt; then
     echo "错误：地区版 app 内的 jar 不是 RegionLauncherApp" >&2
     exit 1
   fi
-  if ! unzip -l "$REGION_APP/Contents/Resources/${REGION_JAR}" | grep -q 'mclite/region.lock'; then
+  unzip -l "$REGION_APP/Contents/Resources/${REGION_JAR}" > build/region-list.txt
+  if ! grep -q 'mclite/region.lock' build/region-list.txt; then
     echo "错误：地区版 app 内的 jar 缺少 region.lock" >&2
     exit 1
   fi
