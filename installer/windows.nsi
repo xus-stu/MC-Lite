@@ -20,6 +20,7 @@ SetCompressor /SOLID lzma
 Section "MC Lite" SecMain
   SetShellVarContext current
   SetOutPath "$INSTDIR"
+  Delete "$INSTDIR\MCLite_v*.jar"
   File /r "@ROOT@/build/installer/MC-Lite/*"
   WriteRegStr HKCU "Software\MCLite" "InstallDir" "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"

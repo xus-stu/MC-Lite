@@ -10,6 +10,24 @@ WIN_ZIP="MC-Lite_v${VERSION}_region_Windows.zip"
 APP="dist/MC Lite v${VERSION}.app"
 REGION_APP="dist/MC Lite Region v${VERSION}.app"
 
+# 删除 dist 里不属于当前版本的旧构建产物，构建目录只保留当前版本。
+for f in dist/MCLite_v*.jar dist/MCLite_v*.exe dist/MC-Lite_v*_Setup.exe \
+         dist/MC-Lite_v*_macOS.zip dist/MC-Lite_v*_region_macOS.zip \
+         dist/MC-Lite_v*_region_Windows.zip; do
+  [ -e "$f" ] || continue
+  case "$f" in
+    *"${VERSION}"*) ;;
+    *) rm -f "$f" ;;
+  esac
+done
+for d in dist/"MC Lite v"*.app dist/"MC Lite Region v"*.app; do
+  [ -d "$d" ] || continue
+  case "$d" in
+    *"${VERSION}"*) ;;
+    *) rm -rf "$d" ;;
+  esac
+done
+
 echo "[1/4] 编译 Java 源码…"
 rm -rf build/classes
 mkdir -p build/classes dist
