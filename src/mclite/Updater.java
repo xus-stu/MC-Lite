@@ -371,8 +371,7 @@ public final class Updater {
                                     .equals("MCLite_v" + Version.VALUE + ".jar"))
                             .forEach(path -> {
                                 try {
-                                    Files.copy(current, path,
-                                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                    Files.deleteIfExists(path);
                                 } catch (IOException ignored) {
                                 }
                             });
