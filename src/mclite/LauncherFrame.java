@@ -318,7 +318,7 @@ public final class LauncherFrame extends JFrame {
         JPanel identity = new JPanel();
         identity.setOpaque(false);
         identity.setLayout(new BoxLayout(identity, BoxLayout.X_AXIS));
-        headerBackButton = Ui.smallButton("← 返回", Ui.AccentButton.Style.SECONDARY);
+        headerBackButton = Ui.smallButton("< 返回", Ui.AccentButton.Style.SECONDARY);
         headerBackButton.setPreferredSize(new Dimension(64, 26));
         headerBackButton.setMaximumSize(new Dimension(64, 26));
         headerBackButton.setEnabled(false);
@@ -326,7 +326,7 @@ public final class LauncherFrame extends JFrame {
         headerBackButton.addActionListener(e -> goBack());
         identity.add(headerBackButton);
         identity.add(Ui.hgap(6));
-        sidebarToggle = Ui.smallButton(config.sidebarCollapsed() ? "☰" : "‹",
+        sidebarToggle = Ui.smallButton(config.sidebarCollapsed() ? "栏" : "<",
                 Ui.AccentButton.Style.GHOST);
         sidebarToggle.setPreferredSize(new Dimension(28, 26));
         sidebarToggle.setMaximumSize(new Dimension(28, 26));
@@ -903,7 +903,7 @@ public final class LauncherFrame extends JFrame {
                 openUrl(project.mcmodUrl());
             }
         });
-        contentPrevPage = Ui.smallButton("‹", Ui.AccentButton.Style.GHOST);
+        contentPrevPage = Ui.smallButton("<", Ui.AccentButton.Style.GHOST);
         contentPrevPage.setPreferredSize(new Dimension(28, 30));
         contentPrevPage.setMaximumSize(new Dimension(28, 30));
         contentPrevPage.addActionListener(e -> {
@@ -912,7 +912,7 @@ public final class LauncherFrame extends JFrame {
                 runContentSearch();
             }
         });
-        contentNextPage = Ui.smallButton("›", Ui.AccentButton.Style.GHOST);
+        contentNextPage = Ui.smallButton(">", Ui.AccentButton.Style.GHOST);
         contentNextPage.setPreferredSize(new Dimension(28, 30));
         contentNextPage.setMaximumSize(new Dimension(28, 30));
         contentNextPage.addActionListener(e -> {
@@ -3168,7 +3168,7 @@ public final class LauncherFrame extends JFrame {
             sidebar.setPreferredSize(new Dimension(286, 0));
             sidebar.setMinimumSize(new Dimension(286, 0));
             sidebar.setMaximumSize(new Dimension(286, Integer.MAX_VALUE));
-            sidebarToggle.setText("‹");
+            sidebarToggle.setText("<");
             getContentPane().revalidate();
             getContentPane().repaint();
             return;
@@ -3188,7 +3188,7 @@ public final class LauncherFrame extends JFrame {
             if (t >= 1f) {
                 timer.stop();
                 sidebar.setVisible(false);
-                sidebarToggle.setText("☰");
+                sidebarToggle.setText("栏");
                 sidebarToggle.revalidate();
                 sidebarToggle.repaint();
             }

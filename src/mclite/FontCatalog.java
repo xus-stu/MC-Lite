@@ -37,7 +37,8 @@ public final class FontCatalog {
             if (family == null || family.isBlank() || family.startsWith("@")) {
                 continue;
             }
-            if (!family.equals(kaiti) && !family.equals(handwriting)) {
+            if (!family.equals(kaiti) && !family.equals(handwriting)
+                    && supportsChinese(family)) {
                 ordinary.add(family);
             }
         }
@@ -46,6 +47,14 @@ public final class FontCatalog {
             result.add(new Choice(family, family));
         }
         return result;
+    }
+
+    public static boolean supportsChinese(String family) {
+        if (family == null || family.isBlank()) {
+            return true;
+        }
+        java.awt.Font font = new java.awt.Font(family, java.awt.Font.PLAIN, 12);
+        return font.canDisplay('中') && font.canDisplay('字');
     }
 
     public static boolean available(String family) {
