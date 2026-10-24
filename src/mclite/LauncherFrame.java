@@ -1152,9 +1152,9 @@ public final class LauncherFrame extends JFrame {
         loader.add(Ui.vgap(7));
         loader.add(sidebarNote("Forge / NeoForge 会自动查询当前游戏版本对应的最新版本。"
                 + "也可以手动填写覆盖。"));
-        recommendationPanel = new JPanel();
-        recommendationPanel.setOpaque(false);
+        recommendationPanel = new Ui.RoundedPanel(Theme.CARD_ALT, Theme.BORDER, 14);
         recommendationPanel.setLayout(new BoxLayout(recommendationPanel, BoxLayout.Y_AXIS));
+        recommendationPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
         recommendationPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         recommendationPanel.setVisible(false);
         loader.add(recommendationPanel);
