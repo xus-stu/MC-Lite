@@ -119,7 +119,7 @@ MCLite_v版本-region.jar
 神秘小文件/v版本/
 ```
 
-包含 jar、exe、macOS 应用和 zip。`v1.0.14` 之前的旧备份已清理。
+包含 jar、安装包、macOS 应用和 zip。`v1.0.14` 之前的旧备份已清理。
 
 ## Windows 安装版
 
@@ -127,15 +127,15 @@ MCLite_v版本-region.jar
 dist/MC-Lite_v1.1.30_Setup.exe
 ```
 
-安装到当前用户的 `%LOCALAPPDATA%\Programs\MC Lite`，不需要管理员权限。
+安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
 
-会创建桌面和开始菜单快捷方式，并写入卸载项。安装包是 NSIS 安装器，不是临时目录自解压。
+会创建桌面和开始菜单快捷方式，并写入卸载项。安装包是 NSIS 安装器，不是临时目录自解压，也不经过 bat 脚本。
 
 ## Java 和游戏目录
 
 默认目录是 `~/.mclite`。游戏目录可以在启动器配置里修改，也可以直接导入 HMCL 的目录。
 
-Windows 便携版内置独立的 Java 21 运行时，使用自己的 `runtime`，不会修改或覆盖系统 JDK。
+Windows 安装版内置独立的 Java 21 运行时，使用自己的 `runtime`，不会修改或覆盖系统 JDK。
 
 macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界面，重启后生效；如果开启后黑屏，关闭它再重启。
 
