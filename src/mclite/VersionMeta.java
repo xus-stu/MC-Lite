@@ -247,16 +247,18 @@ public final class VersionMeta {
 
     public static final class Library {
         private final String name;
+        private final String url;
         private final List<Rules.Rule> rules;
         private final Download artifact;
         private final Map<String, Download> classifiers;
         private final Map<String, String> natives;
         private final List<String> extractExclude;
 
-        private Library(String name, List<Rules.Rule> rules, Download artifact,
+        private Library(String name, String url, List<Rules.Rule> rules, Download artifact,
                         Map<String, Download> classifiers, Map<String, String> natives,
                         List<String> extractExclude) {
             this.name = name;
+            this.url = url;
             this.rules = rules;
             this.artifact = artifact;
             this.classifiers = classifiers;
@@ -266,8 +268,12 @@ public final class VersionMeta {
 
         public static Library parse(Map<String, Object> map) {
             String name = Json.str(map, "name", "");
+            String libraryUrl = Json.str(map, "url", "");
             Map<String, Object> downloads = Json.obj(map.get("downloads"));
             Download artifact = Download.parse(Json.obj(downloads.get("artifact")), null);
+            if (artifact == null) {
+                artifact = mavenDownload(name, libraryUrl);
+            }
             Map<String, Download> classifiers = new LinkedHashMap<>();
             Map<String, Object> classifierMap = Json.obj(downloads.get("classifiers"));
             for (Map.Entry<String, Object> entry : classifierMap.entrySet()) {
@@ -290,13 +296,31 @@ public final class VersionMeta {
                     excludes.add(text);
                 }
             }
-            return new Library(name, Rules.Rule.parseList(map.get("rules")), artifact,
+            return new Library(name, libraryUrl, Rules.Rule.parseList(map.get("rules")), artifact,
                     Collections.unmodifiableMap(classifiers), Collections.unmodifiableMap(natives),
                     Collections.unmodifiableList(excludes));
         }
 
         public boolean applies(Rules.Env env) {
             return Rules.allows(rules, env);
+        }
+
+        private static Download mavenDownload(String name, String baseUrl) {
+            if (name == null || name.isBlank() || baseUrl == null || baseUrl.isBlank()) {
+                return null;
+            }
+            String[] parts = name.split(":");
+            if (parts.length < 3 || parts.length > 4) {
+                return null;
+            }
+            String group = parts[0];
+            String artifact = parts[1];
+            String version = parts[2];
+            String classifier = parts.length == 4 && !parts[3].isBlank() ? "-" + parts[3] : "";
+            String path = group.replace('.', '/') + "/" + artifact + "/" + version
+                    + "/" + artifact + "-" + version + classifier + ".jar";
+            String base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+            return new Download(path, base + path, null, -1);
         }
 
         public Download artifact() {
