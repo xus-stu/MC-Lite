@@ -78,7 +78,7 @@ public final class Installer {
 
         Plan plan = buildPlan(meta, includeAssets);
         if (plan.totalBytes() > 0) {
-            progress.total(plan.totalBytes());
+            progress.addTotal(plan.totalBytes());
         } else {
             progress.indeterminate(true);
         }
