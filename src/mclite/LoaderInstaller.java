@@ -197,6 +197,9 @@ public final class LoaderInstaller {
                 throw new IOException("加载器库缺少 SHA-1: " + name);
             }
             Path target = GamePaths.resolveUnder(paths.librariesDir(), relative);
+            if (size > 0) {
+                progress.addTotal(size);
+            }
             net.download(baseUrl + relative, target, sha1, size, "加载器库 " + name, true);
             count++;
         }

@@ -193,6 +193,9 @@ public final class ModpackInstaller {
                 token.check();
                 Path target = GamePaths.resolveUnder(instance, file.path());
                 futures.add(pool.submit(() -> {
+                    if (file.size() > 0) {
+                        progress.addTotal(file.size());
+                    }
                     net.download(file.url(), target, file.sha1(), file.size(),
                             file.path(), true);
                     int n = done.incrementAndGet();
