@@ -146,6 +146,10 @@ public final class SkinStore {
         }
     }
 
+    public static byte[] toJsonBytes(Object value) {
+        return toJson(value).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     private static String toJson(Object value) {
         if (value == null) {
             return "null";

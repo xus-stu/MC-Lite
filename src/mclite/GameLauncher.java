@@ -46,6 +46,16 @@ public final class GameLauncher {
         Files.createDirectories(paths.assetsDir());
         prepareNatives(meta, paths);
         List<String> command = buildCommand(config, meta, entry, javaPath, true);
+        LocalSkinServer skinServer = LocalSkinServer.start(config, config.accountId(), config.username());
+        if (skinServer != null) {
+            Path authlib = AuthlibInjector.ensure(config);
+            if (authlib != null) {
+                command.addAll(1, skinServer.jvmArguments(authlib));
+            } else {
+                skinServer.close();
+                skinServer = null;
+            }
+        }
 
         Files.createDirectories(paths.gameLogsDir());
         String stamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
@@ -69,7 +79,19 @@ public final class GameLauncher {
         builder.directory(instanceDir.toFile());
         builder.redirectErrorStream(true);
         builder.redirectOutput(ProcessBuilder.Redirect.appendTo(logFile.toFile()));
-        Process process = builder.start();
+        Process process;
+        try {
+            process = builder.start();
+        } catch (IOException ex) {
+            if (skinServer != null) {
+                skinServer.close();
+            }
+            throw ex;
+        }
+        if (skinServer != null) {
+            LocalSkinServer finalServer = skinServer;
+            process.onExit().thenRun(finalServer::close);
+        }
         Log.info("已启动 Minecraft " + meta.id() + "，PID=" + process.pid() + "，日志=" + logFile);
         return new LaunchResult(process, logFile, List.copyOf(command));
     }
