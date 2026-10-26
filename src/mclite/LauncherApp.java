@@ -15,6 +15,7 @@ public final class LauncherApp {
         System.setProperty("java.net.preferIPv6Addresses", "true");
         System.setProperty("apple.awt.application.name", "MC Lite");
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
+        Updater.captureParent();
         RegionGate.configure(args);
 
         Path screenshot = null;
