@@ -31,6 +31,8 @@ public final class Updater {
     private static final long MAX_UPDATE_BYTES = 128L * 1024 * 1024;
 
     private static volatile String ignoredVersion;
+    private static volatile Path parentLaunch;
+    private static volatile boolean parentCaptured;
 
     private record Release(String version, Map<String, String> digests) {
         String digest(String asset) {
@@ -41,10 +43,22 @@ public final class Updater {
     private Updater() {
     }
 
+    public static void captureParent() {
+        if (parentCaptured) {
+            return;
+        }
+        parentCaptured = true;
+        parentLaunch = readParentLaunchJar();
+        if (parentLaunch != null) {
+            Log.info("检测到父启动器: " + parentLaunch);
+        }
+    }
+
     public static boolean applyPending(String[] args, Config config) {
         if (contains(args, "--self-test") || contains(args, "--screenshot")) {
             return false;
         }
+        captureParent();
         Path root = config.appHome().resolve("updates").toAbsolutePath().normalize();
         Path pending = root.resolve("pending.properties");
         if (!Files.isRegularFile(pending)) {
@@ -65,6 +79,12 @@ public final class Updater {
         if (!isSafeVersion(version) || staged == null || !channel.equals(currentChannel)
                 || compare(version, Version.VALUE) <= 0) {
             if (runningStaged) {
+                // 1.1.33 及更早的旧版更新器只会从缓存启动，不会替换安装位置。
+                // 这里通过父进程命令行找到旧 jar，把当前版本补装回去。
+                if (isSafeVersion(version) && compare(version, Version.VALUE) == 0
+                        && migrateFromParent(config, staged, version)) {
+                    return false;
+                }
                 // 安装目录不可写时会持续从缓存启动，此时不能删掉正在使用的 jar。
                 return false;
             }
@@ -463,6 +483,132 @@ public final class Updater {
                 SwingUtilities.invokeLater(refreshTasks);
             }
             Log.warn("下载启动器更新失败: " + ex.getMessage());
+        }
+    }
+
+    private static boolean migrateFromParent(Config config, Path staged, String version) {
+        Path parent = parentLaunch;
+        if (parent == null) {
+            Log.warn("未能读取旧版安装位置，更新继续从缓存运行");
+            return false;
+        }
+        if (samePath(parent, staged) || !Files.isRegularFile(parent)) {
+            Log.warn("旧版安装位置无效: " + parent);
+            return false;
+        }
+        String name = parent.getFileName().toString();
+        if (!name.startsWith("MCLite_v") || !name.endsWith(".jar")) {
+            Log.warn("父进程不是启动器 jar: " + parent);
+            return false;
+        }
+        Path updates = config.appHome().resolve("updates").toAbsolutePath().normalize();
+        if (parent.startsWith(updates)) {
+            Log.warn("父进程位于更新缓存目录，跳过迁移: " + parent);
+            return false;
+        }
+        String oldVersion = jarVersion(parent);
+        if (oldVersion == null || compare(oldVersion, version) >= 0) {
+            Log.warn("旧版安装版本无效: " + oldVersion + " / " + parent);
+            return false;
+        }
+        try {
+            boolean unrestricted = isUnrestricted(staged);
+            verifyJar(staged, version, unrestricted);
+            UpdateInstaller.Installed installed = UpdateInstaller.installFrom(
+                    parent, staged, version, unrestricted ? "normal" : "region");
+            if (samePath(installed.launch(), staged)) {
+                return false;
+            }
+            Log.info("检测到旧版更新缓存，已安装到 " + installed.launch());
+            try {
+                Files.deleteIfExists(updates.resolve("pending.properties"));
+            } catch (IOException ignored) {
+            }
+            return true;
+        } catch (Exception ex) {
+            Log.warn("迁移旧版更新失败: " + ex.getMessage());
+            return false;
+        }
+    }
+
+    private static Path readParentLaunchJar() {
+        try {
+            var parent = ProcessHandle.current().parent();
+            if (parent.isEmpty()) {
+                return null;
+            }
+            var info = parent.get().info();
+            String jar = null;
+            String home = null;
+            String[] arguments = info.arguments().orElse(null);
+            if (arguments != null) {
+                for (String argument : arguments) {
+                    if (argument.startsWith("-Dmclite.home=")) {
+                        home = argument.substring("-Dmclite.home=".length());
+                    }
+                }
+                for (int i = 0; i + 1 < arguments.length; i++) {
+                    if ("-jar".equals(arguments[i])) {
+                        jar = arguments[i + 1];
+                        break;
+                    }
+                }
+            }
+            if (jar == null) {
+                String command = info.commandLine().orElse("");
+                int index = command.indexOf("-jar ");
+                if (index >= 0) {
+                    String rest = command.substring(index + 5).trim();
+                    if (rest.startsWith("\"")) {
+                        int end = rest.indexOf('"', 1);
+                        jar = end > 0 ? rest.substring(1, end) : null;
+                    } else {
+                        jar = rest.split("\\s+", 2)[0];
+                    }
+                }
+                if (home == null) {
+                    java.util.regex.Matcher matcher = java.util.regex.Pattern
+                            .compile("-Dmclite\\.home=(\\S+)").matcher(command);
+                    if (matcher.find()) {
+                        home = matcher.group(1);
+                    }
+                }
+            }
+            if (jar != null && home != null && !home.isBlank()
+                    && System.getProperty("mclite.home") == null) {
+                // 旧版更新器重新启动时不会传递 -Dmclite.home，这里从父进程补回来。
+                System.setProperty("mclite.home", home);
+            }
+            if (jar == null || jar.isBlank()) {
+                return null;
+            }
+            jar = jar.trim();
+            if (jar.startsWith("\"") && jar.endsWith("\"") && jar.length() > 1) {
+                jar = jar.substring(1, jar.length() - 1);
+            }
+            Path path = Path.of(jar);
+            if (!path.isAbsolute()) {
+                path = Path.of(System.getProperty("user.dir", ".")).resolve(path);
+            }
+            return path.toAbsolutePath().normalize();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static String jarVersion(Path jar) {
+        try (JarFile file = new JarFile(jar.toFile())) {
+            JarEntry entry = file.getJarEntry("mclite/version.properties");
+            if (entry == null) {
+                return null;
+            }
+            Properties properties = new Properties();
+            try (InputStream in = file.getInputStream(entry)) {
+                properties.load(new java.io.InputStreamReader(in, StandardCharsets.UTF_8));
+            }
+            return properties.getProperty("version", "").trim();
+        } catch (IOException ex) {
+            return null;
         }
     }
 
