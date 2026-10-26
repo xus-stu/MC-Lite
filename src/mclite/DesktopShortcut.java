@@ -24,10 +24,26 @@ public final class DesktopShortcut {
                 return staged;
             }
             Path target = installDir.resolve("MCLite_v" + version + ".jar");
-            Files.copy(staged, target, StandardCopyOption.REPLACE_EXISTING);
+            Path temp = Files.createTempFile(installDir, target.getFileName() + ".", ".tmp");
+            try {
+                Files.copy(staged, temp, StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                try {
+                    Files.deleteIfExists(temp);
+                } catch (java.io.IOException ignored) {
+                }
+            }
             Path java = installDir.resolve("runtime/bin/javaw.exe");
             if (!Files.isRegularFile(java)) {
-                return staged;
+                // jar 已经装好；快捷方式暂时没改也不能退回缓存启动。
+                Log.warn("安装目录缺少 javaw.exe，无法刷新快捷方式: " + java);
+                return target;
             }
             String name = "MC Lite V" + version;
             String arguments = "-jar \"" + target + "\"";

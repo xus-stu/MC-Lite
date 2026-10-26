@@ -20,7 +20,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 
 ## 运行
 
-当前版本：V1.1.33
+当前版本：V1.1.34
 
 需要 Java 21 或更高版本。
 
@@ -28,7 +28,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.33.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.34.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -39,7 +39,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.33-region.jar
+java -jar dist/MCLite_v1.1.34-region.jar
 ```
 
 ## 地区限制
@@ -83,22 +83,36 @@ java -jar dist/MCLite_v1.1.33-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.33-region.jar
-dist/MC Lite Region v1.1.33.app
-dist/MC-Lite_v1.1.33_region_macOS.zip
-dist/MC-Lite_v1.1.33_region_Windows.zip
+dist/MCLite_v1.1.34.jar
+dist/MCLite_v1.1.34-region.jar
+dist/MCLiteBenchmark.jar
+dist/MC Lite v1.1.34.app
+dist/MC Lite Region v1.1.34.app
+dist/MC-Lite_v1.1.34_macOS.zip
+dist/MC-Lite_v1.1.34_region_macOS.zip
+dist/MC-Lite_v1.1.34_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.33_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.34_region_Windows.zip`，双击 `start.bat`。
+
+## 测试
+
+```bash
+./test.sh          # 构建并运行普通版、地区版自检
+./test-update.sh   # 模拟一次真实更新，检查 jar / macOS 应用包是否被原地替换
+```
 
 ## 自动更新
 
 启动器会后台检查 GitHub 最新 Release，不影响正在运行的游戏。
 
 - 地区版下载地区版 jar
-- 普通版默认下载地区版 jar，并在本地移除地区限制
-- 下载完成后，下次启动启动器时应用
+- 普通版下载地区版 jar，并在本地移除地区限制后使用
+- 更新会直接替换你正在使用的 jar 或 macOS 应用包，不再长期从 `~/.mclite/updates/` 启动
+- 下载完成后，下次启动启动器时应用；应用后会清理旧版本和缓存
+- Windows 安装版会同时更新安装目录里的 jar 和桌面/开始菜单快捷方式
+- macOS 会更新 `.app` 内的 jar、启动脚本和 `Info.plist`，并把应用包改成新版本名
 - 普通版可以在设置中关闭自动更新，也可以关闭“更新时移除地区限制”
 
 GitHub Release 只需要上传地区版资源：
@@ -110,6 +124,9 @@ MCLite_v版本-region.jar
 只有 tag、没有 jar 附件的 Release 不会触发更新。
 
 普通版更新使用地区版 jar 的副本，并在本地移除地区限制；普通版源码和普通版 jar 不发布。
+
+更新包会校验 GitHub Release 提供的 SHA-256，并检查 `Main-Class`、`region.lock`、
+`unrestricted` 标记和内部版本号，校验失败不会写入安装目录。
 
 ## 备份
 
@@ -124,7 +141,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.33_Setup.exe
+dist/MC-Lite_v1.1.34_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -142,7 +159,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite.jar --software-render
+java -jar dist/MCLite_v1.1.34.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
@@ -164,10 +181,11 @@ C:\Users\<用户名>\.mclite\logs
 
 - 只从 HTTPS 白名单域名下载。
 - Mojang 和 Modrinth 文件会校验哈希。
+- 启动器更新会校验 GitHub Release 提供的 SHA-256（可用时）和 jar 结构。
 - 下载先写临时文件，校验通过后再替换。
 - 解压和路径检查限制在目标目录内。
 - 不保存密码和 access token。
-- 不安装系统服务，也不自动更新。
+- 不安装系统服务；自动更新只替换启动器自身文件，不修改系统组件。
 
 更详细的白名单和校验说明见 [SECURITY.md](SECURITY.md)。
 

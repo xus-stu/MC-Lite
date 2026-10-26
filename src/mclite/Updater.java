@@ -14,16 +14,29 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
+import java.util.zip.ZipException;
 import javax.swing.SwingUtilities;
 
 public final class Updater {
     private static final String REPO = "xus-stu/MC-Lite";
     private static final String API = "https://api.github.com/repos/" + REPO + "/releases/latest";
+    private static final long MAX_UPDATE_BYTES = 128L * 1024 * 1024;
 
     private static volatile String ignoredVersion;
+
+    private record Release(String version, Map<String, String> digests) {
+        String digest(String asset) {
+            return digests.get(asset);
+        }
+    }
 
     private Updater() {
     }
@@ -32,7 +45,8 @@ public final class Updater {
         if (contains(args, "--self-test") || contains(args, "--screenshot")) {
             return false;
         }
-        Path pending = config.appHome().resolve("updates/pending.properties");
+        Path root = config.appHome().resolve("updates").toAbsolutePath().normalize();
+        Path pending = root.resolve("pending.properties");
         if (!Files.isRegularFile(pending)) {
             return false;
         }
@@ -45,30 +59,99 @@ public final class Updater {
         String version = properties.getProperty("version", "").trim();
         String channel = properties.getProperty("channel", "").trim();
         String jar = properties.getProperty("jar", "").trim();
+        Path staged = safeStagedPath(jar, root);
+        boolean runningStaged = staged != null && isRunningFrom(staged);
         String currentChannel = channel();
-        if (version.isBlank() || jar.isBlank() || !channel.equals(currentChannel)
+        if (!isSafeVersion(version) || staged == null || !channel.equals(currentChannel)
                 || compare(version, Version.VALUE) <= 0) {
-            clean(pending, jar);
+            if (runningStaged) {
+                // 安装目录不可写时会持续从缓存启动，此时不能删掉正在使用的 jar。
+                return false;
+            }
+            clean(pending, staged, root);
             return false;
         }
-        Path staged;
-        Path root;
+        if (!Files.isRegularFile(staged)) {
+            clean(pending, staged, root);
+            return false;
+        }
+        Path original = staged;
+        Path installJar = staged;
+        boolean unrestricted;
         try {
-            staged = Path.of(jar).toAbsolutePath().normalize();
-            root = config.appHome().resolve("updates").toAbsolutePath().normalize();
-        } catch (RuntimeException ex) {
-            clean(pending, null);
+            if ("normal".equals(installChannel(config, channel))) {
+                // 下载后用户可能切换了“移除地区限制”，这里按当前设置补一次转换。
+                if (!isUnrestricted(installJar)) {
+                    Path patched = installJar.resolveSibling(
+                            "MCLite_v" + version + "-patched.jar");
+                    RegionPatcher.makeUnrestricted(installJar, patched);
+                    installJar = patched;
+                }
+            }
+            unrestricted = isUnrestricted(installJar);
+            verifyJar(installJar, version, unrestricted);
+        } catch (Exception ex) {
+            Log.warn("启动器更新包校验失败，已丢弃: " + ex.getMessage());
+            clean(pending, installJar, root);
+            if (!samePath(installJar, original)) {
+                try {
+                    Files.deleteIfExists(original);
+                } catch (IOException ignored) {
+                }
+            }
             return false;
         }
-        if (!staged.startsWith(root) || !Files.isRegularFile(staged)) {
-            clean(pending, jar);
-            return false;
-        }
+        UpdateInstaller.Installed installed;
         try {
-            Path launchJar = DesktopShortcut.updateIfInstalled(staged, version);
+            installed = UpdateInstaller.install(installJar, version,
+                    unrestricted ? "normal" : "region");
+        } catch (Exception ex) {
+            Log.warn("安装启动器更新失败，继续从缓存启动: " + ex.getMessage());
+            installJar = original;
+            installed = UpdateInstaller.Installed.staged(original);
+        }
+        boolean launched = launch(installed, args, config);
+        if (launched && !samePath(installed.launch(), installJar)) {
+            clean(pending, installJar, root);
+            if (!samePath(installJar, original)) {
+                try {
+                    Files.deleteIfExists(original);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        return launched;
+    }
+
+    private static boolean launch(UpdateInstaller.Installed installed, String[] args,
+                                  Config config) {
+        try {
+            if (installed.appMode() && isMac() && installed.appBundle() != null
+                    && defaultAppHome(config.appHome())) {
+                // 从应用包重启，Dock 图标、应用名和 Java 探测都与双击一致。
+                List<String> command = new ArrayList<>();
+                command.add("open");
+                command.add("-n");
+                command.add(installed.appBundle().toString());
+                if (args.length > 0) {
+                    command.add("--args");
+                    command.addAll(List.of(args));
+                }
+                Process process = new ProcessBuilder(command).inheritIO().start();
+                boolean exited = process.waitFor(15, TimeUnit.SECONDS);
+                if (!exited) {
+                    process.destroyForcibly();
+                    return true;
+                }
+                if (process.exitValue() == 0) {
+                    return true;
+                }
+                Log.warn("open 重启应用包失败（退出码 " + process.exitValue() + "），改用 java 启动");
+            }
             Path java = Path.of(System.getProperty("java.home"), "bin",
                     isWindows() ? "java.exe" : "java");
             if (!Files.isRegularFile(java)) {
+                Log.warn("找不到当前 Java 运行时，无法重启启动器: " + java);
                 return false;
             }
             List<String> command = new ArrayList<>();
@@ -77,20 +160,21 @@ public final class Updater {
             command.add("-Xmx256m");
             command.add("-Dsun.java2d.opengl=false");
             command.add("-Dsun.java2d.metal=false");
+            command.add("-Dmclite.home=" + config.appHome());
             command.add("-XX:+UseSerialGC");
             command.add("-XX:MaxMetaspaceSize=96m");
             command.add("-XX:ReservedCodeCacheSize=48m");
             command.add("-XX:-UsePerfData");
             command.add("-XX:TieredStopAtLevel=1");
             command.add("-jar");
-            command.add(launchJar.toString());
+            command.add(installed.launch().toString());
             for (String arg : args) {
                 command.add(arg);
             }
             new ProcessBuilder(command).inheritIO().start();
             return true;
         } catch (Exception ex) {
-            Log.warn("应用启动器更新失败: " + ex.getMessage());
+            Log.warn("重启启动器失败: " + ex.getMessage());
             return false;
         }
     }
@@ -135,30 +219,18 @@ public final class Updater {
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .build();
             String channel = channel();
-            boolean patch = "normal".equals(channel) && config.removeRegionLimits();
-            String version = latestFromHtml(client);
+            Release release = latestFromApi(client);
+            String version = release == null ? null : release.version();
             if (version == null || version.isBlank()) {
-                HttpRequest request = HttpRequest.newBuilder(URI.create(API))
-                        .timeout(Duration.ofSeconds(15))
-                        .header("Accept", "application/vnd.github+json")
-                        .header("User-Agent", "MCLite/" + Version.VALUE)
-                        .GET().build();
-                HttpResponse<String> response = client.send(request,
-                        HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() == 200) {
-                    Map<String, Object> release = Json.obj(Json.parse(response.body()));
-                    String tag = Json.str(release, "tag_name", "").trim();
-                    version = tag.startsWith("v") ? tag.substring(1) : tag;
-                }
+                version = latestFromHtml(client);
             }
-            if (version == null || version.isBlank()
-                    || compare(version, Version.VALUE) <= 0) {
+            if (!isSafeVersion(version) || compare(version, Version.VALUE) <= 0) {
                 return;
             }
-            String wanted = "MCLite_v" + version
-                    + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
+            String asset = "MCLite_v" + version + "-region.jar";
             String url = "https://github.com/" + REPO + "/releases/download/v"
-                    + version + "/" + wanted;
+                    + version + "/" + asset;
+            String digest = release == null ? null : release.digest(asset);
             Log.info("发现启动器更新 V" + version + "（" + channel + "）");
             String downloadVersion = version;
             java.util.List<String> downloadUrls = updateUrls(url);
@@ -173,21 +245,53 @@ public final class Updater {
                         ignoredVersion = downloadVersion;
                         return;
                     }
-                    if (dialog.confirmed()) {
-                        Thread downloader = new Thread(() -> downloadUpdate(
-                                config, downloadVersion, channel, downloadUrls, null,
-                                taskCenter, refreshTasks),
-                                "mclite-update-download");
-                        downloader.setDaemon(true);
-                        downloader.start();
-                    }
+                    Thread downloader = new Thread(() -> downloadUpdate(
+                            config, downloadVersion, channel, downloadUrls, digest,
+                            taskCenter, refreshTasks),
+                            "mclite-update-download");
+                    downloader.setDaemon(true);
+                    downloader.start();
                 });
                 return;
             }
-            downloadUpdate(config, downloadVersion, channel, downloadUrls, null,
+            downloadUpdate(config, downloadVersion, channel, downloadUrls, digest,
                     taskCenter, refreshTasks);
         } catch (Exception ex) {
             Log.warn("检查启动器更新失败: " + ex.getMessage());
+        }
+    }
+
+    private static Release latestFromApi(HttpClient client) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(API))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("Accept", "application/vnd.github+json")
+                    .header("User-Agent", "MCLite/" + Version.VALUE)
+                    .GET().build();
+            HttpResponse<String> response = client.send(request,
+                    HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                return null;
+            }
+            Map<String, Object> release = Json.obj(Json.parse(response.body()));
+            String tag = Json.str(release, "tag_name", "").trim();
+            String version = tag.startsWith("v") ? tag.substring(1) : tag;
+            if (!isSafeVersion(version)) {
+                return null;
+            }
+            Map<String, String> digests = new HashMap<>();
+            for (Object item : Json.arr(release.get("assets"))) {
+                Map<String, Object> asset = Json.obj(item);
+                String name = Json.str(asset, "name", "").trim();
+                String digest = Json.str(asset, "digest", "").trim();
+                if (!name.isEmpty() && !digest.isEmpty()) {
+                    digests.put(name, digest);
+                }
+            }
+            return new Release(version, digests);
+        } catch (Exception ex) {
+            Log.warn("查询 GitHub Release 失败: " + ex.getMessage());
+            return null;
         }
     }
 
@@ -207,7 +311,8 @@ public final class Updater {
             java.util.regex.Matcher matcher = java.util.regex.Pattern
                     .compile("/releases/tag/v?([0-9][0-9A-Za-z._-]*)").matcher(uri);
             if (matcher.find()) {
-                return matcher.group(1);
+                String version = matcher.group(1);
+                return isSafeVersion(version) ? version : null;
             }
         } catch (Exception ignored) {
         }
@@ -273,16 +378,17 @@ public final class Updater {
                 throw new IOException("所有更新源均不可用");
             }
             long length = response.headers().firstValueAsLong("content-length").orElse(-1);
+            if (length > MAX_UPDATE_BYTES) {
+                throw new IOException("更新文件异常过大: " + length + " 字节");
+            }
             progress.total(length);
             progress.stage("下载更新文件…");
             Path folder = config.appHome().resolve("updates/v" + version);
             Files.createDirectories(folder);
             boolean patch = "normal".equals(channel) && config.removeRegionLimits();
-            String wanted = "MCLite_v" + version
-                    + (("region".equals(channel) || patch) ? "-region.jar" : ".jar");
-            Path target = folder.resolve("MCLite_v" + version
-                    + ("region".equals(channel) ? "-region.jar" : ".jar"));
-            Path source = folder.resolve(wanted + ".part");
+            String asset = "MCLite_v" + version + "-region.jar";
+            Path source = folder.resolve(asset + ".part");
+            Path target = folder.resolve(patch ? "MCLite_v" + version + ".jar" : asset);
             MessageDigest sha = MessageDigest.getInstance("SHA-256");
             try (InputStream in = response.body();
                  OutputStream out = Files.newOutputStream(source)) {
@@ -295,6 +401,9 @@ public final class Updater {
                     out.write(buffer, 0, read);
                     sha.update(buffer, 0, read);
                     progress.add(read);
+                    if (progress.done() > MAX_UPDATE_BYTES) {
+                        throw new IOException("更新文件异常过大");
+                    }
                     long now = System.currentTimeMillis();
                     if (now - lastUi[0] >= 50) {
                         lastUi[0] = now;
@@ -309,29 +418,39 @@ public final class Updater {
                 String actual = java.util.HexFormat.of().formatHex(sha.digest());
                 if (!digest.substring("sha256:".length()).equalsIgnoreCase(actual)) {
                     Files.deleteIfExists(source);
-                    throw new IOException("更新文件哈希不匹配");
+                    throw new IOException("更新文件哈希不匹配，已拒绝安装");
                 }
+            }
+            progress.stage("校验更新文件…");
+            taskCenter.update(task, progress);
+            verifyJar(source, version, false);
+            if (patch) {
+                task.stage("移除地区限制…");
+                progress.stage("移除地区限制…");
+                taskCenter.update(task, progress);
+                RegionPatcher.makeUnrestricted(source, target);
+                Files.deleteIfExists(source);
+                verifyJar(target, version, true);
+            } else {
+                moveReplace(source, target);
+                verifyJar(target, version, false);
             }
             progress.stage("准备更新…");
             taskCenter.update(task, progress);
             if (refreshTasks != null) {
                 SwingUtilities.invokeLater(refreshTasks);
             }
-            if (patch) {
-                task.stage("移除地区限制…");
-                RegionPatcher.makeUnrestricted(source, target);
-                Files.deleteIfExists(source);
-            } else {
-                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-            }
             Properties pending = new Properties();
             pending.setProperty("version", version);
             pending.setProperty("channel", channel);
             pending.setProperty("jar", target.toString());
             Path marker = config.appHome().resolve("updates/pending.properties");
-            try (var out = Files.newOutputStream(marker)) {
+            Files.createDirectories(marker.getParent());
+            Path temp = Files.createTempFile(marker.getParent(), "pending.", ".tmp");
+            try (var out = Files.newOutputStream(temp)) {
                 pending.store(out, null);
             }
+            moveReplace(temp, marker);
             task.stage("下载完成，下次启动生效");
             taskCenter.finish(task);
             if (refreshTasks != null) {
@@ -347,35 +466,69 @@ public final class Updater {
         }
     }
 
-    public static void cleanOldVersionsLater() {
-        if (!isWindows()) {
-            return;
+    static boolean isUnrestricted(Path jar) {
+        try (JarFile file = new JarFile(jar.toFile())) {
+            return file.getJarEntry("mclite/unrestricted") != null
+                    && file.getJarEntry("mclite/region.lock") == null;
+        } catch (IOException ex) {
+            return false;
         }
+    }
+
+    static void verifyJar(Path jar, String expectedVersion, boolean unrestricted)
+            throws IOException {
+        try (JarFile file = new JarFile(jar.toFile())) {
+            Manifest manifest = file.getManifest();
+            String main = manifest == null ? ""
+                    : manifest.getMainAttributes().getValue("Main-Class");
+            if (main == null || main.isBlank()) {
+                throw new IOException("更新包缺少 Main-Class");
+            }
+            boolean lock = file.getJarEntry("mclite/region.lock") != null;
+            boolean marker = file.getJarEntry("mclite/unrestricted") != null;
+            if (unrestricted) {
+                if (lock || !marker) {
+                    throw new IOException("普通版更新包没有正确移除地区限制");
+                }
+                if (!"Main".equals(main.trim())) {
+                    throw new IOException("普通版更新包入口不正确: " + main);
+                }
+            } else {
+                if (!lock || marker) {
+                    throw new IOException("地区版更新包结构不正确");
+                }
+                if (!main.contains("RegionLauncherApp")) {
+                    throw new IOException("地区版更新包入口不正确: " + main);
+                }
+            }
+            JarEntry versionEntry = file.getJarEntry("mclite/version.properties");
+            if (versionEntry == null) {
+                throw new IOException("更新包缺少版本信息");
+            }
+            Properties properties = new Properties();
+            try (InputStream in = file.getInputStream(versionEntry)) {
+                properties.load(new java.io.InputStreamReader(in, StandardCharsets.UTF_8));
+            }
+            String actual = properties.getProperty("version", "").trim();
+            if (!expectedVersion.equals(actual)) {
+                throw new IOException("更新包版本不一致: 期望 " + expectedVersion
+                        + "，实际 " + actual);
+            }
+        } catch (ZipException ex) {
+            throw new IOException("更新包不是有效的 jar 文件", ex);
+        }
+    }
+
+    public static void cleanOldVersionsLater(Config config) {
         Thread thread = new Thread(() -> {
             try {
                 Thread.sleep(2500);
-                Path source = Path.of(Updater.class.getProtectionDomain()
-                        .getCodeSource().getLocation().toURI());
-                if (!Files.isRegularFile(source)) {
+                Path current = UpdateInstaller.currentJar();
+                if (current == null) {
                     return;
                 }
-                Path dir = source.getParent();
-                if (dir == null || !Files.isRegularFile(dir.resolve("Uninstall.exe"))) {
-                    return;
-                }
-                Path current = source;
-                try (var files = Files.list(dir)) {
-                    files.filter(path -> path.getFileName().toString()
-                                    .matches("MCLite_v[0-9].*\\.jar"))
-                            .filter(path -> !path.getFileName().toString()
-                                    .equals("MCLite_v" + Version.VALUE + ".jar"))
-                            .forEach(path -> {
-                                try {
-                                    Files.deleteIfExists(path);
-                                } catch (IOException ignored) {
-                                }
-                            });
-                }
+                cleanInstalledJars(current);
+                cleanStagedUpdates(config, current);
             } catch (Exception ignored) {
             }
         }, "mclite-clean-old-version");
@@ -383,26 +536,214 @@ public final class Updater {
         thread.start();
     }
 
-    private static void clean(Path marker, String jar) {
+    private static void cleanInstalledJars(Path current) {
+        Path dir = current.getParent();
+        if (dir == null) {
+            return;
+        }
+        String keep = current.getFileName().toString();
+        boolean region = "region".equals(channel());
+        if (isWindows()) {
+            if (Files.isRegularFile(dir.resolve("Uninstall.exe"))) {
+                deleteOldJars(dir, keep, false, true);
+            } else if (keep.startsWith("MCLite_v") && keep.endsWith(".jar")) {
+                // 免安装版没有 Uninstall.exe，也要清理上一版 jar。
+                deleteOldJars(dir, keep, region, false);
+            }
+            return;
+        }
+        if (!keep.startsWith("MCLite_v") || !keep.endsWith(".jar")) {
+            return;
+        }
+        deleteOldJars(dir, keep, region, false);
+    }
+
+    private static void deleteOldJars(Path dir, String keep, boolean region, boolean all) {
+        try (var files = Files.list(dir)) {
+            files.filter(Files::isRegularFile).forEach(path -> {
+                String name = path.getFileName().toString();
+                if (!name.startsWith("MCLite_v") || !name.endsWith(".jar")
+                        || name.equals(keep)) {
+                    return;
+                }
+                if (!all && (name.endsWith("-region.jar") != region)) {
+                    return;
+                }
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                }
+            });
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static void cleanStagedUpdates(Config config, Path current) {
+        Path root = config.appHome().resolve("updates").toAbsolutePath().normalize();
+        if (!Files.isDirectory(root)) {
+            return;
+        }
+        Path keep = pendingJar(root);
+        if (keep == null) {
+            try {
+                Files.deleteIfExists(root.resolve("pending.properties"));
+            } catch (IOException ignored) {
+            }
+        }
+        try (var entries = Files.list(root)) {
+            for (Path entry : entries.toList()) {
+                if (!Files.isDirectory(entry)) {
+                    continue;
+                }
+                try (var files = Files.list(entry)) {
+                    for (Path file : files.toList()) {
+                        if (samePath(file, keep) || samePath(file, current)) {
+                            continue;
+                        }
+                        String name = file.getFileName().toString();
+                        if ((name.endsWith(".jar") || name.endsWith(".part")
+                                || name.endsWith(".tmp")) && !recent(file)) {
+                            try {
+                                Files.deleteIfExists(file);
+                            } catch (IOException ignored) {
+                            }
+                        }
+                    }
+                }
+                try (var left = Files.list(entry)) {
+                    if (left.findAny().isEmpty()) {
+                        Files.deleteIfExists(entry);
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
+        }
+        // 只清理十分钟前的临时文件，避免删掉正在进行中的下载。
+        try (var files = Files.list(root)) {
+            files.filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String name = path.getFileName().toString();
+                        return (name.endsWith(".part") || name.endsWith(".tmp"))
+                                && !name.equals("pending.properties");
+                    })
+                    .filter(path -> !recent(path))
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException ignored) {
+                        }
+                    });
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static boolean recent(Path file) {
+        try {
+            return System.currentTimeMillis() - Files.getLastModifiedTime(file).toMillis()
+                    < 10L * 60 * 1000;
+        } catch (IOException ex) {
+            return true;
+        }
+    }
+
+    private static Path pendingJar(Path root) {
+        Path marker = root.resolve("pending.properties");
+        if (!Files.isRegularFile(marker)) {
+            return null;
+        }
+        Properties properties = new Properties();
+        try (var in = Files.newInputStream(marker)) {
+            properties.load(in);
+        } catch (IOException ex) {
+            return null;
+        }
+        return safeStagedPath(properties.getProperty("jar", "").trim(), root);
+    }
+
+    private static Path safeStagedPath(String jar, Path root) {
+        if (jar == null || jar.isBlank()) {
+            return null;
+        }
+        try {
+            Path path = Path.of(jar).toAbsolutePath().normalize();
+            return path.startsWith(root) ? path : null;
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    private static void clean(Path marker, Path jar, Path root) {
         try {
             Files.deleteIfExists(marker);
-            if (jar != null && !jar.isBlank()) {
-                try {
-                    Files.deleteIfExists(Path.of(jar));
-                } catch (RuntimeException ignored) {
+        } catch (IOException ignored) {
+        }
+        if (jar == null || !jar.startsWith(root)) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(jar);
+            Path parent = jar.getParent();
+            if (parent != null && !parent.equals(root)) {
+                try (var entries = Files.list(parent)) {
+                    if (entries.findAny().isEmpty()) {
+                        Files.deleteIfExists(parent);
+                    }
                 }
             }
         } catch (IOException ignored) {
         }
     }
 
-    private static String channel() {
-        return RegionGate.locked() ? "region" : "normal";
+    private static boolean isRunningFrom(Path jar) {
+        return samePath(UpdateInstaller.currentJar(), jar);
     }
 
-    private static String sha256(byte[] bytes) throws Exception {
-        return java.util.HexFormat.of().formatHex(
-                MessageDigest.getInstance("SHA-256").digest(bytes));
+    private static boolean samePath(Path left, Path right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        Path a = left.toAbsolutePath().normalize();
+        Path b = right.toAbsolutePath().normalize();
+        if (a.equals(b)) {
+            return true;
+        }
+        try {
+            return Files.isSameFile(a, b);
+        } catch (IOException ex) {
+            return false;
+        }
+    }
+
+    private static void moveReplace(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException
+                 | UnsupportedOperationException ex) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private static String installChannel(Config config, String channel) {
+        if ("region".equals(channel)) {
+            return "region";
+        }
+        return config.removeRegionLimits() ? "normal" : "region";
+    }
+
+    private static boolean defaultAppHome(Path appHome) {
+        Path normal = Path.of(System.getProperty("user.home"), ".mclite")
+                .toAbsolutePath().normalize();
+        return appHome.toAbsolutePath().normalize().equals(normal);
+    }
+
+    private static boolean isSafeVersion(String version) {
+        return version != null && version.matches("[0-9][0-9A-Za-z._-]{0,63}");
+    }
+
+    private static String channel() {
+        return RegionGate.locked() ? "region" : "normal";
     }
 
     private static int compare(String a, String b) {
@@ -438,5 +779,9 @@ public final class Updater {
 
     private static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase().contains("win");
+    }
+
+    private static boolean isMac() {
+        return System.getProperty("os.name", "").toLowerCase().contains("mac");
     }
 }

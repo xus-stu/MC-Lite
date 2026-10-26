@@ -21,6 +21,11 @@ jobs:
         run: |
           chmod +x build.sh
           ./build.sh
+      - name: Self-test
+        run: |
+          VERSION="$(cat VERSION)"
+          java -jar "dist/MCLite_v${VERSION}.jar" --self-test
+          java -jar "dist/MCLite_v${VERSION}-region.jar" --self-test
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -28,4 +33,5 @@ jobs:
             dist/MCLite_v*-region.jar
             dist/MC-Lite_v*_region_Windows.zip
             dist/MCLiteBenchmark.jar
+            dist/SHA256SUMS.txt
           generate_release_notes: true

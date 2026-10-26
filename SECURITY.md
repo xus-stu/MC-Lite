@@ -10,6 +10,7 @@
 - 加载器：`meta.fabricmc.net`、`maven.fabricmc.net`、`meta.quiltmc.org`、`maven.quiltmc.org`、`maven.minecraftforge.net`、`maven.neoforged.net`
 - 镜像：`bmclapi2.bangbang93.com`
 - MC百科：`search.mcmod.cn`、`www.mcmod.cn`
+- 启动器更新：`api.github.com`、`github.com`、`objects.githubusercontent.com`，以及 `Updater` 中列出的 GitHub 加速镜像
 
 其他地址会被拒绝。
 
@@ -20,6 +21,9 @@
 - Fabric / Quilt 库缺少哈希时读取官方 `.sha1`。
 - Forge / NeoForge 安装器使用官方 `.sha1`。
 - 下载写入 `.part`，校验通过后再替换目标文件。
+- 启动器更新会校验 GitHub Release 提供的 SHA-256（可用时）、`Main-Class`、
+  `region.lock` / `unrestricted` 标记和内部版本号。
+- 更新包只写入 `~/.mclite/updates/` 中转，校验通过后才替换实际安装的 jar 或 macOS 应用包。
 
 ## 路径安全
 
@@ -32,7 +36,7 @@
 
 - 账户和皮肤只保存在本地。
 - 不保存密码或 access token。
-- 没有遥测、广告或后台更新。
+- 没有遥测或广告；自动更新只检查 GitHub Release 并替换启动器自身文件。
 - 不修改系统 PATH 或注册表。
 
 ## 限制
