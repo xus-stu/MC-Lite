@@ -40,7 +40,7 @@ public final class UpdateDialog extends JDialog {
         currentLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel note = Ui.label("<html><body style='width:420px'>"
                 + "启动器有新版本可用。下载会在后台进行，不会影响正在运行的游戏。"
-                + "下载完成后，下次打开启动器时生效。"
+                + "下载完成后，下次打开启动器时生效；更新会直接替换当前的 jar 或 macOS 应用包。"
                 + "</body></html>", Theme.BODY, Theme.MUTED);
         note.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(version);

@@ -1,8 +1,15 @@
 package mclite;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.jar.Attributes;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 
 public final class SelfTest {
     private SelfTest() {
@@ -120,6 +127,13 @@ public final class SelfTest {
                     .nativesDir("selftest")), "启动参数 natives 路径");
             passed += 4;
 
+            Path work = Files.createTempDirectory("mclite-selftest-");
+            try {
+                passed += updateTests(work);
+            } finally {
+                deleteTree(work);
+            }
+
             System.out.println("SELF-TEST PASSED (" + passed + " checks)");
             return 0;
         } catch (Throwable error) {
@@ -134,5 +148,169 @@ public final class SelfTest {
             throw new AssertionError("检查失败: " + name);
         }
         System.out.println("  [ok] " + name);
+    }
+
+    private static int updateTests(Path work) throws Exception {
+        int passed = 0;
+        check(UpdateInstaller.versionedName("MCLite_v1.1.33.jar", "1.1.34", false)
+                        .equals("MCLite_v1.1.34.jar"),
+                "普通版更新文件名");
+        check(UpdateInstaller.versionedName("MCLite_v1.1.33-region.jar", "1.1.34", true)
+                        .equals("MCLite_v1.1.34-region.jar"),
+                "地区版更新文件名");
+        passed += 2;
+
+        Path patch = work.resolve("patch");
+        Path regionJar = makeJar(patch.resolve("region.jar"),
+                "mclite.RegionLauncherApp", true, "1.1.34");
+        Path normalJar = patch.resolve("normal.jar");
+        RegionPatcher.makeUnrestricted(regionJar, normalJar);
+        Updater.verifyJar(normalJar, "1.1.34", true);
+        check(!Updater.isUnrestricted(regionJar) && Updater.isUnrestricted(normalJar),
+                "普通版/地区版标记识别");
+        passed++;
+        check(true, "地区版转普通版后可校验");
+        passed++;
+        try {
+            Updater.verifyJar(normalJar, "1.1.33", true);
+            check(false, "更新包版本不一致必须被拒绝");
+        } catch (IOException ex) {
+            check(true, "更新包版本不一致必须被拒绝");
+            passed++;
+        }
+        try {
+            Updater.verifyJar(regionJar, "1.1.34", true);
+            check(false, "地区版 jar 不能冒充普通版");
+        } catch (IOException ex) {
+            check(true, "地区版 jar 不能冒充普通版");
+            passed++;
+        }
+
+        Path plain = work.resolve("plain");
+        Path installDir = plain.resolve("install");
+        Files.createDirectories(installDir);
+        Path oldJar = writeFile(installDir.resolve("MCLite_v1.1.33.jar"), "old");
+        Path run = writeFile(plain.resolve("run.sh"),
+                "exec java -jar \"install/MCLite_v1.1.33.jar\"\n");
+        Path staged = writeFile(plain.resolve("staged/MCLite_v1.1.34-region.jar"), "new");
+        UpdateInstaller.Installed installed = UpdateInstaller.installPlain(
+                oldJar, staged, "1.1.34", "normal");
+        check(Files.readString(installed.launch()).equals("new"), "普通版 jar 原地写入新内容");
+        check(installed.launch().getFileName().toString().equals("MCLite_v1.1.34.jar"),
+                "普通版 jar 文件名跟随版本");
+        check(!Files.exists(oldJar), "旧版本 jar 已删除");
+        check(Files.readString(run).contains("MCLite_v1.1.34.jar"), "run.sh 指向新 jar");
+        passed += 4;
+
+        Path custom = plain.resolve("custom");
+        Path customOld = writeFile(custom.resolve("MC Lite.jar"), "old-custom");
+        Path customStaged = writeFile(custom.resolve("staged.jar"), "new-custom");
+        UpdateInstaller.Installed customInstalled = UpdateInstaller.installPlain(
+                customOld, customStaged, "1.1.34", "normal");
+        check(customInstalled.launch().equals(customOld)
+                        && Files.readString(customOld).equals("new-custom"),
+                "非版本化 jar 保持原文件名覆盖");
+        passed++;
+
+        Path apps = work.resolve("apps");
+        Path app = apps.resolve("MC Lite v1.1.33.app");
+        Path resources = app.resolve("Contents/Resources");
+        Path oldAppJar = writeFile(resources.resolve("MCLite_v1.1.33.jar"), "old-app");
+        Path appScript = writeFile(app.resolve("Contents/MacOS/MCLite"),
+                "#!/bin/bash\nJAR=\"$HERE/../Resources/MCLite_v1.1.33.jar\"\n");
+        writeFile(app.resolve("Contents/Info.plist"),
+                plist("MC Lite v1.1.33", "1.1.33"));
+        Path stagedApp = writeFile(work.resolve("staged-app/MCLite_v1.1.34-region.jar"),
+                "new-app");
+        UpdateInstaller.Installed appInstalled = UpdateInstaller.installAppBundle(
+                oldAppJar, app, stagedApp, "1.1.34", "normal");
+        Path newApp = apps.resolve("MC Lite v1.1.34.app");
+        check(appInstalled.appMode() && appInstalled.appBundle().equals(newApp),
+                "macOS 应用包跟随版本改名");
+        check(Files.readString(newApp.resolve("Contents/Resources/MCLite_v1.1.34.jar"))
+                        .equals("new-app"),
+                "macOS 应用包内 jar 已替换");
+        check(!Files.exists(app) && !Files.exists(oldAppJar), "macOS 旧应用包和旧 jar 已清理");
+        check(Files.readString(newApp.resolve("Contents/MacOS/MCLite"))
+                        .contains("MCLite_v1.1.34.jar"),
+                "macOS 启动脚本指向新 jar");
+        String newPlist = Files.readString(newApp.resolve("Contents/Info.plist"));
+        check(newPlist.contains("<string>1.1.34</string>")
+                        && newPlist.contains("MC Lite v1.1.34"),
+                "macOS Info.plist 版本已更新");
+        passed += 5;
+
+        Path regionApp = apps.resolve("MC Lite Region v1.1.33.app");
+        Path regionResources = regionApp.resolve("Contents/Resources");
+        Path oldRegionJar = writeFile(regionResources.resolve(
+                "MCLite_v1.1.33-region.jar"), "old-region");
+        writeFile(regionApp.resolve("Contents/MacOS/MCLite"),
+                "#!/bin/bash\nJAR=\"$HERE/../Resources/MCLite_v1.1.33-region.jar\"\n");
+        writeFile(regionApp.resolve("Contents/Info.plist"),
+                plist("MC Lite Region v1.1.33", "1.1.33"));
+        Path stagedRegion = writeFile(work.resolve(
+                "staged-region/MCLite_v1.1.34-region.jar"), "new-region");
+        UpdateInstaller.Installed regionInstalled = UpdateInstaller.installAppBundle(
+                oldRegionJar, regionApp, stagedRegion, "1.1.34", "region");
+        Path newRegionApp = apps.resolve("MC Lite Region v1.1.34.app");
+        check(regionInstalled.appBundle().equals(newRegionApp)
+                        && Files.exists(newRegionApp.resolve(
+                                "Contents/Resources/MCLite_v1.1.34-region.jar")),
+                "地区版应用包保留地区版命名");
+        passed++;
+
+        return passed;
+    }
+
+    private static Path writeFile(Path path, String text) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, text, StandardCharsets.UTF_8);
+        return path;
+    }
+
+    private static Path makeJar(Path path, String mainClass, boolean region, String version)
+            throws IOException {
+        Files.createDirectories(path.getParent());
+        Manifest manifest = new Manifest();
+        manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, mainClass);
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(path), manifest)) {
+            if (region) {
+                out.putNextEntry(new JarEntry("mclite/region.lock"));
+                out.closeEntry();
+            }
+            out.putNextEntry(new JarEntry("mclite/version.properties"));
+            out.write(("version=" + version + "\n").getBytes(StandardCharsets.UTF_8));
+            out.closeEntry();
+            out.putNextEntry(new JarEntry("mclite/Placeholder.class"));
+            out.write(new byte[]{1, 2, 3});
+            out.closeEntry();
+        }
+        return path;
+    }
+
+    private static String plist(String name, String version) {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<plist version=\"1.0\"><dict>\n"
+                + "<key>CFBundleDisplayName</key>\n<string>" + name + "</string>\n"
+                + "<key>CFBundleName</key>\n<string>" + name + "</string>\n"
+                + "<key>CFBundleShortVersionString</key>\n<string>" + version + "</string>\n"
+                + "<key>CFBundleVersion</key>\n<string>" + version + "</string>\n"
+                + "</dict></plist>\n";
+    }
+
+    private static void deleteTree(Path root) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+        try (var walk = Files.walk(root)) {
+            for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
+        }
     }
 }

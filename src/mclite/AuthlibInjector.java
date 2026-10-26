@@ -11,6 +11,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.jar.JarFile;
 
 public final class AuthlibInjector {
     private static final String METADATA = "https://authlib-injector.yushi.moe/artifact/latest.json";
@@ -21,7 +22,13 @@ public final class AuthlibInjector {
     public static Path ensure(Config config) {
         Path target = config.cacheDir().resolve("authlib-injector.jar");
         if (Files.isRegularFile(target)) {
-            return target;
+            if (validJar(target)) {
+                return target;
+            }
+            try {
+                Files.deleteIfExists(target);
+            } catch (Exception ignored) {
+            }
         }
         try {
             Files.createDirectories(target.getParent());
@@ -40,7 +47,8 @@ public final class AuthlibInjector {
             Map<String, Object> meta = Json.obj(Json.parse(metaResponse.body()));
             String url = Json.str(meta, "download_url");
             String sha256 = Json.str(Json.obj(meta.get("checksums")), "sha256");
-            if (url == null || url.isBlank()) {
+            if (url == null || url.isBlank()
+                    || !"https".equalsIgnoreCase(URI.create(url).getScheme())) {
                 return null;
             }
             Path temp = target.resolveSibling("authlib-injector.jar.part");
@@ -69,10 +77,28 @@ public final class AuthlibInjector {
                 }
             }
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+            if (!validJar(target)) {
+                Files.deleteIfExists(target);
+                Log.warn("authlib-injector 下载结果无效，已删除");
+                return null;
+            }
             return target;
         } catch (Exception ex) {
             Log.warn("下载 authlib-injector 失败: " + ex.getMessage());
             return null;
+        }
+    }
+
+    private static boolean validJar(Path file) {
+        try {
+            if (Files.size(file) < 1024) {
+                return false;
+            }
+            try (JarFile jar = new JarFile(file.toFile())) {
+                return jar.size() > 0;
+            }
+        } catch (Exception ex) {
+            return false;
         }
     }
 }
