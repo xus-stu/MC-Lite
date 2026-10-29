@@ -32,16 +32,19 @@ public final class TaskProgress implements ProgressSink {
         }
         long current = done.addAndGet(bytes);
         long now = System.currentTimeMillis();
-        long elapsed = now - lastSampleTime;
-        if (elapsed >= 450) {
-            long delta = current - lastSampleDone;
-            if (delta > 0) {
-                double instant = delta * 1000.0 / elapsed;
-                bytesPerSecond = bytesPerSecond <= 0 ? instant
-                        : bytesPerSecond * 0.65 + instant * 0.35;
+        // 多线程同时下载时，采样必须串行，否则速度会忽高忽低并越来越小。
+        synchronized (this) {
+            long elapsed = now - lastSampleTime;
+            if (elapsed >= 450) {
+                long delta = current - lastSampleDone;
+                if (delta > 0) {
+                    double instant = delta * 1000.0 / elapsed;
+                    bytesPerSecond = bytesPerSecond <= 0 ? instant
+                            : bytesPerSecond * 0.65 + instant * 0.35;
+                }
+                lastSampleDone = current;
+                lastSampleTime = now;
             }
-            lastSampleDone = current;
-            lastSampleTime = now;
         }
     }
 
@@ -50,6 +53,17 @@ public final class TaskProgress implements ProgressSink {
         if (text != null && !text.isBlank()) {
             stage = text;
         }
+    }
+
+    /** 切换到新的下载阶段（例如加载器装完后继续下载推荐模组）。 */
+    public synchronized void reset(String text) {
+        done.set(0);
+        total.set(-1);
+        indeterminate = true;
+        bytesPerSecond = 0;
+        lastSampleTime = System.currentTimeMillis();
+        lastSampleDone = 0;
+        stage(text == null || text.isBlank() ? "准备中…" : text);
     }
 
     @Override

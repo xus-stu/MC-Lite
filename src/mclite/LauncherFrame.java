@@ -2501,18 +2501,77 @@ public final class LauncherFrame extends JFrame {
 
     private void installRecommendations(java.util.List<Recommendations.Item> items,
                                         String instanceId, String loader, String gameVersion) {
+        if (items.isEmpty()) {
+            return;
+        }
         Config installConfig = config.copyForGameDir(config.effectiveGameDir(instanceId));
         Modrinth modrinth = new Modrinth(taskProgress, taskToken);
-        for (Recommendations.Item item : items) {
-            taskToken.check();
-            try {
-                taskProgress.stage("推荐模组 · " + item.title());
-                Modrinth.Project project = modrinth.project(item.slug());
-                new ContentInstaller(installConfig, taskProgress, taskToken)
-                        .install(project, gameVersion, loader);
-            } catch (Exception ex) {
-                Log.warn("推荐模组安装失败 " + item.slug() + ": " + ex.getMessage());
+        DownloadTask recommendTask = taskCenter.start(
+                "推荐模组 · " + items.size() + " 个", "Modrinth");
+        taskProgress.reset("推荐模组（0/" + items.size() + "）…");
+        taskCenter.update(recommendTask, taskProgress);
+        SwingUtilities.invokeLater(this::refreshTasksButton);
+        try {
+            int number = 0;
+            for (Recommendations.Item item : items) {
+                taskToken.check();
+                number++;
+                int index = number;
+                String prefix = "推荐模组 " + index + "/" + items.size() + " · ";
+                taskProgress.stage(prefix + item.title());
+                taskCenter.update(recommendTask, taskProgress);
+                ProgressSink sink = new ProgressSink() {
+                    @Override
+                    public void total(long totalBytes) {
+                        taskProgress.total(totalBytes);
+                        taskCenter.update(recommendTask, taskProgress);
+                    }
+
+                    @Override
+                    public void addTotal(long bytes) {
+                        taskProgress.addTotal(bytes);
+                        taskCenter.update(recommendTask, taskProgress);
+                    }
+
+                    @Override
+                    public void add(long bytes) {
+                        taskProgress.add(bytes);
+                        taskCenter.update(recommendTask, taskProgress);
+                    }
+
+                    @Override
+                    public void stage(String text) {
+                        taskProgress.stage(prefix + text);
+                        taskCenter.update(recommendTask, taskProgress);
+                    }
+
+                    @Override
+                    public void indeterminate(boolean value) {
+                        taskProgress.indeterminate(value);
+                        taskCenter.update(recommendTask, taskProgress);
+                    }
+                };
+                try {
+                    Modrinth.Project project = modrinth.project(item.slug());
+                    new ContentInstaller(installConfig, sink, taskToken)
+                            .install(project, gameVersion, loader);
+                } catch (CancellationToken.CancelledException ex) {
+                    taskCenter.cancel(recommendTask);
+                    SwingUtilities.invokeLater(this::refreshTasksButton);
+                    throw ex;
+                } catch (Exception ex) {
+                    Log.warn("推荐模组安装失败 " + item.slug() + ": " + ex.getMessage());
+                }
             }
+            taskProgress.stage("推荐模组完成");
+            taskCenter.finish(recommendTask);
+        } finally {
+            if (taskToken.isCancelled()) {
+                taskCenter.cancel(recommendTask);
+            } else {
+                taskCenter.finish(recommendTask);
+            }
+            SwingUtilities.invokeLater(this::refreshTasksButton);
         }
     }
 

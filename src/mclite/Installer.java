@@ -22,7 +22,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public final class Installer {
-    private static final int ASSET_THREADS = 12;
+    private static final int FILE_THREADS = Math.max(2,
+            Math.min(16, Integer.getInteger("mclite.download.fileThreads", 8)));
+    private static final int ASSET_THREADS = Math.max(4,
+            Math.min(64, Integer.getInteger("mclite.download.assetThreads", 24)));
 
     private final Config config;
     private final GamePaths paths;
@@ -85,7 +88,7 @@ public final class Installer {
 
         try {
             AtomicInteger index = new AtomicInteger();
-            ExecutorService pool = Executors.newFixedThreadPool(6, runnable -> {
+            ExecutorService pool = Executors.newFixedThreadPool(FILE_THREADS, runnable -> {
                 Thread thread = new Thread(runnable, "mclite-files");
                 thread.setDaemon(true);
                 return thread;
@@ -100,7 +103,7 @@ public final class Installer {
                         String label = planned.label() + "（" + number + "/"
                                 + plan.files().size() + "）";
                         if (config.autoMirror() && planned.mirrorUrl() != null) {
-                            net.downloadRacing(planned.download().url(), planned.mirrorUrl(),
+                            net.downloadPreferred(planned.download().url(), planned.mirrorUrl(),
                                     planned.target(), planned.download().sha1(),
                                     planned.download().size(), label, planned.verifyExistingSha1());
                         } else {

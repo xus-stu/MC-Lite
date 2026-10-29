@@ -352,9 +352,9 @@ public final class Updater {
         java.util.LinkedHashSet<String> urls = new java.util.LinkedHashSet<>();
         urls.add(direct);
         for (String prefix : new String[]{
-                "https://ghproxy.net/",
-                "https://gh-proxy.com/",
                 "https://ghfast.top/",
+                "https://gh-proxy.com/",
+                "https://ghproxy.net/",
                 "https://github.moeyy.xyz/"}) {
             urls.add(prefix + direct);
         }
@@ -381,7 +381,7 @@ public final class Updater {
                 try {
                     task.stage("连接更新源 · " + hostOf(url));
                     HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                            .timeout(Duration.ofMinutes(2))
+                            .timeout(Duration.ofSeconds(60))
                             .header("User-Agent", "MCLite/" + Version.VALUE)
                             .GET().build();
                     HttpResponse<InputStream> candidate = client.send(request,

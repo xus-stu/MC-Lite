@@ -127,6 +127,19 @@ public final class SelfTest {
                     .nativesDir("selftest")), "启动参数 natives 路径");
             passed += 4;
 
+            TaskProgress progress = new TaskProgress();
+            progress.total(100);
+            progress.add(100);
+            check(progress.percent() == 100, "任务进度 100%");
+            progress.reset("新阶段");
+            check(progress.done() == 0 && progress.total() < 0
+                            && progress.isIndeterminate() && "新阶段".equals(progress.stage()),
+                    "任务进度重置");
+            progress.addTotal(80);
+            progress.add(40);
+            check(progress.percent() == 50, "任务进度重新累计");
+            passed += 3;
+
             Path work = Files.createTempDirectory("mclite-selftest-");
             try {
                 passed += updateTests(work);
