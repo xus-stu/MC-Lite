@@ -20,7 +20,15 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class Net {
@@ -52,19 +60,33 @@ public final class Net {
     private static final int MAX_METADATA_BYTES = 16 * 1024 * 1024;
     private static final int BUFFER_SIZE = 64 * 1024;
     private static final int MAX_ATTEMPTS = 3;
+    private static final int PROBE_BYTES = 128 * 1024;
+    private static final int CLIENT_POOL_SIZE = 6;
+    private static final HttpClient[] CLIENTS = new HttpClient[CLIENT_POOL_SIZE];
+    private static final AtomicInteger CLIENT_INDEX = new AtomicInteger();
 
-    private final HttpClient client;
+    static {
+        for (int i = 0; i < CLIENTS.length; i++) {
+            CLIENTS[i] = HttpClient.newBuilder()
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .connectTimeout(Duration.ofSeconds(20))
+                    .version(HttpClient.Version.HTTP_2)
+                    .build();
+        }
+    }
+
     private final ProgressSink progress;
     private final CancellationToken token;
+    private final Map<String, Boolean> sourceChoices = new ConcurrentHashMap<>();
+    private final Object sourceLock = new Object();
 
     public Net(ProgressSink progress, CancellationToken token) {
         this.progress = progress == null ? ProgressSink.NOOP : progress;
         this.token = token == null ? new CancellationToken() : token;
-        this.client = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .connectTimeout(Duration.ofSeconds(20))
-                .version(HttpClient.Version.HTTP_2)
-                .build();
+    }
+
+    private static HttpClient client() {
+        return CLIENTS[Math.floorMod(CLIENT_INDEX.getAndIncrement(), CLIENT_POOL_SIZE)];
     }
 
     public byte[] getUnverifiedBytes(String url, String label) throws IOException {
@@ -96,12 +118,12 @@ public final class Net {
             try {
                 progress.stage(label);
                 HttpRequest request = buildRequest(url, headers);
-                HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                HttpResponse<InputStream> response = client().send(request, HttpResponse.BodyHandlers.ofInputStream());
                 try (InputStream in = response.body()) {
                     if (response.statusCode() != 200) {
                         throw new IOException("HTTP " + response.statusCode() + "：" + label);
                     }
-                    checkFinalUri(response.uri());
+                    checkFinalUri(response.uri(), request.uri());
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
                     MessageDigest digest = sha1();
                     byte[] buffer = new byte[BUFFER_SIZE];
@@ -162,12 +184,12 @@ public final class Net {
                 Files.createDirectories(target.getParent());
                 progress.stage(label);
                 HttpRequest request = buildRequest(url);
-                HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                HttpResponse<InputStream> response = client().send(request, HttpResponse.BodyHandlers.ofInputStream());
                 try (InputStream in = response.body()) {
                     if (response.statusCode() != 200) {
                         throw new IOException("HTTP " + response.statusCode() + "：" + label);
                     }
-                    checkFinalUri(response.uri());
+                    checkFinalUri(response.uri(), request.uri());
                     Files.deleteIfExists(temp);
                     MessageDigest digest = sha1();
                     long written = 0;
@@ -212,70 +234,32 @@ public final class Net {
         throw last == null ? new IOException("下载失败：" + label) : last;
     }
 
-    public void downloadRacing(String officialUrl, String mirrorUrl, Path target,
+    public void downloadPreferred(String officialUrl, String mirrorUrl, Path target,
                                String expectedSha1, long expectedSize, String label,
                                boolean verifyExistingSha1) throws IOException {
         if (mirrorUrl == null || mirrorUrl.isBlank()) {
             download(officialUrl, target, expectedSha1, expectedSize, label, verifyExistingSha1);
             return;
         }
-        token.check();
-        progress.stage(label + "（官方 / 镜像竞速）");
-        CancellationToken officialToken = new CancellationToken();
-        CancellationToken mirrorToken = new CancellationToken();
-        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2,
-                runnable -> {
-                    Thread thread = new Thread(runnable, "mclite-race");
-                    thread.setDaemon(true);
-                    return thread;
-                });
-        Path officialTarget = target.resolveSibling(target.getFileName() + ".race-official");
-        Path mirrorTarget = target.resolveSibling(target.getFileName() + ".race-mirror");
-        java.util.concurrent.CompletionService<Path> completion =
-                new java.util.concurrent.ExecutorCompletionService<>(pool);
-        java.util.List<java.util.concurrent.Future<Path>> futures = new java.util.ArrayList<>();
+        if (expectedSize >= 0 && expectedSize < 256L * 1024) {
+            // 小文件不值得先测速，直接官方优先、失败切镜像。
+            downloadFallback(officialUrl, mirrorUrl, target, expectedSha1, expectedSize,
+                    label, verifyExistingSha1);
+            return;
+        }
+        boolean mirrorPreferred;
         try {
-            futures.add(completion.submit(() -> {
-                new Net(ProgressSink.NOOP, officialToken).download(officialUrl, officialTarget,
-                        expectedSha1, expectedSize, label + " · 官方", false);
-                return officialTarget;
-            }));
-            futures.add(completion.submit(() -> {
-                new Net(ProgressSink.NOOP, mirrorToken).download(mirrorUrl, mirrorTarget,
-                        expectedSha1, expectedSize, label + " · 镜像", false);
-                return mirrorTarget;
-            }));
-            IOException last = null;
-            for (int i = 0; i < 2; i++) {
-                java.util.concurrent.Future<Path> done = completion.take();
-                try {
-                    Path winner = done.get();
-                    if (officialTarget.equals(winner)) {
-                        mirrorToken.cancel();
-                    } else {
-                        officialToken.cancel();
-                    }
-                    moveIntoPlace(winner, target);
-                    progress.add(Math.max(0, expectedSize));
-                    return;
-                } catch (java.util.concurrent.ExecutionException ex) {
-                    Throwable cause = ex.getCause();
-                    last = cause instanceof IOException io ? io : new IOException(
-                            cause == null ? "竞速下载失败" : cause.getMessage(), cause);
-                }
-            }
-            throw last == null ? new IOException("官方和镜像下载均失败：" + label) : last;
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            officialToken.cancel();
-            mirrorToken.cancel();
-            throw new CancellationToken.CancelledException();
-        } finally {
-            pool.shutdownNow();
-            deleteQuietly(officialTarget);
-            deleteQuietly(mirrorTarget);
-            deleteQuietly(officialTarget.resolveSibling(officialTarget.getFileName() + ".part"));
-            deleteQuietly(mirrorTarget.resolveSibling(mirrorTarget.getFileName() + ".part"));
+            mirrorPreferred = mirrorFaster(officialUrl, mirrorUrl);
+        } catch (SecurityException ex) {
+            throw ex;
+        }
+        String preferred = mirrorPreferred ? mirrorUrl : officialUrl;
+        String fallback = mirrorPreferred ? officialUrl : mirrorUrl;
+        try {
+            download(preferred, target, expectedSha1, expectedSize, label, verifyExistingSha1);
+        } catch (IOException | SecurityException ex) {
+            Log.warn("下载源失败，切换备用源：" + label + " · " + ex.getMessage());
+            download(fallback, target, expectedSha1, expectedSize, label, verifyExistingSha1);
         }
     }
 
@@ -283,64 +267,138 @@ public final class Net {
         if (mirrorUrl == null || mirrorUrl.isBlank()) {
             return false;
         }
-        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2,
-                runnable -> {
-                    Thread thread = new Thread(runnable, "mclite-probe");
-                    thread.setDaemon(true);
-                    return thread;
-                });
-        try {
-            java.util.concurrent.CompletionService<Integer> completion =
-                    new java.util.concurrent.ExecutorCompletionService<>(pool);
-            java.util.List<java.util.concurrent.Future<Integer>> futures = new java.util.ArrayList<>();
-            futures.add(completion.submit(() -> {
-                probe(officialUrl);
-                return 0;
-            }));
-            futures.add(completion.submit(() -> {
-                probe(mirrorUrl);
-                return 1;
-            }));
-            for (int i = 0; i < 2; i++) {
-                java.util.concurrent.Future<Integer> done = completion.take();
-                try {
-                    int winner = done.get();
-                    for (java.util.concurrent.Future<Integer> future : futures) {
-                        if (future != done) {
-                            future.cancel(true);
-                        }
-                    }
-                    return winner == 1;
-                } catch (java.util.concurrent.ExecutionException ignored) {
-
-                }
+        String key = sourceKey(officialUrl, mirrorUrl);
+        Boolean cached = sourceChoices.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        synchronized (sourceLock) {
+            cached = sourceChoices.get(key);
+            if (cached != null) {
+                return cached;
             }
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
+            boolean result = chooseSource(officialUrl, mirrorUrl);
+            sourceChoices.put(key, result);
+            return result;
+        }
+    }
+
+    private boolean chooseSource(String officialUrl, String mirrorUrl) {
+        ExecutorService pool = Executors.newFixedThreadPool(2, runnable -> {
+            Thread thread = new Thread(runnable, "mclite-probe");
+            thread.setDaemon(true);
+            return thread;
+        });
+        Probe official;
+        Probe mirror;
+        try {
+            Future<Probe> officialFuture = pool.submit(() -> probeSpeed(officialUrl));
+            Future<Probe> mirrorFuture = pool.submit(() -> probeSpeed(mirrorUrl));
+            official = await(officialFuture);
+            mirror = await(mirrorFuture);
         } finally {
             pool.shutdownNow();
         }
-        return false;
+        if (official == null && mirror == null) {
+            return false;
+        }
+        if (official == null) {
+            return true;
+        }
+        if (mirror == null) {
+            return false;
+        }
+        if (sameResource(official.uri(), mirror.uri())) {
+            Log.info("官方源与镜像返回同一文件，跳过重复下载");
+            return false;
+        }
+        boolean mirrorFaster = mirror.bytesPerSecond() > official.bytesPerSecond() * 1.1;
+        Log.info("下载源测速：官方 " + speedText(official)
+                + "，镜像 " + speedText(mirror)
+                + "，使用 " + (mirrorFaster ? "BMCLAPI 镜像" : "Mojang 官方"));
+        return mirrorFaster;
     }
 
-    private void probe(String url) throws IOException {
-        URI uri = normalizeAndValidate(url);
+    private Probe probeSpeed(String url) {
+        long start = System.nanoTime();
         try {
+            URI uri = normalizeAndValidate(url);
             HttpRequest request = HttpRequest.newBuilder(uri)
-                    .timeout(Duration.ofSeconds(8))
+                    .timeout(Duration.ofSeconds(10))
                     .header("User-Agent", USER_AGENT)
-                    .header("Range", "bytes=0-0")
+                    .header("Accept-Encoding", "identity")
+                    .header("Range", "bytes=0-" + (PROBE_BYTES - 1))
                     .GET()
                     .build();
-            HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
-            checkFinalUri(response.uri());
-            if (response.statusCode() >= 400) {
-                throw new IOException("探测失败 HTTP " + response.statusCode());
+            HttpResponse<InputStream> response = client().send(request,
+                    HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() != 200 && response.statusCode() != 206) {
+                return null;
             }
+            checkFinalUri(response.uri(), request.uri());
+            long total = 0;
+            long deadline = start + 4_000_000_000L;
+            try (InputStream in = response.body()) {
+                byte[] buffer = new byte[32 * 1024];
+                while (total < PROBE_BYTES && System.nanoTime() < deadline) {
+                    int max = (int) Math.min(buffer.length, PROBE_BYTES - total);
+                    int read = in.read(buffer, 0, max);
+                    if (read < 0) {
+                        break;
+                    }
+                    total += read;
+                }
+            }
+            if (total <= 0) {
+                return null;
+            }
+            double seconds = Math.max(0.001, (System.nanoTime() - start) / 1e9);
+            return new Probe(response.uri(), total, total / seconds);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new CancellationToken.CancelledException();
+            return null;
+        } catch (Exception ex) {
+            return null;
         }
+    }
+
+    private static Probe await(Future<Probe> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            return null;
+        } catch (ExecutionException ex) {
+            return null;
+        }
+    }
+
+    private static boolean sameResource(URI left, URI right) {
+        return left != null && right != null
+                && left.getScheme() != null && left.getScheme().equalsIgnoreCase(right.getScheme())
+                && Objects.equals(left.getHost(), right.getHost())
+                && Objects.equals(left.getRawPath(), right.getRawPath());
+    }
+
+    private static String sourceKey(String officialUrl, String mirrorUrl) {
+        try {
+            URI official = URI.create(officialUrl);
+            URI mirror = URI.create(mirrorUrl);
+            String path = mirror.getRawPath() == null ? "" : mirror.getRawPath();
+            int slash = path.indexOf('/', 1);
+            String prefix = slash > 0 ? path.substring(0, slash) : path;
+            return official.getHost() + "|" + mirror.getHost() + "|" + prefix;
+        } catch (RuntimeException ex) {
+            return officialUrl + "|" + mirrorUrl;
+        }
+    }
+
+    private static String speedText(Probe probe) {
+        return Formatting.bytes(Math.round(probe.bytesPerSecond())) + "/s";
+    }
+
+    private record Probe(URI uri, long bytes, double bytesPerSecond) {
     }
 
     public void downloadFallback(String preferredUrl, String fallbackUrl, Path target,
@@ -437,11 +495,44 @@ public final class Net {
         }
     }
 
-    private void checkFinalUri(URI uri) {
+    private void checkFinalUri(URI uri, URI original) {
         if (uri == null || uri.getHost() == null || !"https".equalsIgnoreCase(uri.getScheme())
-                || !ALLOWED_HOSTS.contains(uri.getHost().toLowerCase())
                 || (uri.getPort() != -1 && uri.getPort() != 443)) {
-            throw new SecurityException("下载被重定向到非官方地址，已拒绝");
+            throw new SecurityException("下载被重定向到非 HTTPS 地址，已拒绝");
+        }
+        String host = uri.getHost();
+        if (original != null && "bmclapi2.bangbang93.com"
+                .equalsIgnoreCase(original.getHost()) && publicHost(host)) {
+            // BMCLAPI 会把文件 302 到志愿者节点（bmclapi*.sakura.sld.tw、
+            // bmclapi*.hurtmc.com 等），节点域名不固定，文件本身有 SHA-1 校验。
+            return;
+        }
+        if (!allowedFinalHost(host)) {
+            throw new SecurityException("下载被重定向到非官方地址，已拒绝：" + host);
+        }
+    }
+
+    private static boolean allowedFinalHost(String value) {
+        String host = value.toLowerCase(java.util.Locale.ROOT);
+        if (ALLOWED_HOSTS.contains(host)) {
+            return true;
+        }
+        return host.startsWith("bmclapi")
+                && (host.endsWith(".sakura.sld.tw") || host.endsWith(".bangbang93.com"));
+    }
+
+    private static boolean publicHost(String host) {
+        try {
+            for (java.net.InetAddress address : java.net.InetAddress.getAllByName(host)) {
+                if (address.isAnyLocalAddress() || address.isLoopbackAddress()
+                        || address.isLinkLocalAddress() || address.isSiteLocalAddress()
+                        || address.isMulticastAddress()) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception ex) {
+            return false;
         }
     }
 

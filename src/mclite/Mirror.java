@@ -22,7 +22,11 @@ public final class Mirror {
     }
 
     public static String asset(String hash) {
-        return BASE + "/assets/" + hash;
+        if (hash == null || hash.length() < 2) {
+            return BASE + "/assets/" + hash;
+        }
+        // BMCLAPI 的资源路径和 Mojang 一样带前两位目录；少了它会 404。
+        return BASE + "/assets/" + hash.substring(0, 2) + "/" + hash;
     }
 
     public static String manifest() {
