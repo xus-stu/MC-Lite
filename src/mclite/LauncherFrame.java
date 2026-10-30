@@ -202,6 +202,8 @@ public final class LauncherFrame extends JFrame {
     private JList<Modrinth.Version> projectVersionList;
     private Ui.AccentButton projectInstallButton;
     private Ui.AccentButton projectRefreshButton;
+    private JTextArea projectDependencyText;
+    private int projectDependencyGeneration;
     private JLabel sidebarAccount;
     private JLabel launchAccount;
     private JLabel launchVersion;
@@ -1254,8 +1256,12 @@ public final class LauncherFrame extends JFrame {
         projectVersionList.setCellRenderer(new ProjectVersionRenderer());
         projectVersionList.setBorder(new EmptyBorder(4, 8, 8, 8));
         projectVersionList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting() && projectInstallButton != null) {
-                projectInstallButton.setEnabled(projectVersionList.getSelectedValue() != null && !busy);
+            if (!e.getValueIsAdjusting()) {
+                Modrinth.Version selected = projectVersionList.getSelectedValue();
+                if (projectInstallButton != null) {
+                    projectInstallButton.setEnabled(selected != null && !busy);
+                }
+                updateProjectVersionDetails(selected);
             }
         });
         projectVersionList.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
@@ -1273,7 +1279,26 @@ public final class LauncherFrame extends JFrame {
                 projectVersionList.repaint();
             }
         });
-        page.add(Ui.scrollDark(projectVersionList), BorderLayout.CENTER);
+        JPanel versionArea = new JPanel(new BorderLayout(10, 0));
+        versionArea.setOpaque(false);
+        versionArea.add(Ui.scrollDark(projectVersionList), BorderLayout.CENTER);
+
+        JPanel dependencyPanel = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER, 14);
+        dependencyPanel.setLayout(new BorderLayout(0, 8));
+        dependencyPanel.setBorder(new EmptyBorder(12, 14, 12, 14));
+        dependencyPanel.setPreferredSize(new Dimension(310, 0));
+        dependencyPanel.add(Ui.label("版本详情 · 前置模组", Theme.TINY, Theme.DIM), BorderLayout.NORTH);
+        projectDependencyText = new JTextArea("选择一个文件版本\n查看前置模组和内置模组");
+        projectDependencyText.setEditable(false);
+        projectDependencyText.setLineWrap(true);
+        projectDependencyText.setWrapStyleWord(true);
+        projectDependencyText.setOpaque(false);
+        projectDependencyText.setForeground(Theme.MUTED);
+        projectDependencyText.setFont(Theme.MONO);
+        projectDependencyText.setBorder(new EmptyBorder(2, 0, 2, 0));
+        dependencyPanel.add(Ui.scrollDark(projectDependencyText), BorderLayout.CENTER);
+        versionArea.add(dependencyPanel, BorderLayout.EAST);
+        page.add(versionArea, BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(12, 0));
         bottom.setBackground(Theme.CARD);
@@ -3325,6 +3350,110 @@ public final class LauncherFrame extends JFrame {
                 }
             }
         }.execute();
+    }
+
+    private void updateProjectVersionDetails(Modrinth.Version version) {
+        if (projectDependencyText == null) {
+            return;
+        }
+        int generation = ++projectDependencyGeneration;
+        if (version == null) {
+            projectDependencyText.setText("选择一个文件版本\n查看前置模组和内置模组");
+            return;
+        }
+        projectDependencyText.setText("文件：" + (version.primaryFile() == null
+                ? "无" : version.primaryFile().filename())
+                + "\n游戏版本：" + String.join(", ", version.gameVersions())
+                + "\n加载器：" + String.join(", ", version.loaders())
+                + "\n\n正在读取前置…");
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() {
+                return dependencyDescription(version);
+            }
+
+            @Override
+            protected void done() {
+                if (generation != projectDependencyGeneration) {
+                    return;
+                }
+                try {
+                    projectDependencyText.setText(get());
+                } catch (Exception ex) {
+                    projectDependencyText.setText("读取前置失败：" + ex.getMessage());
+                }
+                projectDependencyText.setCaretPosition(0);
+            }
+        }.execute();
+    }
+
+    private String dependencyDescription(Modrinth.Version version) {
+        StringBuilder text = new StringBuilder();
+        if (version.primaryFile() != null) {
+            text.append("文件：").append(version.primaryFile().filename()).append('\n');
+        }
+        text.append("游戏版本：").append(String.join(", ", version.gameVersions())).append('\n');
+        text.append("加载器：").append(String.join(", ", version.loaders())).append('\n');
+        List<Modrinth.Dependency> required = new ArrayList<>();
+        List<Modrinth.Dependency> embedded = new ArrayList<>();
+        List<Modrinth.Dependency> optional = new ArrayList<>();
+        for (Modrinth.Dependency dependency : version.dependencies()) {
+            if ("required".equals(dependency.type())) {
+                required.add(dependency);
+            } else if ("embedded".equals(dependency.type())) {
+                embedded.add(dependency);
+            } else if ("optional".equals(dependency.type())) {
+                optional.add(dependency);
+            }
+        }
+        Modrinth modrinth = new Modrinth(new TaskProgress(), new CancellationToken());
+        java.util.Map<String, String> names = new java.util.HashMap<>();
+        text.append('\n');
+        appendDependencies(text, "必需前置", required, modrinth, names);
+        appendDependencies(text, "已内置模组", embedded, modrinth, names);
+        appendDependencies(text, "可选前置", optional, modrinth, names);
+        if (required.isEmpty() && embedded.isEmpty() && optional.isEmpty()) {
+            text.append("没有声明前置或内置模组。\n");
+        }
+        text.append("\n安装时会自动补齐必需前置。");
+        return text.toString();
+    }
+
+    private void appendDependencies(StringBuilder text, String title,
+                                    List<Modrinth.Dependency> dependencies,
+                                    Modrinth modrinth, java.util.Map<String, String> names) {
+        text.append(title).append("（").append(dependencies.size()).append("）\n");
+        if (dependencies.isEmpty()) {
+            text.append("  · 无\n\n");
+            return;
+        }
+        for (Modrinth.Dependency dependency : dependencies) {
+            String name = dependency.fileName();
+            String projectId = dependency.projectId();
+            try {
+                if (dependency.versionId() != null) {
+                    Modrinth.Version depVersion = modrinth.version(dependency.versionId());
+                    if (projectId == null) {
+                        projectId = depVersion.projectId();
+                    }
+                }
+                if (projectId != null) {
+                    name = names.computeIfAbsent(projectId, id -> {
+                        try {
+                            return modrinth.projectById(id).title();
+                        } catch (Exception ex) {
+                            return null;
+                        }
+                    });
+                }
+            } catch (Exception ignored) {
+            }
+            if (name == null || name.isBlank()) {
+                name = projectId == null ? "未知前置" : projectId;
+            }
+            text.append("  · ").append(name).append('\n');
+        }
+        text.append('\n');
     }
 
     private void installProjectVersion() {
