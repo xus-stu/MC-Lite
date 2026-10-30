@@ -120,6 +120,18 @@ public final class ContentInstaller {
                             file.filename(), true, Long.MAX_VALUE);
                 }
             }
+            if (previous != null && !previous.equals(file.filename())) {
+                Path old = GamePaths.resolveUnder(target.getParent(), previous);
+                if (Files.isRegularFile(old) && !old.equals(target)) {
+                    try {
+                        Files.deleteIfExists(old);
+                        Log.info("移除旧版本模组 " + previous + "（已替换为 "
+                                + file.filename() + "）");
+                    } catch (IOException ex) {
+                        Log.warn("移除旧版本模组失败 " + previous + ": " + ex.getMessage());
+                    }
+                }
+            }
             index.setProperty("project." + projectId, file.filename());
             index.setProperty("file." + file.filename(), file.sha1() == null ? "" : file.sha1());
         }
