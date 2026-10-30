@@ -64,9 +64,12 @@ public final class Installer {
         progress.stage("读取版本信息…");
 
         Path versionJson = paths.versionJson(entry.id());
+        boolean loaderMerged = Files.isRegularFile(
+                paths.versionDir(entry.id()).resolve(".mclite-loader.properties"));
         VersionMeta meta;
         try {
-            if (!Files.isRegularFile(versionJson) || !Net.sha1Matches(versionJson, entry.sha1())) {
+            if (!Files.isRegularFile(versionJson)
+                    || (!loaderMerged && !Net.sha1Matches(versionJson, entry.sha1()))) {
                 net.downloadFallback(entry.url(), Mirror.versionJson(entry.id()), versionJson,
                         entry.sha1(), -1, "版本信息 " + entry.id(), true);
             }
