@@ -1306,10 +1306,15 @@ public final class LauncherFrame extends JFrame {
         Ui.AccentButton deleteInstance = Ui.smallButton("删除实例", Ui.AccentButton.Style.DANGER);
         deleteInstance.setToolTipText("永久删除所选实例的版本文件夹");
         deleteInstance.addActionListener(e -> deleteSelectedInstance());
+        Ui.AccentButton updateMods = Ui.smallButton("更新模组", Ui.AccentButton.Style.GHOST);
+        updateMods.setToolTipText("把推荐优化模组更新到当前版本");
+        updateMods.addActionListener(e -> updateRecommendedMods());
         Ui.AccentButton renameInstance = Ui.smallButton("重命名", Ui.AccentButton.Style.GHOST);
         renameInstance.setToolTipText("修改实例名称和版本文件夹");
         renameInstance.addActionListener(e -> renameSelectedInstance());
         headerActions.add(instanceLaunchButton);
+        headerActions.add(Ui.hgap(8));
+        headerActions.add(updateMods);
         headerActions.add(Ui.hgap(8));
         headerActions.add(renameInstance);
         headerActions.add(Ui.hgap(8));
@@ -1407,6 +1412,106 @@ public final class LauncherFrame extends JFrame {
         box.add(header, BorderLayout.NORTH);
         box.add(Ui.scrollDark(list), BorderLayout.CENTER);
         return box;
+    }
+
+    private void updateRecommendedMods() {
+        if (busy) {
+            showError("暂时不能更新", "下载或安装任务正在进行，请稍后再试。");
+            return;
+        }
+        VersionManifest.VersionEntry entry = instancesList == null
+                ? null : instancesList.getSelectedValue();
+        if (entry == null) {
+            showError("更新推荐模组", "请先在左侧选择一个实例。");
+            return;
+        }
+        Path dir = gamePaths.versionDir(entry.id());
+        Path json = dir.resolve(entry.id() + ".json");
+        if (!Files.isRegularFile(json)) {
+            showError("更新推荐模组", "找不到版本 JSON：\n" + json);
+            return;
+        }
+        VersionMeta meta;
+        try {
+            meta = LocalVersions.load(gamePaths, entry.id());
+        } catch (Exception ex) {
+            showError("更新推荐模组", "读取版本信息失败：" + ex.getMessage());
+            return;
+        }
+        String loader = detectLoader(entry.id(), dir, meta);
+        if (loader == null) {
+            showError("没有模组加载器", "这个实例没有检测到 Fabric / Quilt / Forge / NeoForge，"
+                    + "推荐模组不会加载。");
+            return;
+        }
+        String gameVersion = detectBaseVersion(entry.id(), dir, json);
+        java.util.List<Recommendations.Item> items = Recommendations
+                .forLoader(loader, gameVersion).stream()
+                .filter(Recommendations.Item::selected)
+                .toList();
+        if (items.isEmpty()) {
+            showError("没有可更新的模组", "当前加载器没有推荐模组。");
+            return;
+        }
+        if (!askYesNo("更新推荐模组", "将为 " + entry.id() + " 检查并更新 "
+                + items.size() + " 个推荐优化模组。\n\n旧版本的同名模组会被替换，"
+                + "mods 里的其他文件不会动。")) {
+            return;
+        }
+        startRecommendations(items, entry.id(), loader, gameVersion);
+    }
+
+    private static String detectLoader(String versionId, Path dir, VersionMeta meta) {
+        java.util.Properties properties = new java.util.Properties();
+        Path marker = dir.resolve(".mclite-loader.properties");
+        if (Files.isRegularFile(marker)) {
+            try (var in = Files.newInputStream(marker)) {
+                properties.load(in);
+            } catch (IOException ignored) {
+            }
+        }
+        String loader = properties.getProperty("loader", "").toLowerCase(java.util.Locale.ROOT);
+        String id = versionId.toLowerCase(java.util.Locale.ROOT);
+        String main = meta.mainClass() == null ? ""
+                : meta.mainClass().toLowerCase(java.util.Locale.ROOT);
+        String combined = loader + " " + id + " " + main;
+        if (combined.contains("neoforge") || combined.contains("neoforged")) {
+            return "neoforge";
+        }
+        if (combined.contains("fabric")) {
+            return "fabric";
+        }
+        if (combined.contains("quilt")) {
+            return "quilt";
+        }
+        if (combined.contains("forge") || combined.contains("bootstraplauncher")) {
+            return "forge";
+        }
+        return null;
+    }
+
+    private static String detectBaseVersion(String versionId, Path dir, Path json) {
+        Path marker = dir.resolve(".mclite-loader.properties");
+        if (Files.isRegularFile(marker)) {
+            java.util.Properties properties = new java.util.Properties();
+            try (var in = Files.newInputStream(marker)) {
+                properties.load(in);
+            } catch (IOException ignored) {
+            }
+            String base = properties.getProperty("base", "").trim();
+            if (!base.isEmpty()) {
+                return base;
+            }
+        }
+        try {
+            Map<String, Object> root = Json.obj(Json.parse(Files.readString(json)));
+            String parent = Json.str(root, "inheritsFrom", "").trim();
+            if (!parent.isEmpty()) {
+                return parent;
+            }
+        } catch (Exception ignored) {
+        }
+        return versionId;
     }
 
     private void renameSelectedInstance() {
@@ -2929,6 +3034,8 @@ public final class LauncherFrame extends JFrame {
                 try {
                     get();
                     finishTask();
+                    instanceCounts.clear();
+                    refreshInstancesPage();
                     statusLabel.setText("推荐模组安装完成 · " + items.size() + " 个");
                     statusLabel.setForeground(Theme.ACCENT);
                 } catch (Exception ex) {
