@@ -31,6 +31,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -71,6 +74,12 @@ public final class Net {
     private static final int CLIENT_POOL_SIZE = 6;
     private static final HttpClient[] CLIENTS = new HttpClient[CLIENT_POOL_SIZE];
     private static final AtomicInteger CLIENT_INDEX = new AtomicInteger();
+    private static final ScheduledExecutorService WATCHDOG =
+            Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "mclite-download-watchdog");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     static {
         for (int i = 0; i < CLIENTS.length; i++) {
@@ -126,7 +135,12 @@ public final class Net {
                 progress.stage(label);
                 HttpRequest request = buildRequest(url, headers);
                 HttpResponse<InputStream> response = client().send(request, HttpResponse.BodyHandlers.ofInputStream());
-                try (InputStream in = response.body()) {
+                InputStream body = response.body();
+                token.register(body);
+                ScheduledFuture<?> watchdog = WATCHDOG.schedule(
+                        () -> closeQuietly(body),
+                        downloadTimeout(expectedSize).toMillis(), TimeUnit.MILLISECONDS);
+                try (InputStream in = body) {
                     if (response.statusCode() != 200) {
                         throw new IOException("HTTP " + response.statusCode() + "：" + label);
                     }
@@ -148,6 +162,9 @@ public final class Net {
                     byte[] bytes = out.toByteArray();
                     verifyDigest(bytes, digest.digest(), expectedSha1, expectedSize, label, requireChecksum);
                     return bytes;
+                } finally {
+                    watchdog.cancel(false);
+                    token.unregister(body);
                 }
             } catch (CancellationToken.CancelledException ex) {
                 throw ex;
@@ -157,6 +174,9 @@ public final class Net {
                 Thread.currentThread().interrupt();
                 throw new CancellationToken.CancelledException();
             } catch (IOException ex) {
+                if (token.isCancelled()) {
+                    throw new CancellationToken.CancelledException();
+                }
                 last = ex;
                 if (attempt >= MAX_ATTEMPTS) {
                     break;
@@ -204,19 +224,25 @@ public final class Net {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             token.check();
             Path temp = target.resolveSibling(target.getFileName() + ".part");
+            long attemptWritten = 0;
             try {
                 Files.createDirectories(target.getParent());
                 progress.stage(label);
-                HttpRequest request = buildRequest(url);
+                HttpRequest request = buildRequest(url, Map.of(),
+                        downloadTimeout(expectedSize));
                 HttpResponse<InputStream> response = client().send(request, HttpResponse.BodyHandlers.ofInputStream());
-                try (InputStream in = response.body()) {
+                InputStream body = response.body();
+                token.register(body);
+                ScheduledFuture<?> watchdog = WATCHDOG.schedule(
+                        () -> closeQuietly(body),
+                        downloadTimeout(expectedSize).toMillis(), TimeUnit.MILLISECONDS);
+                try (InputStream in = body) {
                     if (response.statusCode() != 200) {
                         throw new IOException("HTTP " + response.statusCode() + "：" + label);
                     }
                     checkFinalUri(response.uri(), request.uri());
                     Files.deleteIfExists(temp);
                     MessageDigest digest = sha1();
-                    long written = 0;
                     try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.CREATE_NEW,
                             StandardOpenOption.WRITE)) {
                         byte[] buffer = new byte[BUFFER_SIZE];
@@ -225,16 +251,19 @@ public final class Net {
                             token.check();
                             channel.write(ByteBuffer.wrap(buffer, 0, read));
                             digest.update(buffer, 0, read);
-                            written += read;
+                            attemptWritten += read;
                             progress.add(read);
                         }
                     }
                     verifyDigest(null, digest.digest(), expectedSha1, expectedSize, label, true);
-                    if (expectedSize >= 0 && written != expectedSize) {
+                    if (expectedSize >= 0 && attemptWritten != expectedSize) {
                         throw new IOException("文件大小不匹配：" + label);
                     }
                     moveIntoPlace(temp, target);
                     return;
+                } finally {
+                    watchdog.cancel(false);
+                    token.unregister(body);
                 }
             } catch (CancellationToken.CancelledException ex) {
                 deleteQuietly(temp);
@@ -248,6 +277,12 @@ public final class Net {
                 throw new CancellationToken.CancelledException();
             } catch (IOException ex) {
                 deleteQuietly(temp);
+                if (token.isCancelled()) {
+                    throw new CancellationToken.CancelledException();
+                }
+                if (attemptWritten > 0) {
+                    progress.rewind(attemptWritten);
+                }
                 last = ex;
                 if (attempt >= MAX_ATTEMPTS) {
                     break;
@@ -325,6 +360,9 @@ public final class Net {
         } catch (CancellationToken.CancelledException | SecurityException ex) {
             throw ex;
         } catch (IOException ex) {
+            if (token.isCancelled()) {
+                throw new CancellationToken.CancelledException();
+            }
             Log.warn("分块下载失败，稍后重试：" + label + " · " + ex.getMessage());
             return transferred.get() > 0 ? Segmented.FAILED : Segmented.UNSUPPORTED;
         } finally {
@@ -382,6 +420,9 @@ public final class Net {
             } catch (SecurityException ex) {
                 throw ex;
             } catch (IOException ex) {
+                if (token.isCancelled()) {
+                    throw new CancellationToken.CancelledException();
+                }
                 if (segmentBytes > 0 || attempts >= MAX_ATTEMPTS) {
                     throw ex;
                 }
@@ -613,9 +654,14 @@ public final class Net {
     }
 
     private HttpRequest buildRequest(String url, java.util.Map<String, String> headers) {
+        return buildRequest(url, headers, Duration.ofMinutes(2));
+    }
+
+    private HttpRequest buildRequest(String url, java.util.Map<String, String> headers,
+                                     Duration timeout) {
         URI uri = normalizeAndValidate(url);
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
-                .timeout(Duration.ofMinutes(2))
+                .timeout(timeout)
                 .header("User-Agent", USER_AGENT)
                 .header("Accept-Encoding", "identity");
         for (java.util.Map.Entry<String, String> entry : headers.entrySet()) {
@@ -730,6 +776,15 @@ public final class Net {
         }
     }
 
+    private static Duration downloadTimeout(long expectedSize) {
+        if (expectedSize <= 0) {
+            return Duration.ofMinutes(2);
+        }
+        long seconds = Math.max(3, Math.min(120,
+                expectedSize / (1024L * 1024L) + 2));
+        return Duration.ofSeconds(seconds);
+    }
+
     private void sleepBeforeRetry(int attempt) {
         try {
             Thread.sleep(600L * attempt + ThreadLocalRandom.current().nextLong(250));
@@ -744,6 +799,13 @@ public final class Net {
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException ex) {
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private static void closeQuietly(InputStream stream) {
+        try {
+            stream.close();
+        } catch (IOException ignored) {
         }
     }
 

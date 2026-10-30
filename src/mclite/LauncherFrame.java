@@ -2579,7 +2579,7 @@ public final class LauncherFrame extends JFrame {
         Config installConfig = config.copyForGameDir(config.effectiveGameDir(instanceId));
         Modrinth modrinth = new Modrinth(taskProgress, taskToken);
         String loaderName = loaderName(loader);
-        int threads = Math.max(1, Math.min(6, items.size()));
+        int threads = Math.max(1, Math.min(3, items.size()));
         java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(
                 threads, runnable -> {
                     Thread thread = new Thread(runnable, "mclite-recommend");
@@ -2606,6 +2606,11 @@ public final class LauncherFrame extends JFrame {
                         @Override
                         public void add(long bytes) {
                             taskProgress.add(bytes);
+                        }
+
+                        @Override
+                        public void rewind(long bytes) {
+                            taskProgress.rewind(bytes);
                         }
 
                         @Override
@@ -4525,7 +4530,7 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         if (taskToken != null && taskToken.isCancelled()) {
-            statusLabel.setText("正在取消…");
+            statusLabel.setText("已取消");
             statusLabel.setForeground(Theme.WARNING);
             progressBar.setIndeterminate(false);
             progressBar.setValue(0);
@@ -4571,6 +4576,7 @@ public final class LauncherFrame extends JFrame {
     private void cancelTask() {
         if (taskToken != null) {
             taskToken.cancel();
+            Updater.cancelActiveDownload();
             if (progressTimer != null) {
                 progressTimer.stop();
                 progressTimer = null;
@@ -4580,7 +4586,7 @@ public final class LauncherFrame extends JFrame {
                 activeTask.stage("已取消");
             }
             refreshTasksButton();
-            statusLabel.setText("正在取消…");
+            statusLabel.setText("已取消");
             statusLabel.setForeground(Theme.WARNING);
             progressBar.setIndeterminate(false);
             progressBar.setValue(0);
