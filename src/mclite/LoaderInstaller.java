@@ -509,7 +509,7 @@ public final class LoaderInstaller {
         }
     }
 
-    private static String prettyJson(Object value) {
+    static String prettyJson(Object value) {
         if (value instanceof Map<?, ?> map) {
             StringBuilder out = new StringBuilder("{\n");
             int index = 0;

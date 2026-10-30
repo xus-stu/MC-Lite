@@ -133,6 +133,7 @@ public final class LauncherFrame extends JFrame {
     private DefaultListModel<String> instanceModsModel;
     private DefaultListModel<String> instancePacksModel;
     private final Map<String, int[]> instanceCounts = new HashMap<>();
+    private final java.util.ArrayDeque<Runnable> installQueue = new java.util.ArrayDeque<>();
     private Ui.AccentButton headerBackButton;
     private String currentTop = "download";
     private String currentDownloadCard = "versions";
@@ -1305,7 +1306,12 @@ public final class LauncherFrame extends JFrame {
         Ui.AccentButton deleteInstance = Ui.smallButton("删除实例", Ui.AccentButton.Style.DANGER);
         deleteInstance.setToolTipText("永久删除所选实例的版本文件夹");
         deleteInstance.addActionListener(e -> deleteSelectedInstance());
+        Ui.AccentButton renameInstance = Ui.smallButton("重命名", Ui.AccentButton.Style.GHOST);
+        renameInstance.setToolTipText("修改实例名称和版本文件夹");
+        renameInstance.addActionListener(e -> renameSelectedInstance());
         headerActions.add(instanceLaunchButton);
+        headerActions.add(Ui.hgap(8));
+        headerActions.add(renameInstance);
         headerActions.add(Ui.hgap(8));
         headerActions.add(deleteInstance);
         headerActions.add(Ui.hgap(8));
@@ -1401,6 +1407,192 @@ public final class LauncherFrame extends JFrame {
         box.add(header, BorderLayout.NORTH);
         box.add(Ui.scrollDark(list), BorderLayout.CENTER);
         return box;
+    }
+
+    private void renameSelectedInstance() {
+        if (busy || launching) {
+            showError("暂时不能重命名", "下载、安装或启动任务正在进行，请稍后再试。");
+            return;
+        }
+        VersionManifest.VersionEntry entry = instancesList == null
+                ? null : instancesList.getSelectedValue();
+        if (entry == null) {
+            showError("重命名实例", "请先在左侧选择一个实例。");
+            return;
+        }
+        Path versions = gamePaths.versionsDir().toAbsolutePath().normalize();
+        Path oldDir = gamePaths.versionDir(entry.id()).toAbsolutePath().normalize();
+        if (!oldDir.startsWith(versions) || !Files.isDirectory(oldDir)
+                || !Files.isRegularFile(oldDir.resolve(entry.id() + ".json"))) {
+            showError("重命名实例", "找不到实例文件夹或版本 JSON：\n" + oldDir);
+            return;
+        }
+        if (gameProcess != null && gameProcess.isAlive()
+                && config.effectiveGameDir(entry.id()).equals(lastGameContentDir)) {
+            showError("游戏正在运行", "这个实例的 Minecraft 还在运行，请先退出游戏再重命名。");
+            return;
+        }
+        String input = JOptionPane.showInputDialog(this, "新的实例名称：",
+                "重命名实例 " + entry.id(), JOptionPane.PLAIN_MESSAGE);
+        if (input == null) {
+            return;
+        }
+        String newId = input.trim();
+        if (!VersionIds.valid(newId) || newId.equals(entry.id())) {
+            showError("名称无效", "实例名称不能为空、不能包含路径分隔符，也不能和原名相同。");
+            return;
+        }
+        Path newDir = gamePaths.versionDir(newId).toAbsolutePath().normalize();
+        if (Files.exists(newDir)) {
+            showError("名称已存在", "已经有同名实例或版本文件夹：\n" + newDir);
+            return;
+        }
+        if (!askYesNo("重命名实例", "将 " + entry.id() + " 重命名为 " + newId
+                + "？\n\n版本文件、mods、saves 和 config 都会一起改名。")) {
+            return;
+        }
+        try {
+            renameInstanceFolder(entry.id(), newId, oldDir, newDir);
+            metaCache.remove(entry.id());
+            metaCache.remove(newId);
+            installedCache.remove(entry.id());
+            if (entry.id().equals(config.lastVersion())) {
+                config.lastVersion(newId);
+                config.save();
+            }
+            if (entry.id().equals(versionDetailId)) {
+                versionDetailId = newId;
+            }
+            selectedEntry = new VersionManifest.VersionEntry(newId, "local",
+                    null, null, "", 0, true);
+            selectedMeta = null;
+            refreshAllVersions();
+            refreshInstalledCache();
+            refreshInstancesPage();
+            for (int i = 0; i < instancesListModel.size(); i++) {
+                if (instancesListModel.get(i).id().equals(newId)) {
+                    instancesList.setSelectedIndex(i);
+                    break;
+                }
+            }
+            updateDetailForSelection();
+            statusLabel.setText("实例已重命名 · " + newId);
+            statusLabel.setForeground(Theme.ACCENT);
+        } catch (Exception ex) {
+            Log.error("重命名实例失败", ex);
+            showError("重命名失败", ex.getMessage() == null ? "无法重命名实例" : ex.getMessage());
+        }
+    }
+
+    private void renameInstanceFolder(String oldId, String newId, Path oldDir, Path newDir)
+            throws IOException {
+        Files.move(oldDir, newDir);
+        renameVersionJson(newDir, oldId, newId, false);
+        renameVersionJson(newDir, oldId, newId, true);
+        Path oldJar = newDir.resolve(oldId + ".jar");
+        Path newJar = newDir.resolve(newId + ".jar");
+        if (Files.isRegularFile(oldJar)) {
+            Files.move(oldJar, newJar);
+        }
+        Path oldJson = newDir.resolve(newId + ".json");
+        if (Files.isRegularFile(oldJson)) {
+            rewriteVersionJson(oldJson, oldId, newId);
+        }
+        Path oldVanilla = newDir.resolve(newId + ".vanilla.json");
+        if (Files.isRegularFile(oldVanilla)) {
+            rewriteVersionJson(oldVanilla, oldId, newId);
+        }
+        updateInstanceMarker(newDir, oldId, newId);
+        updateInheritedVersions(oldId, newId);
+    }
+
+    private void renameVersionJson(Path dir, String oldId, String newId, boolean vanilla)
+            throws IOException {
+        String suffix = vanilla ? ".vanilla.json" : ".json";
+        Path oldFile = dir.resolve(oldId + suffix);
+        if (!Files.isRegularFile(oldFile)) {
+            return;
+        }
+        Path newFile = dir.resolve(newId + suffix);
+        rewriteVersionJson(oldFile, oldId, newId);
+        Files.move(oldFile, newFile);
+    }
+
+    private void rewriteVersionJson(Path file, String oldId, String newId) throws IOException {
+        Map<String, Object> root = Json.obj(Json.parse(Files.readString(file)));
+        boolean changed = false;
+        for (String key : new String[]{"id", "jar", "inheritsFrom"}) {
+            if (oldId.equals(Json.str(root, key))) {
+                root.put(key, newId);
+                changed = true;
+            }
+        }
+        if (changed) {
+            Files.writeString(file, LoaderInstaller.prettyJson(root));
+        }
+    }
+
+    private void updateInstanceMarker(Path dir, String oldId, String newId) throws IOException {
+        Path marker = dir.resolve(".mclite.properties");
+        if (Files.isRegularFile(marker)) {
+            java.util.Properties properties = new java.util.Properties();
+            try (var in = Files.newInputStream(marker)) {
+                properties.load(in);
+            }
+            if (oldId.equals(properties.getProperty("versionId"))) {
+                properties.setProperty("versionId", newId);
+                try (var out = Files.newOutputStream(marker)) {
+                    properties.store(out, "MC Lite instance");
+                }
+            }
+        }
+        Path loader = dir.resolve(".mclite-loader.properties");
+        if (Files.isRegularFile(loader)) {
+            java.util.Properties properties = new java.util.Properties();
+            try (var in = Files.newInputStream(loader)) {
+                properties.load(in);
+            }
+            if (oldId.equals(properties.getProperty("base"))) {
+                properties.setProperty("base", newId);
+                try (var out = Files.newOutputStream(loader)) {
+                    properties.store(out, "MC Lite loader");
+                }
+            }
+        }
+    }
+
+    private void updateInheritedVersions(String oldId, String newId) {
+        try (var dirs = Files.list(gamePaths.versionsDir())) {
+            for (Path dir : dirs.toList()) {
+                if (!Files.isDirectory(dir)) {
+                    continue;
+                }
+                String id = dir.getFileName().toString();
+                Path json = dir.resolve(id + ".json");
+                if (!Files.isRegularFile(json)) {
+                    continue;
+                }
+                try {
+                    Map<String, Object> root = Json.obj(Json.parse(Files.readString(json)));
+                    boolean changed = false;
+                    if (oldId.equals(Json.str(root, "inheritsFrom"))) {
+                        root.put("inheritsFrom", newId);
+                        changed = true;
+                    }
+                    if (oldId.equals(Json.str(root, "jar"))) {
+                        root.put("jar", newId);
+                        changed = true;
+                    }
+                    if (changed) {
+                        Files.writeString(json, LoaderInstaller.prettyJson(root));
+                    }
+                } catch (Exception ex) {
+                    Log.warn("更新继承版本失败 " + json + ": " + ex.getMessage());
+                }
+            }
+        } catch (IOException ex) {
+            Log.warn("扫描继承版本失败: " + ex.getMessage());
+        }
     }
 
     private void deleteSelectedInstance() {
@@ -1616,6 +1808,66 @@ public final class LauncherFrame extends JFrame {
             }
             g2.dispose();
             super.paintComponent(g);
+        }
+    }
+
+    private boolean verifyModsBeforeLaunch(VersionMeta meta, Path gameContentDir) {
+        List<Path> jars = listFiles(gameContentDir.resolve("mods")).stream()
+                .filter(path -> path.getFileName().toString().toLowerCase(java.util.Locale.ROOT)
+                        .endsWith(".jar"))
+                .toList();
+        if (jars.isEmpty()) {
+            return true;
+        }
+        String mainClass = meta.mainClass() == null ? "" : meta.mainClass();
+        boolean loader = !mainClass.contains("net.minecraft.client.main.Main");
+        if (!loader) {
+            return askYesNo("模组不会加载",
+                    "当前实例没有模组加载器，但 mods 文件夹里有 " + jars.size()
+                            + " 个 jar。\n\n这些模组不会在游戏里加载。仍要启动吗？");
+        }
+        List<String> invalid = new ArrayList<>();
+        for (Path jar : jars) {
+            if (!looksLikeModJar(jar, mainClass)) {
+                invalid.add(jar.getFileName().toString());
+            }
+        }
+        if (!invalid.isEmpty()) {
+            StringBuilder message = new StringBuilder("以下文件没有检测到当前加载器需要的模组信息：\n\n");
+            int count = Math.min(6, invalid.size());
+            for (int i = 0; i < count; i++) {
+                message.append("· ").append(invalid.get(i)).append('\n');
+            }
+            if (invalid.size() > count) {
+                message.append("· 还有 ").append(invalid.size() - count).append(" 个\n");
+            }
+            message.append("\n它们可能不是模组，或者版本/加载器不匹配，游戏里可能不会加载。仍要启动吗？");
+            Log.warn("启动前模组检查发现 " + invalid.size() + " 个可疑文件: " + invalid);
+            return askYesNo("模组可能不会加载", message.toString());
+        }
+        Log.info("启动前模组检查通过：" + jars.size() + " 个模组，加载器 " + mainClass);
+        return true;
+    }
+
+    private static boolean looksLikeModJar(Path jar, String mainClass) {
+        try (java.util.jar.JarFile file = new java.util.jar.JarFile(jar.toFile())) {
+            String lower = mainClass.toLowerCase(java.util.Locale.ROOT);
+            if (lower.contains("fabric")) {
+                return file.getEntry("fabric.mod.json") != null;
+            }
+            if (lower.contains("quilt")) {
+                return file.getEntry("quilt.mod.json") != null
+                        || file.getEntry("fabric.mod.json") != null;
+            }
+            if (lower.contains("forge") || lower.contains("neoforge")
+                    || lower.contains("bootstraplauncher")) {
+                return file.getEntry("META-INF/mods.toml") != null
+                        || file.getEntry("META-INF/neoforge.mods.toml") != null
+                        || file.getEntry("mcmod.info") != null;
+            }
+            return true;
+        } catch (Exception ex) {
+            return false;
         }
     }
 
@@ -2733,29 +2985,46 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void installFromVersionDetail() {
-        if (busy || selectedEntry == null) {
+        VersionManifest.VersionEntry entry = selectedEntry;
+        if (entry == null) {
             return;
         }
-        if (selectedEntry.local()) {
+        if (entry.local()) {
             showError("本地实例", "本地实例已经存在，不需要再安装版本。请直接到「启动游戏」启动。");
             return;
         }
-        if (RegionGate.restricted() && !isInstalled(selectedEntry)) {
+        if (RegionGate.restricted() && !isInstalled(entry)) {
             RegionGate.showGuide(this);
             return;
         }
         String loaderType = versionLoaderType;
         if ("vanilla".equals(loaderType)) {
             showDownloadTab("versions");
-            startInstall(false);
+            startInstall(entry, false);
             return;
         }
         String loaderVersion = versionLoaderVersion.getText().trim();
-        VersionManifest.VersionEntry entry = selectedEntry;
         VersionMeta meta = selectedMeta;
         JavaManager.JavaInfo resolvedJava = resolveJava(meta);
         java.util.List<Recommendations.Item> recommended = selectedRecommendations();
-        beginTask("安装 " + entry.id() + " / " + versionLoaderType);
+        if (busy) {
+            enqueueInstall(() -> doInstallFromVersionDetail(
+                    entry, loaderType, loaderVersion, resolvedJava, recommended));
+            return;
+        }
+        doInstallFromVersionDetail(entry, loaderType, loaderVersion, resolvedJava, recommended);
+    }
+
+    private void doInstallFromVersionDetail(VersionManifest.VersionEntry entry,
+                                            String loaderType, String loaderVersion,
+                                            JavaManager.JavaInfo resolvedJava,
+                                            java.util.List<Recommendations.Item> recommended) {
+        if (busy) {
+            enqueueInstall(() -> doInstallFromVersionDetail(
+                    entry, loaderType, loaderVersion, resolvedJava, recommended));
+            return;
+        }
+        beginTask("安装 " + entry.id() + " / " + loaderType);
         new SwingWorker<String, Void>() {
             @Override
             protected String doInBackground() throws Exception {
@@ -2783,7 +3052,7 @@ public final class LauncherFrame extends JFrame {
             protected void done() {
                 try {
                     String loaderId = get();
-                    finishTask();
+                    finishTask(recommended.isEmpty());
                     refreshAllVersions();
                     refreshInstalledCache();
                     for (int i = 0; i < listModel.size(); i++) {
@@ -4187,7 +4456,7 @@ public final class LauncherFrame extends JFrame {
                 && !gamePaths.assetsComplete(selectedEntry.id());
         if (installButton != null) {
             installButton.setText(local ? "本地实例" : installed ? "修复 / 更新" : "下载");
-            installButton.setEnabled(hasSelection && !busy && !local);
+            installButton.setEnabled(hasSelection && !local);
         }
         if (launchButton != null) {
             launchButton.setText(!installed ? "下载并启动"
@@ -4212,10 +4481,14 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void startInstall(boolean thenLaunch) {
-        if (busy || selectedEntry == null) {
+        VersionManifest.VersionEntry entry = selectedEntry;
+        if (entry == null) {
             return;
         }
-        VersionManifest.VersionEntry entry = selectedEntry;
+        startInstall(entry, thenLaunch);
+    }
+
+    private void startInstall(VersionManifest.VersionEntry entry, boolean thenLaunch) {
         if (entry.local()) {
             statusLabel.setText("本地实例已存在，直接启动即可");
             statusLabel.setForeground(Theme.MUTED);
@@ -4223,6 +4496,11 @@ public final class LauncherFrame extends JFrame {
         }
         if (RegionGate.restricted()) {
             RegionGate.showGuide(this);
+            return;
+        }
+        if (busy) {
+            boolean launch = thenLaunch && installQueue.isEmpty();
+            enqueueInstall(() -> startInstall(entry, launch));
             return;
         }
         beginTask("安装 Minecraft " + entry.id());
@@ -4384,6 +4662,9 @@ public final class LauncherFrame extends JFrame {
         }
 
         Path gameContentDir = config.effectiveGameDir(entry.id());
+        if (!verifyModsBeforeLaunch(meta, gameContentDir)) {
+            return;
+        }
         lastGameContentDir = gameContentDir;
         SkinStore.copyForGame(config, config.accountId(), gameContentDir);
         launching = true;
@@ -4556,7 +4837,33 @@ public final class LauncherFrame extends JFrame {
         statusLabel.setForeground(Theme.ACCENT);
     }
 
+    private void enqueueInstall(Runnable action) {
+        installQueue.addLast(() -> {
+            try {
+                action.run();
+            } finally {
+                if (!busy && activeTask == null) {
+                    startNextQueuedInstall();
+                }
+            }
+        });
+        statusLabel.setText("已加入下载队列（" + installQueue.size() + " 个）");
+        statusLabel.setForeground(Theme.ACCENT);
+        refreshTasksButton();
+    }
+
+    private void startNextQueuedInstall() {
+        Runnable next = installQueue.pollFirst();
+        if (next != null) {
+            SwingUtilities.invokeLater(next);
+        }
+    }
+
     private void finishTask() {
+        finishTask(true);
+    }
+
+    private void finishTask(boolean startNext) {
         busy = false;
         taskCenter.finish(activeTask);
         activeTask = null;
@@ -4571,6 +4878,9 @@ public final class LauncherFrame extends JFrame {
         updateDetailForSelection();
         updateJavaHint();
         updateContentSelection();
+        if (startNext) {
+            startNextQueuedInstall();
+        }
     }
 
     private void cancelTask() {
@@ -4702,7 +5012,7 @@ public final class LauncherFrame extends JFrame {
         if (tasksButton == null) {
             return;
         }
-        int running = taskCenter.running();
+        int running = taskCenter.running() + installQueue.size();
         tasksButton.setText(running > 0 ? "任务 " + running : "任务");
         tasksButton.setPreferredSize(new Dimension(running > 0 ? 74 : 64, 24));
         tasksButton.setMaximumSize(new Dimension(running > 0 ? 74 : 64, 24));
@@ -4714,7 +5024,7 @@ public final class LauncherFrame extends JFrame {
         if (searchField != null) {
             searchField.setEnabled(enabled);
         }
-        versionList.setEnabled(enabled);
+        versionList.setEnabled(enabled || busy);
         refreshButton.setEnabled(enabled && !manifestLoading);
         gameDirField.setEnabled(enabled);
         javaCombo.setEnabled(enabled);
