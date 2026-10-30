@@ -187,7 +187,14 @@ public final class SelfTest {
             check(Recommendations.forLoader("forge", "1.21.1").stream()
                             .noneMatch(item -> item.slug().equals("embeddium")),
                     "Forge 1.21 推荐列表兼容");
-            passed += 2;
+            check(Recommendations.forLoader("fabric").stream()
+                            .anyMatch(item -> item.slug().equals("fabric-api"))
+                            && Recommendations.forLoader("fabric").stream()
+                            .anyMatch(item -> item.slug().equals("jade"))
+                            && Recommendations.forLoader("fabric").stream()
+                            .anyMatch(item -> item.slug().equals("emi")),
+                    "实用类模组推荐");
+            passed += 3;
 
             Path mergeRoot = work.resolve("merge");
             Path mergeBase = mergeRoot.resolve("versions/1.21");

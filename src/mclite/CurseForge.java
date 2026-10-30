@@ -32,16 +32,31 @@ public final class CurseForge {
 
     public List<Modrinth.Project> search(String query, String projectType, String gameVersion,
                                          String loader, int offset, int limit) throws IOException {
+        return search(query, projectType, gameVersion, loader, offset, limit, "featured");
+    }
+
+    public List<Modrinth.Project> search(String query, String projectType, String gameVersion,
+                                         String loader, int offset, int limit, String sort)
+            throws IOException {
         requireKey();
         int classId = switch (projectType) {
             case "resourcepack", "shader" -> 12;
             case "modpack" -> 4471;
             default -> 6;
         };
+        int sortField = switch (sort == null ? "" : sort) {
+            case "popularity" -> 2;
+            case "updated" -> 3;
+            case "name" -> 4;
+            case "totalDownloads" -> 6;
+            default -> 1;
+        };
+        String sortOrder = "name".equals(sort) ? "asc" : "desc";
         StringBuilder url = new StringBuilder(API).append("/mods/search?gameId=432&classId=")
                 .append(classId).append("&pageSize=").append(Math.max(1, limit))
                 .append("&index=").append(Math.max(0, offset))
-                .append("&sortField=2&sortOrder=desc");
+                .append("&sortField=").append(sortField)
+                .append("&sortOrder=").append(sortOrder);
         if (query != null && !query.isBlank()) {
             url.append("&searchFilter=").append(encode(query));
         }

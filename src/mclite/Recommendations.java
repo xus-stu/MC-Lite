@@ -25,6 +25,13 @@ public final class Recommendations {
                     new Item("ferrite-core", "FerriteCore", "降低内存占用", true),
                     new Item("krypton", "Krypton", "网络线程优化", true),
                     new Item("sodium-extra", "Sodium Extra", "Sodium 画质与性能选项", true),
+                    new Item("fabric-api", "Fabric API", "大多数 Fabric 模组的前置", true),
+                    new Item("jade", "Jade", "准星指向方块/实体信息", true),
+                    new Item("emi", "EMI", "物品与配方查询", true),
+                    new Item("xaeros-minimap", "Xaero's Minimap", "小地图", false),
+                    new Item("xaeros-world-map", "Xaero's World Map", "世界地图", false),
+                    new Item("appleskin", "AppleSkin", "显示饥饿值与饱和度", false),
+                    new Item("controlling", "Controlling", "搜索按键绑定", false),
                     new Item("c2me-fabric", "C2ME", "实验性区块加载优化，追求极限帧率可试", false),
                     new Item("modmenu", "Mod Menu", "模组列表菜单", true),
                     new Item("cloth-config", "Cloth Config", "通用配置库", true),
@@ -40,7 +47,10 @@ public final class Recommendations {
                         new Item("ferrite-core", "FerriteCore", "降低内存占用", true),
                         new Item("modernfix", "ModernFix", "启动与内存优化", true),
                         new Item("clumps", "Clumps", "合并经验球，降低卡顿", true),
-                        new Item("jei", "Just Enough Items", "物品配方查询", true));
+                        new Item("jei", "Just Enough Items", "物品配方查询", true),
+                        new Item("jade", "Jade", "准星指向方块/实体信息", true),
+                        new Item("appleskin", "AppleSkin", "显示饥饿值与饱和度", false),
+                        new Item("controlling", "Controlling", "搜索按键绑定", false));
             }
             return List.of(
                     new Item("embeddium", "Embeddium", "渲染优化，提高帧率", true),
@@ -50,7 +60,11 @@ public final class Recommendations {
                     new Item("ferrite-core", "FerriteCore", "降低内存占用", true),
                     new Item("modernfix", "ModernFix", "启动与内存优化", true),
                     new Item("clumps", "Clumps", "合并经验球，降低卡顿", true),
-                    new Item("jei", "Just Enough Items", "物品配方查询", true));
+                    new Item("jei", "Just Enough Items", "物品配方查询", true),
+                    new Item("jade", "Jade", "准星指向方块/实体信息", true),
+                    new Item("appleskin", "AppleSkin", "显示饥饿值与饱和度", false),
+                    new Item("journeymap", "JourneyMap", "小地图与世界地图", false),
+                    new Item("controlling", "Controlling", "搜索按键绑定", false));
         }
         return List.of();
     }
