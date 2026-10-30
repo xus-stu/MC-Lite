@@ -21,7 +21,8 @@ public final class TaskCenter {
     }
 
     public void update(DownloadTask task, TaskProgress progress) {
-        if (task == null || progress == null) {
+        if (task == null || progress == null
+                || task.state() == DownloadTask.State.CANCELLED) {
             return;
         }
         task.progress(progress.done(), progress.total());
@@ -36,7 +37,7 @@ public final class TaskCenter {
     }
 
     public void fail(DownloadTask task, String message) {
-        if (task != null) {
+        if (task != null && task.state() != DownloadTask.State.CANCELLED) {
             task.stage(message == null ? "失败" : message);
             task.state(DownloadTask.State.FAILED);
         }

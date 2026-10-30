@@ -169,6 +169,13 @@ public final class Net {
 
     public void download(String url, Path target, String expectedSha1, long expectedSize,
                          String label, boolean verifyExistingSha1) throws IOException {
+        download(url, target, expectedSha1, expectedSize, label, verifyExistingSha1,
+                SEGMENT_MIN_BYTES);
+    }
+
+    public void download(String url, Path target, String expectedSha1, long expectedSize,
+                         String label, boolean verifyExistingSha1, long segmentMinBytes)
+            throws IOException {
         requireSha1(expectedSha1);
         token.check();
         try {
@@ -183,7 +190,7 @@ public final class Net {
 
         }
 
-        if (expectedSize >= SEGMENT_MIN_BYTES) {
+        if (expectedSize >= segmentMinBytes) {
             Segmented segmented = downloadSegmented(url, target, expectedSha1, expectedSize, label);
             if (segmented == Segmented.SUCCESS) {
                 return;

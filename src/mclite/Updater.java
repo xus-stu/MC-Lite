@@ -422,6 +422,9 @@ public final class Updater {
                     if (read == 0) {
                         continue;
                     }
+                    if (task.state() == DownloadTask.State.CANCELLED) {
+                        throw new IOException("已取消");
+                    }
                     out.write(buffer, 0, read);
                     sha.update(buffer, 0, read);
                     progress.add(read);
@@ -486,11 +489,15 @@ public final class Updater {
             }
             Log.info("已下载启动器更新 v" + version + "，下次启动生效");
         } catch (Exception ex) {
-            taskCenter.fail(task, ex.getMessage());
+            if (task.state() == DownloadTask.State.CANCELLED) {
+                Log.info("已取消启动器更新下载");
+            } else {
+                taskCenter.fail(task, ex.getMessage());
+                Log.warn("下载启动器更新失败: " + ex.getMessage());
+            }
             if (refreshTasks != null) {
                 SwingUtilities.invokeLater(refreshTasks);
             }
-            Log.warn("下载启动器更新失败: " + ex.getMessage());
         }
     }
 

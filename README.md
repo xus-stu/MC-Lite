@@ -20,7 +20,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 
 ## 运行
 
-当前版本：V1.1.40
+当前版本：V1.1.41
 
 需要 Java 21 或更高版本。
 
@@ -28,7 +28,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.40.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.41.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -39,7 +39,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.40-region.jar
+java -jar dist/MCLite_v1.1.41-region.jar
 ```
 
 ## 地区限制
@@ -83,18 +83,18 @@ java -jar dist/MCLite_v1.1.40-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.40.jar
-dist/MCLite_v1.1.40-region.jar
+dist/MCLite_v1.1.41.jar
+dist/MCLite_v1.1.41-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.40.app
-dist/MC Lite Region v1.1.40.app
-dist/MC-Lite_v1.1.40_macOS.zip
-dist/MC-Lite_v1.1.40_region_macOS.zip
-dist/MC-Lite_v1.1.40_region_Windows.zip
+dist/MC Lite v1.1.41.app
+dist/MC Lite Region v1.1.41.app
+dist/MC-Lite_v1.1.41_macOS.zip
+dist/MC-Lite_v1.1.41_region_macOS.zip
+dist/MC-Lite_v1.1.41_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.40_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.41_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -144,7 +144,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.40_Setup.exe
+dist/MC-Lite_v1.1.41_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -162,7 +162,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.40.jar --software-render
+java -jar dist/MCLite_v1.1.41.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
@@ -214,6 +214,8 @@ C:\Users\<用户名>\.mclite\logs
   也可以用 `-Dmclite.download.segments=1` 关闭。
 - 多线程进度采样已串行化，速度显示不会因为并发写入而越来越小。
 - 下载失败会自动重试并切换备用源；临时 `.part` 文件会清理。
+- 推荐模组等 512KB 以上的文件也会用分段连接下载，缓解 Modrinth CDN 单连接限速。
+- 点击「取消当前任务」会立即把任务标记为已取消并停止进度刷新，不再继续显示下载中。
 
 ## 安全
 
