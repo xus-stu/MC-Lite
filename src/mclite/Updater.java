@@ -3,14 +3,18 @@ package mclite;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -32,12 +36,20 @@ public final class Updater {
 
     private static volatile String ignoredVersion;
     private static volatile InputStream activeUpdateStream;
+    private static final java.util.Set<InputStream> ACTIVE_STREAMS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static volatile Path parentLaunch;
     private static volatile boolean parentCaptured;
 
-    private record Release(String version, Map<String, String> digests, String notes) {
+    private record Release(String version, Map<String, String> digests,
+                           Map<String, Long> sizes, String notes) {
         String digest(String asset) {
             return digests.get(asset);
+        }
+
+        long size(String asset) {
+            Long value = sizes.get(asset);
+            return value == null ? -1 : value;
         }
     }
 
@@ -45,6 +57,12 @@ public final class Updater {
     }
 
     public static void cancelActiveDownload() {
+        for (InputStream stream : ACTIVE_STREAMS) {
+            try {
+                stream.close();
+            } catch (IOException ignored) {
+            }
+        }
         InputStream stream = activeUpdateStream;
         if (stream != null) {
             try {
@@ -263,6 +281,7 @@ public final class Updater {
                     + version + "/" + asset;
             String digest = release == null ? null : release.digest(asset);
             String notes = release == null ? "" : release.notes();
+            long assetSize = release == null ? -1 : release.size(asset);
             Log.info("发现启动器更新 V" + version + "（" + channel + "）");
             String downloadVersion = version;
             java.util.List<String> downloadUrls = updateUrls(url);
@@ -280,7 +299,7 @@ public final class Updater {
                     }
                     Thread downloader = new Thread(() -> downloadUpdate(
                             config, downloadVersion, channel, downloadUrls, digest,
-                            taskCenter, refreshTasks, parent, notes, false),
+                            taskCenter, refreshTasks, parent, notes, false, assetSize),
                             "mclite-update-download");
                     downloader.setDaemon(true);
                     downloader.start();
@@ -288,7 +307,7 @@ public final class Updater {
                 return;
             }
             downloadUpdate(config, downloadVersion, channel, downloadUrls, digest,
-                    taskCenter, refreshTasks, parent, notes, true);
+                    taskCenter, refreshTasks, parent, notes, true, assetSize);
         } catch (Exception ex) {
             Log.warn("检查启动器更新失败: " + ex.getMessage());
         }
@@ -314,15 +333,20 @@ public final class Updater {
             }
             String notes = Json.str(release, "body", "");
             Map<String, String> digests = new HashMap<>();
+            Map<String, Long> sizes = new HashMap<>();
             for (Object item : Json.arr(release.get("assets"))) {
                 Map<String, Object> asset = Json.obj(item);
                 String name = Json.str(asset, "name", "").trim();
                 String digest = Json.str(asset, "digest", "").trim();
-                if (!name.isEmpty() && !digest.isEmpty()) {
-                    digests.put(name, digest);
+                long size = Json.lng(asset, "size", -1);
+                if (!name.isEmpty()) {
+                    sizes.put(name, size);
+                    if (!digest.isEmpty()) {
+                        digests.put(name, digest);
+                    }
                 }
             }
-            return new Release(version, digests, notes);
+            return new Release(version, digests, sizes, notes);
         } catch (Exception ex) {
             Log.warn("查询 GitHub Release 失败: " + ex.getMessage());
             return null;
@@ -378,7 +402,8 @@ public final class Updater {
     private static void downloadUpdate(Config config, String version, String channel,
                                        java.util.List<String> urls, String digest,
                                        TaskCenter taskCenter, Runnable refreshTasks,
-                                       java.awt.Component parent, String notes, boolean notify) {
+                                       java.awt.Component parent, String notes, boolean notify,
+                                       long expectedSize) {
         DownloadTask task = taskCenter.start("启动器更新 · V" + version, "GitHub Releases");
         if (refreshTasks != null) {
             SwingUtilities.invokeLater(refreshTasks);
@@ -391,80 +416,87 @@ public final class Updater {
                     .connectTimeout(Duration.ofSeconds(12))
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .build();
-            HttpResponse<InputStream> response = null;
-            for (String url : urls) {
-                try {
-                    task.stage("连接更新源 · " + hostOf(url));
-                    HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                            .timeout(Duration.ofSeconds(60))
-                            .header("User-Agent", "MCLite/" + Version.VALUE)
-                            .GET().build();
-                    HttpResponse<InputStream> candidate = client.send(request,
-                            HttpResponse.BodyHandlers.ofInputStream());
-                    if (candidate.statusCode() == 200) {
-                        response = candidate;
-                        break;
-                    }
-                } catch (Exception ex) {
-                    Log.warn("更新源失败 " + hostOf(url) + ": " + ex.getMessage());
-                }
-            }
-            if (response == null) {
-                throw new IOException("所有更新源均不可用");
-            }
-            long length = response.headers().firstValueAsLong("content-length").orElse(-1);
-            if (length > MAX_UPDATE_BYTES) {
-                throw new IOException("更新文件异常过大: " + length + " 字节");
-            }
-            progress.total(length);
-            progress.stage("下载更新文件…");
             Path folder = config.appHome().resolve("updates/v" + version);
             Files.createDirectories(folder);
             boolean patch = "normal".equals(channel) && config.removeRegionLimits();
             String asset = "MCLite_v" + version + "-region.jar";
             Path source = folder.resolve(asset + ".part");
             Path target = folder.resolve(patch ? "MCLite_v" + version + ".jar" : asset);
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            InputStream body = response.body();
-            activeUpdateStream = body;
-            try (InputStream in = body;
-                 OutputStream out = Files.newOutputStream(source)) {
-                byte[] buffer = new byte[64 * 1024];
-                int read;
-                while ((read = in.read(buffer)) >= 0) {
-                    if (read == 0) {
-                        continue;
+            progress.total(expectedSize > 0 ? expectedSize : -1);
+            boolean downloaded = expectedSize > 0
+                    && downloadRace(client, urls, source, expectedSize, task, progress);
+            if (!downloaded && expectedSize > 0 && task.state() != DownloadTask.State.CANCELLED) {
+                downloaded = downloadParallel(client, urls, source, expectedSize,
+                        task, progress, taskCenter, refreshTasks);
+            }
+            if (!downloaded) {
+                if (task.state() == DownloadTask.State.CANCELLED) {
+                    throw new IOException("已取消");
+                }
+                HttpResponse<InputStream> response = null;
+                for (String url : urls) {
+                    try {
+                        task.stage("连接更新源 · " + hostOf(url));
+                        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                                .timeout(Duration.ofSeconds(60))
+                                .header("User-Agent", "MCLite/" + Version.VALUE)
+                                .GET().build();
+                        HttpResponse<InputStream> candidate = client.send(request,
+                                HttpResponse.BodyHandlers.ofInputStream());
+                        if (candidate.statusCode() == 200) {
+                            response = candidate;
+                            break;
+                        }
+                    } catch (Exception ex) {
+                        Log.warn("更新源失败 " + hostOf(url) + ": " + ex.getMessage());
                     }
-                    if (task.state() == DownloadTask.State.CANCELLED) {
-                        throw new IOException("已取消");
-                    }
-                    out.write(buffer, 0, read);
-                    sha.update(buffer, 0, read);
-                    progress.add(read);
-                    if (progress.done() > MAX_UPDATE_BYTES) {
-                        throw new IOException("更新文件异常过大");
-                    }
-                    long now = System.currentTimeMillis();
-                    if (now - lastUi[0] >= 50) {
-                        lastUi[0] = now;
-                        taskCenter.update(task, progress);
-                        if (refreshTasks != null) {
-                            SwingUtilities.invokeLater(refreshTasks);
+                }
+                if (response == null) {
+                    throw new IOException("所有更新源均不可用");
+                }
+                long length = response.headers().firstValueAsLong("content-length")
+                        .orElse(expectedSize);
+                if (length > MAX_UPDATE_BYTES) {
+                    throw new IOException("更新文件异常过大: " + length + " 字节");
+                }
+                progress.total(length);
+                progress.stage("下载更新文件…");
+                InputStream body = response.body();
+                activeUpdateStream = body;
+                ACTIVE_STREAMS.add(body);
+                try (InputStream in = body;
+                     OutputStream out = Files.newOutputStream(source)) {
+                    byte[] buffer = new byte[64 * 1024];
+                    int read;
+                    while ((read = in.read(buffer)) >= 0) {
+                        if (read == 0) {
+                            continue;
+                        }
+                        if (task.state() == DownloadTask.State.CANCELLED) {
+                            throw new IOException("已取消");
+                        }
+                        out.write(buffer, 0, read);
+                        progress.add(read);
+                        if (progress.done() > MAX_UPDATE_BYTES) {
+                            throw new IOException("更新文件异常过大");
+                        }
+                        long now = System.currentTimeMillis();
+                        if (now - lastUi[0] >= 50) {
+                            lastUi[0] = now;
+                            taskCenter.update(task, progress);
+                            if (refreshTasks != null) {
+                                SwingUtilities.invokeLater(refreshTasks);
+                            }
                         }
                     }
-                }
-            } finally {
-                if (activeUpdateStream == body) {
-                    activeUpdateStream = null;
-                }
-            }
-            if (digest != null && digest.startsWith("sha256:")) {
-                String actual = java.util.HexFormat.of().formatHex(sha.digest());
-                if (!digest.substring("sha256:".length()).equalsIgnoreCase(actual)) {
-                    Files.deleteIfExists(source);
-                    throw new IOException("更新文件哈希不匹配，已拒绝安装");
+                } finally {
+                    ACTIVE_STREAMS.remove(body);
+                    if (activeUpdateStream == body) {
+                        activeUpdateStream = null;
+                    }
                 }
             }
+            verifyUpdateDigest(source, digest);
             progress.stage("校验更新文件…");
             taskCenter.update(task, progress);
             verifyJar(source, version, false);
@@ -650,6 +682,262 @@ public final class Updater {
                     && file.getJarEntry("mclite/region.lock") == null;
         } catch (IOException ex) {
             return false;
+        }
+    }
+
+    private static boolean downloadRace(HttpClient client, java.util.List<String> urls,
+                                         Path target, long size, DownloadTask task,
+                                         TaskProgress progress) {
+        progress.stage("多源下载更新…");
+        progress.indeterminate(true);
+        int count = Math.min(4, urls.size());
+        java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newFixedThreadPool(count, runnable -> {
+                    Thread thread = new Thread(runnable, "mclite-update-race");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        java.util.concurrent.CompletionService<Path> completion =
+                new java.util.concurrent.ExecutorCompletionService<>(pool);
+        java.util.List<Path> temps = new java.util.ArrayList<>();
+        try {
+            for (int i = 0; i < count; i++) {
+                Path temp = target.resolveSibling(target.getFileName() + ".race" + i);
+                temps.add(temp);
+                String url = urls.get(i);
+                completion.submit(() -> {
+                    downloadRaceOne(client, url, temp, size, task);
+                    return temp;
+                });
+            }
+            for (int i = 0; i < count; i++) {
+                java.util.concurrent.Future<Path> done = completion.take();
+                try {
+                    Path winner = done.get();
+                    if (Files.size(winner) != size) {
+                        continue;
+                    }
+                    moveReplace(winner, target);
+                    progress.total(size);
+                    progress.indeterminate(false);
+                    progress.add(size);
+                    return true;
+                } catch (java.util.concurrent.ExecutionException ex) {
+                    Log.warn("更新源失败: " + (ex.getCause() == null
+                            ? "未知错误" : ex.getCause().getMessage()));
+                }
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        } catch (IOException ex) {
+            Log.warn("多源更新下载失败: " + ex.getMessage());
+        } finally {
+            pool.shutdownNow();
+            for (Path temp : temps) {
+                try {
+                    Files.deleteIfExists(temp);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void downloadRaceOne(HttpClient client, String url, Path target, long size,
+                                        DownloadTask task) throws IOException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(30))
+                .header("User-Agent", "MCLite/" + Version.VALUE)
+                .header("Accept-Encoding", "identity")
+                .GET().build();
+        HttpResponse<InputStream> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("已取消");
+        }
+        try (InputStream in = response.body()) {
+            if (response.statusCode() != 200) {
+                throw new IOException("HTTP " + response.statusCode());
+            }
+            ACTIVE_STREAMS.add(in);
+            try (OutputStream out = Files.newOutputStream(target,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                long written = 0;
+                while ((read = in.read(buffer)) != -1) {
+                    if (task.state() == DownloadTask.State.CANCELLED) {
+                        throw new IOException("已取消");
+                    }
+                    out.write(buffer, 0, read);
+                    written += read;
+                }
+                if (written != size) {
+                    throw new IOException("更新文件大小不匹配");
+                }
+            } finally {
+                ACTIVE_STREAMS.remove(in);
+            }
+        }
+    }
+
+    private static boolean downloadParallel(HttpClient client, java.util.List<String> urls,
+                                             Path target, long size, DownloadTask task,
+                                             TaskProgress progress, TaskCenter taskCenter,
+                                             Runnable refresh) {
+        progress.stage("分块下载更新…");
+        int parts = 4;
+        long chunk = (size + parts - 1) / parts;
+        java.util.concurrent.atomic.AtomicLong transferred =
+                new java.util.concurrent.atomic.AtomicLong();
+        java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newFixedThreadPool(parts, runnable -> {
+                    Thread thread = new Thread(runnable, "mclite-update-part");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        java.util.Timer timer = new java.util.Timer("mclite-update-progress", true);
+        timer.scheduleAtFixedRate(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                taskCenter.update(task, progress);
+                if (refresh != null) {
+                    SwingUtilities.invokeLater(refresh);
+                }
+            }
+        }, 100, 200);
+        boolean success = false;
+        try (RandomAccessFile file = new RandomAccessFile(target.toFile(), "rw");
+             FileChannel channel = file.getChannel()) {
+            file.setLength(size);
+            java.util.List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<>();
+            for (int i = 0; i < parts; i++) {
+                long from = i * chunk;
+                if (from >= size) {
+                    break;
+                }
+                long to = Math.min(size - 1, from + chunk - 1);
+                int start = i;
+                futures.add(pool.submit(() -> {
+                    downloadRange(client, urls, start, channel, from, to, task, progress,
+                            transferred);
+                    return null;
+                }));
+            }
+            for (java.util.concurrent.Future<?> future : futures) {
+                future.get();
+            }
+            if (Files.size(target) != size) {
+                throw new IOException("分块更新文件大小不匹配");
+            }
+            success = true;
+            return true;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception ex) {
+            Log.warn("分块下载更新失败: " + ex.getMessage());
+            return false;
+        } finally {
+            timer.cancel();
+            pool.shutdownNow();
+            if (!success) {
+                if (transferred.get() > 0) {
+                    progress.rewind(transferred.get());
+                }
+                try {
+                    Files.deleteIfExists(target);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    private static void downloadRange(HttpClient client, java.util.List<String> urls, int preferred,
+                                      FileChannel channel, long from, long to, DownloadTask task,
+                                      TaskProgress progress,
+                                      java.util.concurrent.atomic.AtomicLong transferred)
+            throws IOException {
+        IOException last = null;
+        for (int attempt = 0; attempt < urls.size(); attempt++) {
+            String url = urls.get((preferred + attempt) % urls.size());
+            if (task.state() == DownloadTask.State.CANCELLED) {
+                throw new IOException("已取消");
+            }
+            try {
+                HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                        .timeout(Duration.ofSeconds(30))
+                        .header("User-Agent", "MCLite/" + Version.VALUE)
+                        .header("Accept-Encoding", "identity")
+                        .header("Range", "bytes=" + from + "-" + to)
+                        .GET().build();
+                HttpResponse<InputStream> response = client.send(request,
+                        HttpResponse.BodyHandlers.ofInputStream());
+                if (response.statusCode() != 206) {
+                    try {
+                        response.body().close();
+                    } catch (IOException ignored) {
+                    }
+                    throw new IOException("更新源不支持分段: " + hostOf(url));
+                }
+                InputStream body = response.body();
+                ACTIVE_STREAMS.add(body);
+                try (InputStream in = body) {
+                    long position = from;
+                    long expected = to - from + 1;
+                    long segmentBytes = 0;
+                    byte[] buffer = new byte[64 * 1024];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        if (task.state() == DownloadTask.State.CANCELLED) {
+                            throw new IOException("已取消");
+                        }
+                        channel.write(ByteBuffer.wrap(buffer, 0, read), position);
+                        position += read;
+                        segmentBytes += read;
+                        transferred.addAndGet(read);
+                        progress.add(read);
+                    }
+                    if (segmentBytes != expected) {
+                        throw new IOException("分块大小不匹配");
+                    }
+                    return;
+                } finally {
+                    ACTIVE_STREAMS.remove(body);
+                }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IOException("已取消");
+            } catch (IOException ex) {
+                last = ex;
+            }
+        }
+        throw last == null ? new IOException("分块下载失败") : last;
+    }
+
+    private static void verifyUpdateDigest(Path file, String digest) throws IOException {
+        if (digest == null || !digest.startsWith("sha256:")) {
+            return;
+        }
+        MessageDigest sha;
+        try {
+            sha = MessageDigest.getInstance("SHA-256");
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IOException("Java 运行时缺少 SHA-256", ex);
+        }
+        try (InputStream in = Files.newInputStream(file)) {
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                sha.update(buffer, 0, read);
+            }
+        }
+        String actual = java.util.HexFormat.of().formatHex(sha.digest());
+        if (!digest.substring("sha256:".length()).equalsIgnoreCase(actual)) {
+            Files.deleteIfExists(file);
+            throw new IOException("更新文件哈希不匹配，已拒绝安装");
         }
     }
 
