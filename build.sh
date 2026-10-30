@@ -39,6 +39,10 @@ if [ -d src/mclite/assets ]; then
 fi
 mkdir -p build/classes/META-INF build/region-marker/mclite build/classes/mclite
 cp LICENSE NOTICE TRADEMARK.md build/classes/META-INF/
+if [ -d src/META-INF/services ]; then
+  mkdir -p build/classes/META-INF/services
+  cp src/META-INF/services/* build/classes/META-INF/services/
+fi
 printf 'version=%s\n' "$VERSION" > build/classes/mclite/version.properties
 : > build/region-marker/mclite/region.lock
 

@@ -8,6 +8,9 @@ public interface ProgressSink {
 
     void add(long bytes);
 
+    default void rewind(long bytes) {
+    }
+
     void stage(String text);
 
     void indeterminate(boolean value);

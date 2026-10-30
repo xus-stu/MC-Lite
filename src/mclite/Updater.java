@@ -31,6 +31,7 @@ public final class Updater {
     private static final long MAX_UPDATE_BYTES = 128L * 1024 * 1024;
 
     private static volatile String ignoredVersion;
+    private static volatile InputStream activeUpdateStream;
     private static volatile Path parentLaunch;
     private static volatile boolean parentCaptured;
 
@@ -41,6 +42,16 @@ public final class Updater {
     }
 
     private Updater() {
+    }
+
+    public static void cancelActiveDownload() {
+        InputStream stream = activeUpdateStream;
+        if (stream != null) {
+            try {
+                stream.close();
+            } catch (IOException ignored) {
+            }
+        }
     }
 
     public static void captureParent() {
@@ -414,7 +425,9 @@ public final class Updater {
             Path source = folder.resolve(asset + ".part");
             Path target = folder.resolve(patch ? "MCLite_v" + version + ".jar" : asset);
             MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            try (InputStream in = response.body();
+            InputStream body = response.body();
+            activeUpdateStream = body;
+            try (InputStream in = body;
                  OutputStream out = Files.newOutputStream(source)) {
                 byte[] buffer = new byte[64 * 1024];
                 int read;
@@ -439,6 +452,10 @@ public final class Updater {
                             SwingUtilities.invokeLater(refreshTasks);
                         }
                     }
+                }
+            } finally {
+                if (activeUpdateStream == body) {
+                    activeUpdateStream = null;
                 }
             }
             if (digest != null && digest.startsWith("sha256:")) {

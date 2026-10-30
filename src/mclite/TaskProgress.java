@@ -49,6 +49,15 @@ public final class TaskProgress implements ProgressSink {
     }
 
     @Override
+    public synchronized void rewind(long bytes) {
+        if (bytes <= 0) {
+            return;
+        }
+        done.updateAndGet(value -> Math.max(0, value - bytes));
+        lastSampleDone = Math.max(0, lastSampleDone - bytes);
+    }
+
+    @Override
     public void stage(String text) {
         if (text != null && !text.isBlank()) {
             stage = text;
