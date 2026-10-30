@@ -2507,46 +2507,76 @@ public final class LauncherFrame extends JFrame {
         Config installConfig = config.copyForGameDir(config.effectiveGameDir(instanceId));
         Modrinth modrinth = new Modrinth(taskProgress, taskToken);
         String loaderName = loaderName(loader);
-        for (Recommendations.Item item : items) {
-            taskToken.check();
-            String prefix = loaderName + " / " + item.title() + " / " + gameVersion;
-            taskProgress.stage(prefix);
-            ProgressSink sink = new ProgressSink() {
-                @Override
-                public void total(long totalBytes) {
-                    taskProgress.total(totalBytes);
-                }
+        int threads = Math.max(1, Math.min(4, items.size()));
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(
+                threads, runnable -> {
+                    Thread thread = new Thread(runnable, "mclite-recommend");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        java.util.List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<>();
+        try {
+            for (Recommendations.Item item : items) {
+                taskToken.check();
+                String prefix = loaderName + " / " + item.title() + " / " + gameVersion;
+                futures.add(pool.submit(() -> {
+                    ProgressSink sink = new ProgressSink() {
+                        @Override
+                        public void total(long totalBytes) {
+                            taskProgress.total(totalBytes);
+                        }
 
-                @Override
-                public void addTotal(long bytes) {
-                    taskProgress.addTotal(bytes);
-                }
+                        @Override
+                        public void addTotal(long bytes) {
+                            taskProgress.addTotal(bytes);
+                        }
 
-                @Override
-                public void add(long bytes) {
-                    taskProgress.add(bytes);
-                }
+                        @Override
+                        public void add(long bytes) {
+                            taskProgress.add(bytes);
+                        }
 
-                @Override
-                public void stage(String text) {
-                    // 进度统一显示为“加载器 / 模组 / 游戏版本”。
-                    taskProgress.stage(prefix);
-                }
+                        @Override
+                        public void stage(String text) {
+                            // 进度统一显示为“加载器 / 模组 / 游戏版本”。
+                            taskProgress.stage(prefix);
+                        }
 
-                @Override
-                public void indeterminate(boolean value) {
-                    taskProgress.indeterminate(value);
-                }
-            };
-            try {
-                Modrinth.Project project = modrinth.project(item.slug());
-                new ContentInstaller(installConfig, sink, taskToken)
-                        .install(project, gameVersion, loader);
-            } catch (CancellationToken.CancelledException ex) {
-                throw ex;
-            } catch (Exception ex) {
-                Log.warn("推荐模组安装失败 " + item.slug() + ": " + ex.getMessage());
+                        @Override
+                        public void indeterminate(boolean value) {
+                            taskProgress.indeterminate(value);
+                        }
+                    };
+                    try {
+                        taskProgress.stage(prefix);
+                        Modrinth.Project project = modrinth.project(item.slug());
+                        new ContentInstaller(installConfig, sink, taskToken)
+                                .install(project, gameVersion, loader);
+                    } catch (CancellationToken.CancelledException ex) {
+                        throw ex;
+                    } catch (Exception ex) {
+                        Log.warn("推荐模组安装失败 " + item.slug() + ": " + ex.getMessage());
+                    }
+                    return null;
+                }));
             }
+            for (java.util.concurrent.Future<?> future : futures) {
+                taskToken.check();
+                try {
+                    future.get();
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new CancellationToken.CancelledException();
+                } catch (java.util.concurrent.ExecutionException ex) {
+                    Throwable cause = ex.getCause();
+                    if (cause instanceof CancellationToken.CancelledException cancelled) {
+                        throw cancelled;
+                    }
+                    Log.warn("推荐模组下载失败: " + (cause == null ? "未知错误" : cause.getMessage()));
+                }
+            }
+        } finally {
+            pool.shutdownNow();
         }
         taskProgress.stage(loaderName + " / 完成 / " + gameVersion);
     }

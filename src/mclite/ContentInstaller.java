@@ -11,6 +11,10 @@ import java.util.Properties;
 import java.util.Set;
 
 public final class ContentInstaller {
+    private static final Object INDEX_LOCK = new Object();
+    private static final java.util.concurrent.ConcurrentHashMap<Path, Object> DOWNLOAD_LOCKS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private final Config config;
     private final GamePaths paths;
     private final Modrinth modrinth;
@@ -100,12 +104,20 @@ public final class ContentInstaller {
             index.setProperty("project." + projectId, file.filename());
             index.setProperty("file." + file.filename(), file.sha1() == null ? "" : file.sha1());
         } else {
-            progress.stage("下载 " + file.filename());
-            if (file.size() > 0) {
-                progress.addTotal(file.size());
+            Path key = target.toAbsolutePath().normalize();
+            Object lock = DOWNLOAD_LOCKS.computeIfAbsent(key, value -> new Object());
+            synchronized (lock) {
+                boolean downloaded = Files.isRegularFile(target) && file.sha1() != null
+                        && Net.sha1Matches(target, file.sha1());
+                if (!downloaded) {
+                    progress.stage("下载 " + file.filename());
+                    if (file.size() > 0) {
+                        progress.addTotal(file.size());
+                    }
+                    net.download(file.url(), target, file.sha1(), file.size(),
+                            file.filename(), true);
+                }
             }
-            net.download(file.url(), target, file.sha1(), file.size(),
-                    file.filename(), true);
             index.setProperty("project." + projectId, file.filename());
             index.setProperty("file." + file.filename(), file.sha1() == null ? "" : file.sha1());
         }
@@ -156,10 +168,14 @@ public final class ContentInstaller {
     }
 
     private void writeIndex(Properties properties) throws IOException {
-        Path file = paths.gameDir().resolve(".mclite/content.properties");
-        Files.createDirectories(file.getParent());
-        try (OutputStream out = Files.newOutputStream(file)) {
-            properties.store(out, "MC Lite installed content");
+        synchronized (INDEX_LOCK) {
+            Path file = paths.gameDir().resolve(".mclite/content.properties");
+            Files.createDirectories(file.getParent());
+            Properties merged = readIndex();
+            merged.putAll(properties);
+            try (OutputStream out = Files.newOutputStream(file)) {
+                merged.store(out, "MC Lite installed content");
+            }
         }
     }
 }
