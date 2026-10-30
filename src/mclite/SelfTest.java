@@ -165,6 +165,16 @@ public final class SelfTest {
 
     private static int updateTests(Path work, Config config) throws Exception {
         int passed = 0;
+            check(Recommendations.forLoader("fabric").stream()
+                            .anyMatch(item -> item.slug().equals("immediatelyfast"))
+                            && Recommendations.forLoader("fabric").stream()
+                            .anyMatch(item -> item.slug().equals("badoptimizations")),
+                    "推荐高性能模组");
+            check(Recommendations.forLoader("forge", "1.21.1").stream()
+                            .noneMatch(item -> item.slug().equals("embeddium")),
+                    "Forge 1.21 推荐列表兼容");
+            passed += 2;
+
             Path mergeRoot = work.resolve("merge");
             Path mergeBase = mergeRoot.resolve("versions/1.21");
             Path mergeLoader = mergeRoot.resolve("versions/fabric-loader-test");

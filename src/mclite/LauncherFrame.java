@@ -1302,7 +1302,12 @@ public final class LauncherFrame extends JFrame {
                 useVersion(entry, true);
             }
         });
+        Ui.AccentButton deleteInstance = Ui.smallButton("删除实例", Ui.AccentButton.Style.DANGER);
+        deleteInstance.setToolTipText("永久删除所选实例的版本文件夹");
+        deleteInstance.addActionListener(e -> deleteSelectedInstance());
         headerActions.add(instanceLaunchButton);
+        headerActions.add(Ui.hgap(8));
+        headerActions.add(deleteInstance);
         headerActions.add(Ui.hgap(8));
         headerActions.add(refresh);
         page.add(pageHeader("版本列表", "查看并启动游戏文件夹中的版本、模组和资源包", headerActions),
@@ -1396,6 +1401,73 @@ public final class LauncherFrame extends JFrame {
         box.add(header, BorderLayout.NORTH);
         box.add(Ui.scrollDark(list), BorderLayout.CENTER);
         return box;
+    }
+
+    private void deleteSelectedInstance() {
+        if (busy || launching) {
+            showError("暂时不能删除", "下载、安装或启动任务正在进行，请稍后再试。");
+            return;
+        }
+        VersionManifest.VersionEntry entry = instancesList == null
+                ? null : instancesList.getSelectedValue();
+        if (entry == null) {
+            showError("删除实例", "请先在左侧选择一个实例。");
+            return;
+        }
+        Path versions = gamePaths.versionsDir().toAbsolutePath().normalize();
+        Path dir = gamePaths.versionDir(entry.id()).toAbsolutePath().normalize();
+        if (!dir.startsWith(versions) || dir.equals(versions) || !Files.isDirectory(dir)) {
+            showError("删除实例", "找不到实例文件夹：\n" + dir);
+            return;
+        }
+        if (gameProcess != null && gameProcess.isAlive()
+                && config.effectiveGameDir(entry.id()).equals(lastGameContentDir)) {
+            showError("游戏正在运行", "这个实例的 Minecraft 还在运行，请先退出游戏再删除。");
+            return;
+        }
+        String scope = config.isolateVersions()
+                ? "包括该实例的版本文件、mods、saves、config。"
+                : "只会删除版本文件；当前关闭了版本隔离，mods/saves 是共享的，不会被删除。";
+        if (!askYesNo("删除实例 " + entry.id(),
+                "将永久删除：\n" + dir + "\n\n" + scope
+                        + "\n\n此操作不可恢复，确定继续吗？")) {
+            return;
+        }
+        try {
+            deleteTree(dir);
+            metaCache.remove(entry.id());
+            instanceCounts.remove(entry.id());
+            installedCache.remove(entry.id());
+            if (entry.id().equals(config.lastVersion())) {
+                config.lastVersion("");
+                config.save();
+            }
+            if (selectedEntry != null && selectedEntry.id().equals(entry.id())) {
+                selectedEntry = null;
+                selectedMeta = null;
+            }
+            refreshAllVersions();
+            refreshInstalledCache();
+            refreshInstancesPage();
+            if (selectedEntry == null && !instancesListModel.isEmpty()) {
+                selectedEntry = instancesListModel.get(0);
+                selectedMeta = null;
+            }
+            updateDetailForSelection();
+            statusLabel.setText("已删除实例 · " + entry.id());
+            statusLabel.setForeground(Theme.ACCENT);
+        } catch (IOException ex) {
+            Log.error("删除实例失败", ex);
+            showError("删除实例失败", ex.getMessage() == null ? "无法删除实例文件夹" : ex.getMessage());
+        }
+    }
+
+    private static void deleteTree(Path root) throws IOException {
+        try (var walk = Files.walk(root)) {
+            for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
+        }
     }
 
     private void refreshInstancesPage() {
@@ -2472,7 +2544,7 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         recommendationPanel.add(Ui.vgap(8));
-        recommendationPanel.add(Ui.label("推荐模组 · 可自行勾选", Theme.TINY, Theme.DIM));
+        recommendationPanel.add(Ui.label("推荐优化模组 · 可自行勾选（8 区块目标 300+ 帧）", Theme.TINY, Theme.DIM));
         recommendationPanel.add(Ui.vgap(4));
         String gameVersion = selectedEntry == null ? null : selectedEntry.id();
         for (Recommendations.Item item : Recommendations.forLoader(loader, gameVersion)) {
