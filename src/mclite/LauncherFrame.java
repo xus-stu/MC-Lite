@@ -3052,6 +3052,8 @@ public final class LauncherFrame extends JFrame {
             protected void done() {
                 try {
                     String loaderId = get();
+                    metaCache.remove(loaderId);
+                    selectedMeta = null;
                     finishTask(recommended.isEmpty());
                     refreshAllVersions();
                     refreshInstalledCache();
@@ -3062,6 +3064,7 @@ public final class LauncherFrame extends JFrame {
                         }
                     }
                     selectPage("launch");
+                    onVersionSelected();
                     statusLabel.setText("加载器安装完成 · " + loaderId);
                     statusLabel.setForeground(Theme.ACCENT);
                     if (!recommended.isEmpty()) {
@@ -4588,13 +4591,14 @@ public final class LauncherFrame extends JFrame {
             }
             return;
         }
-        if (selectedMeta == null) {
+        VersionMeta launchMeta = localMeta(entry, selectedMeta);
+        if (launchMeta == null) {
             statusLabel.setText("正在读取版本信息，请稍后再次点击启动…");
             statusLabel.setForeground(Theme.WARNING);
             return;
         }
         if (config.integrityCheck()) {
-            java.util.List<String> missing = Integrity.missing(config, selectedMeta, entry.id());
+            java.util.List<String> missing = Integrity.missing(config, launchMeta, entry.id());
             if (!missing.isEmpty()) {
                 Object[] options = {"补齐并启动", "仍要启动", "取消"};
                 int choice = JOptionPane.showOptionDialog(this,
@@ -4611,10 +4615,29 @@ public final class LauncherFrame extends JFrame {
                 }
             }
         }
-        launchWithMeta(entry, selectedMeta);
+        launchWithMeta(entry, launchMeta);
+    }
+
+    private VersionMeta localMeta(VersionManifest.VersionEntry entry, VersionMeta fallback) {
+        Path json = gamePaths.versionJson(entry.id());
+        if (!Files.isRegularFile(json)) {
+            return fallback;
+        }
+        try {
+            VersionMeta local = LocalVersions.load(gamePaths, entry.id());
+            metaCache.put(entry.id(), local);
+            if (selectedEntry != null && selectedEntry.id().equals(entry.id())) {
+                selectedMeta = local;
+            }
+            return local;
+        } catch (Exception ex) {
+            Log.warn("读取本地版本信息失败，使用缓存: " + ex.getMessage());
+            return fallback;
+        }
     }
 
     private void launchWithMeta(VersionManifest.VersionEntry entry, VersionMeta meta) {
+        VersionMeta launchMeta = localMeta(entry, meta);
         if (busy || launching) {
             return;
         }
@@ -4623,11 +4646,11 @@ public final class LauncherFrame extends JFrame {
                 return;
             }
         }
-        JavaManager.JavaInfo java = resolveJava(meta);
-        int required = meta.javaMajor();
+        JavaManager.JavaInfo java = resolveJava(launchMeta);
+        int required = launchMeta.javaMajor();
         if (java == null || java.major() < required) {
-            String component = meta.javaComponent() == null || meta.javaComponent().isBlank()
-                    ? JavaManager.componentForMajor(required) : meta.javaComponent();
+            String component = launchMeta.javaComponent() == null || launchMeta.javaComponent().isBlank()
+                    ? JavaManager.componentForMajor(required) : launchMeta.javaComponent();
             String current = java == null ? "未检测到 Java" : "当前 Java " + java.major();
             if (!config.autoDownloadJava()) {
                 String message = "此版本需要 Java " + required + "，" + current + "。\n\n"
@@ -4651,7 +4674,7 @@ public final class LauncherFrame extends JFrame {
                 } catch (IOException ignored) {
                 }
             }
-            startJavaInstall(entry, meta, component, required);
+            startJavaInstall(entry, launchMeta, component, required);
             return;
         }
         if (required <= 8 && java.major() > 8) {
@@ -4662,7 +4685,7 @@ public final class LauncherFrame extends JFrame {
         }
 
         Path gameContentDir = config.effectiveGameDir(entry.id());
-        if (!verifyModsBeforeLaunch(meta, gameContentDir)) {
+        if (!verifyModsBeforeLaunch(launchMeta, gameContentDir)) {
             return;
         }
         lastGameContentDir = gameContentDir;
@@ -4675,7 +4698,7 @@ public final class LauncherFrame extends JFrame {
             @Override
             protected GameLauncher.LaunchResult doInBackground() throws Exception {
                 SwingUtilities.invokeLater(() -> launchProgress.stage("构建启动命令…"));
-                GameLauncher.LaunchResult result = GameLauncher.launch(config, meta, entry, java);
+                GameLauncher.LaunchResult result = GameLauncher.launch(config, launchMeta, entry, java);
                 return result;
             }
 
