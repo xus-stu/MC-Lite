@@ -34,7 +34,7 @@ public final class Updater {
     private static volatile Path parentLaunch;
     private static volatile boolean parentCaptured;
 
-    private record Release(String version, Map<String, String> digests) {
+    private record Release(String version, Map<String, String> digests, String notes) {
         String digest(String asset) {
             return digests.get(asset);
         }
@@ -251,15 +251,17 @@ public final class Updater {
             String url = "https://github.com/" + REPO + "/releases/download/v"
                     + version + "/" + asset;
             String digest = release == null ? null : release.digest(asset);
+            String notes = release == null ? "" : release.notes();
             Log.info("发现启动器更新 V" + version + "（" + channel + "）");
             String downloadVersion = version;
             java.util.List<String> downloadUrls = updateUrls(url);
-            if (!config.autoUpdate() && "normal".equals(channel)) {
+            if (manual || (!config.autoUpdate() && "normal".equals(channel))) {
                 if (!manual && version.equals(ignoredVersion)) {
                     return;
                 }
                 SwingUtilities.invokeLater(() -> {
-                    UpdateDialog dialog = new UpdateDialog(parent, Version.VALUE, downloadVersion);
+                    UpdateDialog dialog = new UpdateDialog(parent, Version.VALUE,
+                            downloadVersion, notes);
                     dialog.setVisible(true);
                     if (!dialog.confirmed()) {
                         ignoredVersion = downloadVersion;
@@ -267,7 +269,7 @@ public final class Updater {
                     }
                     Thread downloader = new Thread(() -> downloadUpdate(
                             config, downloadVersion, channel, downloadUrls, digest,
-                            taskCenter, refreshTasks),
+                            taskCenter, refreshTasks, parent, notes, false),
                             "mclite-update-download");
                     downloader.setDaemon(true);
                     downloader.start();
@@ -275,7 +277,7 @@ public final class Updater {
                 return;
             }
             downloadUpdate(config, downloadVersion, channel, downloadUrls, digest,
-                    taskCenter, refreshTasks);
+                    taskCenter, refreshTasks, parent, notes, true);
         } catch (Exception ex) {
             Log.warn("检查启动器更新失败: " + ex.getMessage());
         }
@@ -299,6 +301,7 @@ public final class Updater {
             if (!isSafeVersion(version)) {
                 return null;
             }
+            String notes = Json.str(release, "body", "");
             Map<String, String> digests = new HashMap<>();
             for (Object item : Json.arr(release.get("assets"))) {
                 Map<String, Object> asset = Json.obj(item);
@@ -308,7 +311,7 @@ public final class Updater {
                     digests.put(name, digest);
                 }
             }
-            return new Release(version, digests);
+            return new Release(version, digests, notes);
         } catch (Exception ex) {
             Log.warn("查询 GitHub Release 失败: " + ex.getMessage());
             return null;
@@ -363,7 +366,8 @@ public final class Updater {
 
     private static void downloadUpdate(Config config, String version, String channel,
                                        java.util.List<String> urls, String digest,
-                                       TaskCenter taskCenter, Runnable refreshTasks) {
+                                       TaskCenter taskCenter, Runnable refreshTasks,
+                                       java.awt.Component parent, String notes, boolean notify) {
         DownloadTask task = taskCenter.start("启动器更新 · V" + version, "GitHub Releases");
         if (refreshTasks != null) {
             SwingUtilities.invokeLater(refreshTasks);
@@ -475,6 +479,10 @@ public final class Updater {
             taskCenter.finish(task);
             if (refreshTasks != null) {
                 SwingUtilities.invokeLater(refreshTasks);
+            }
+            if (notify) {
+                SwingUtilities.invokeLater(() ->
+                        UpdateDialog.showNotes(parent, version, notes));
             }
             Log.info("已下载启动器更新 v" + version + "，下次启动生效");
         } catch (Exception ex) {
