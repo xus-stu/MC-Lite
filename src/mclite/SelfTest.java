@@ -127,6 +127,20 @@ public final class SelfTest {
                     .nativesDir("selftest")), "启动参数 natives 路径");
             passed += 4;
 
+            TaskCenter center = new TaskCenter();
+            DownloadTask task = center.start("测试任务");
+            TaskProgress cancelledProgress = new TaskProgress();
+            cancelledProgress.total(100);
+            cancelledProgress.add(10);
+            center.update(task, cancelledProgress);
+            center.cancel(task);
+            center.update(task, cancelledProgress);
+            center.fail(task, "不应覆盖取消");
+            check(task.state() == DownloadTask.State.CANCELLED
+                            && "已取消".equals(task.stage()),
+                    "取消任务后状态不再变化");
+            passed += 1;
+
             TaskProgress progress = new TaskProgress();
             progress.total(100);
             progress.add(100);

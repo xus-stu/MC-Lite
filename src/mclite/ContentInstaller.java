@@ -115,7 +115,7 @@ public final class ContentInstaller {
                         progress.addTotal(file.size());
                     }
                     net.download(file.url(), target, file.sha1(), file.size(),
-                            file.filename(), true);
+                            file.filename(), true, 512L * 1024);
                 }
             }
             index.setProperty("project." + projectId, file.filename());
