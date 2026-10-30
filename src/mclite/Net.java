@@ -3,6 +3,7 @@ package mclite;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -19,7 +20,9 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -61,6 +64,10 @@ public final class Net {
     private static final int BUFFER_SIZE = 64 * 1024;
     private static final int MAX_ATTEMPTS = 3;
     private static final int PROBE_BYTES = 128 * 1024;
+    private static final int SEGMENT_COUNT = Math.max(1,
+            Math.min(8, Integer.getInteger("mclite.download.segments", 4)));
+    private static final long SEGMENT_MIN_BYTES = SEGMENT_COUNT > 1
+            ? 8L * 1024 * 1024 : Long.MAX_VALUE;
     private static final int CLIENT_POOL_SIZE = 6;
     private static final HttpClient[] CLIENTS = new HttpClient[CLIENT_POOL_SIZE];
     private static final AtomicInteger CLIENT_INDEX = new AtomicInteger();
@@ -176,6 +183,16 @@ public final class Net {
 
         }
 
+        if (expectedSize >= SEGMENT_MIN_BYTES) {
+            Segmented segmented = downloadSegmented(url, target, expectedSha1, expectedSize, label);
+            if (segmented == Segmented.SUCCESS) {
+                return;
+            }
+            if (segmented == Segmented.FAILED) {
+                throw new IOException("分块下载失败：" + label);
+            }
+        }
+
         IOException last = null;
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             token.check();
@@ -232,6 +249,154 @@ public final class Net {
             sleepBeforeRetry(attempt);
         }
         throw last == null ? new IOException("下载失败：" + label) : last;
+    }
+
+    private enum Segmented { SUCCESS, UNSUPPORTED, FAILED }
+
+    private Segmented downloadSegmented(String url, Path target, String expectedSha1,
+                                        long expectedSize, String label) throws IOException {
+        if (!supportsRange(url)) {
+            return Segmented.UNSUPPORTED;
+        }
+        Path temp = target.resolveSibling(target.getFileName() + ".part");
+        Files.createDirectories(target.getParent());
+        Files.deleteIfExists(temp);
+        progress.stage(label + " · 分块下载");
+        java.util.concurrent.atomic.AtomicLong transferred = new java.util.concurrent.atomic.AtomicLong();
+        ExecutorService pool = Executors.newFixedThreadPool(SEGMENT_COUNT, runnable -> {
+            Thread thread = new Thread(runnable, "mclite-segment");
+            thread.setDaemon(true);
+            return thread;
+        });
+        boolean success = false;
+        try (RandomAccessFile file = new RandomAccessFile(temp.toFile(), "rw");
+             FileChannel channel = file.getChannel()) {
+            file.setLength(expectedSize);
+            long chunk = (expectedSize + SEGMENT_COUNT - 1) / SEGMENT_COUNT;
+            List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < SEGMENT_COUNT; i++) {
+                long from = i * chunk;
+                if (from >= expectedSize) {
+                    break;
+                }
+                long to = Math.min(expectedSize - 1, from + chunk - 1);
+                futures.add(pool.submit(() -> {
+                    downloadSegment(url, channel, from, to, label, transferred);
+                    return null;
+                }));
+            }
+            for (Future<?> future : futures) {
+                token.check();
+                try {
+                    future.get();
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    token.cancel();
+                    throw new CancellationToken.CancelledException();
+                } catch (ExecutionException ex) {
+                    Throwable cause = ex.getCause();
+                    if (cause instanceof CancellationToken.CancelledException cancelled) {
+                        throw cancelled;
+                    }
+                    if (cause instanceof SecurityException security) {
+                        throw security;
+                    }
+                    throw cause instanceof IOException io ? io
+                            : new IOException(cause == null ? "分块下载失败" : cause.getMessage(), cause);
+                }
+            }
+            if (transferred.get() != expectedSize || Files.size(temp) != expectedSize) {
+                throw new IOException("分块下载大小不匹配：" + label);
+            }
+            String actual = sha1Hex(temp);
+            if (!actual.equalsIgnoreCase(expectedSha1)) {
+                throw new SecurityException("SHA-1 校验失败：" + label);
+            }
+            moveIntoPlace(temp, target);
+            success = true;
+            return Segmented.SUCCESS;
+        } catch (CancellationToken.CancelledException | SecurityException ex) {
+            throw ex;
+        } catch (IOException ex) {
+            Log.warn("分块下载失败，稍后重试：" + label + " · " + ex.getMessage());
+            return transferred.get() > 0 ? Segmented.FAILED : Segmented.UNSUPPORTED;
+        } finally {
+            pool.shutdownNow();
+            if (!success) {
+                deleteQuietly(temp);
+            }
+        }
+    }
+
+    private void downloadSegment(String url, FileChannel channel, long from, long to,
+                                 String label, java.util.concurrent.atomic.AtomicLong transferred)
+            throws IOException {
+        int attempts = 0;
+        long segmentBytes = 0;
+        while (true) {
+            attempts++;
+            token.check();
+            try {
+                HttpRequest request = buildRequest(url, Map.of(
+                        "Range", "bytes=" + from + "-" + to));
+                HttpResponse<InputStream> response = client().send(request,
+                        HttpResponse.BodyHandlers.ofInputStream());
+                try (InputStream in = response.body()) {
+                    if (response.statusCode() != 206) {
+                        throw new IOException("服务器未返回分段内容：" + label);
+                    }
+                    checkFinalUri(response.uri(), request.uri());
+                    String contentRange = response.headers()
+                            .firstValue("content-range").orElse("");
+                    if (!contentRange.isEmpty()
+                            && !contentRange.startsWith("bytes " + from + "-" + to + "/")) {
+                        throw new IOException("分段范围不匹配：" + label);
+                    }
+                    long position = from;
+                    byte[] buffer = new byte[BUFFER_SIZE];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        token.check();
+                        channel.write(ByteBuffer.wrap(buffer, 0, read), position);
+                        position += read;
+                        segmentBytes += read;
+                        transferred.addAndGet(read);
+                        progress.add(read);
+                    }
+                }
+                long expected = to - from + 1;
+                if (segmentBytes != expected) {
+                    throw new IOException("分段大小不匹配：" + label);
+                }
+                return;
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new CancellationToken.CancelledException();
+            } catch (SecurityException ex) {
+                throw ex;
+            } catch (IOException ex) {
+                if (segmentBytes > 0 || attempts >= MAX_ATTEMPTS) {
+                    throw ex;
+                }
+                sleepBeforeRetry(attempts);
+            }
+        }
+    }
+
+    private boolean supportsRange(String url) {
+        try {
+            HttpRequest request = buildRequest(url, Map.of("Range", "bytes=0-0"));
+            HttpResponse<InputStream> response = client().send(request,
+                    HttpResponse.BodyHandlers.ofInputStream());
+            try (InputStream in = response.body()) {
+                return response.statusCode() == 206;
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     public void downloadPreferred(String officialUrl, String mirrorUrl, Path target,
