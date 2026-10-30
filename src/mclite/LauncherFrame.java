@@ -154,6 +154,8 @@ public final class LauncherFrame extends JFrame {
     private JTextField contentVersionField;
     private Ui.DarkCombo<String> contentLoaderCombo;
     private Ui.DarkCombo<String> contentSourceCombo;
+    private Ui.DarkCombo<String> contentSortCombo;
+    private boolean contentSortUpdating;
     private JTextField curseForgeKeyField;
     private JTextArea uiCssArea;
     private Ui.DarkCombo<FontCatalog.Choice> fontCombo;
@@ -759,8 +761,17 @@ public final class LauncherFrame extends JFrame {
         contentSourceCombo.setPreferredSize(new Dimension(120, 30));
         contentSourceCombo.setMaximumSize(new Dimension(120, 30));
         contentSourceCombo.addActionListener(e -> {
+            updateContentSortOptions();
             contentModel.clear();
             searchContent();
+        });
+        contentSortCombo = new Ui.DarkCombo<>();
+        contentSortCombo.setPreferredSize(new Dimension(112, 30));
+        contentSortCombo.setMaximumSize(new Dimension(112, 30));
+        contentSortCombo.addActionListener(e -> {
+            if (!contentSortUpdating) {
+                searchContent();
+            }
         });
         contentSearchField = Ui.field("搜索 Modrinth / CurseForge 模组、资源包、整合包…");
         contentSearchField.setPreferredSize(new Dimension(380, 30));
@@ -833,11 +844,16 @@ public final class LauncherFrame extends JFrame {
         optionsRow.add(Ui.label("加载器", Theme.TINY, Theme.DIM));
         optionsRow.add(Ui.hgap(6));
         optionsRow.add(contentLoaderCombo);
+        optionsRow.add(Ui.hgap(14));
+        optionsRow.add(Ui.label("排序", Theme.TINY, Theme.DIM));
+        optionsRow.add(Ui.hgap(6));
+        optionsRow.add(contentSortCombo);
         optionsRow.add(Ui.hgap(10));
         optionsRow.add(Ui.label("留空版本号时按默认值查询", Theme.MONO, Theme.DIM));
         optionsRow.add(Box.createHorizontalGlue());
         optionsRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         optionsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        updateContentSortOptions();
 
         row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
         row.add(searchRow);
@@ -3197,6 +3213,34 @@ public final class LauncherFrame extends JFrame {
         }.execute();
     }
 
+    private String installedContent(Modrinth.Project project) {
+        if (project == null || selectedEntry == null) {
+            return null;
+        }
+        Path dir = config.effectiveGameDir(selectedEntry.id());
+        Path index = dir.resolve(".mclite/content.properties");
+        if (!Files.isRegularFile(index)) {
+            return null;
+        }
+        java.util.Properties properties = new java.util.Properties();
+        try (var in = Files.newInputStream(index)) {
+            properties.load(in);
+        } catch (IOException ex) {
+            return null;
+        }
+        String filename = properties.getProperty("project." + project.id());
+        if (filename == null || filename.isBlank()) {
+            return null;
+        }
+        for (String sub : new String[]{"mods", "resourcepacks", "shaderpacks"}) {
+            Path file = dir.resolve(sub).resolve(filename);
+            if (Files.isRegularFile(file)) {
+                return filename;
+            }
+        }
+        return null;
+    }
+
     private void openProjectDetail() {
         if (contentList == null || contentList.getSelectedValue() == null) {
             return;
@@ -3582,21 +3626,66 @@ public final class LauncherFrame extends JFrame {
         return "CurseForge".equals(selected) ? "curseforge" : "modrinth";
     }
 
-    private List<Modrinth.Project> searchProjects(String source, String query, String type,
-                                                  String gameVersion, String loader)
-            throws IOException {
-        return searchProjects(source, query, type, gameVersion, loader, 0);
+    private void updateContentSortOptions() {
+        if (contentSortCombo == null) {
+            return;
+        }
+        contentSortUpdating = true;
+        try {
+            contentSortCombo.removeAllItems();
+            if ("curseforge".equals(contentSource())) {
+                contentSortCombo.addItem("推荐");
+                contentSortCombo.addItem("热门");
+                contentSortCombo.addItem("最近更新");
+                contentSortCombo.addItem("名称");
+            } else {
+                contentSortCombo.addItem("相关度");
+                contentSortCombo.addItem("下载量");
+                contentSortCombo.addItem("关注量");
+                contentSortCombo.addItem("最新发布");
+                contentSortCombo.addItem("最近更新");
+            }
+        } finally {
+            contentSortUpdating = false;
+        }
+    }
+
+    private String contentSortValue() {
+        int index = contentSortCombo == null ? 0 : Math.max(0, contentSortCombo.getSelectedIndex());
+        if ("curseforge".equals(contentSource())) {
+            return switch (index) {
+                case 1 -> "popularity";
+                case 2 -> "updated";
+                case 3 -> "name";
+                default -> "featured";
+            };
+        }
+        return switch (index) {
+            case 1 -> "downloads";
+            case 2 -> "follows";
+            case 3 -> "newest";
+            case 4 -> "updated";
+            default -> "relevance";
+        };
     }
 
     private List<Modrinth.Project> searchProjects(String source, String query, String type,
-                                                  String gameVersion, String loader, int offset)
+                                                  String gameVersion, String loader, String sort)
+            throws IOException {
+        return searchProjects(source, query, type, gameVersion, loader, 0, sort);
+    }
+
+    private List<Modrinth.Project> searchProjects(String source, String query, String type,
+                                                  String gameVersion, String loader, int offset,
+                                                  String sort)
             throws IOException {
         if ("curseforge".equals(source)) {
             return new CurseForge(config.curseForgeApiKey(), ProgressSink.NOOP,
-                    new CancellationToken()).search(query, type, gameVersion, loader, offset, 20);
+                    new CancellationToken()).search(query, type, gameVersion, loader,
+                    offset, 20, sort);
         }
         return new Modrinth(ProgressSink.NOOP, new CancellationToken())
-                .search(query, type, gameVersion, loader, offset, 20);
+                .search(query, type, gameVersion, loader, offset, 20, sort);
     }
 
     private String contentLoaderValue() {
@@ -3608,7 +3697,24 @@ public final class LauncherFrame extends JFrame {
     }
 
     private String detectLoader() {
-        String id = selectedEntry == null ? "" : selectedEntry.id().toLowerCase(java.util.Locale.ROOT);
+        if (selectedEntry == null) {
+            return null;
+        }
+        String versionId = selectedEntry.id();
+        Path dir = gamePaths.versionDir(versionId);
+        Path json = dir.resolve(versionId + ".json");
+        if (Files.isRegularFile(json)) {
+            try {
+                VersionMeta meta = LocalVersions.load(gamePaths, versionId);
+                String detected = detectLoader(versionId, dir, meta);
+                if (detected != null) {
+                    return detected;
+                }
+            } catch (Exception ex) {
+                Log.warn("检测加载器失败: " + ex.getMessage());
+            }
+        }
+        String id = versionId.toLowerCase(java.util.Locale.ROOT);
         if (id.contains("neoforge")) {
             return "neoforge";
         }
@@ -3652,13 +3758,14 @@ public final class LauncherFrame extends JFrame {
         String loader = "mod".equals(contentType) ? contentLoaderValue() : null;
         saveCurseForgeKey();
         String source = contentSource();
+        String sort = contentSortValue();
         new SwingWorker<List<Modrinth.Project>, Void>() {
             @Override
             protected List<Modrinth.Project> doInBackground() throws Exception {
                 boolean cjkQuery = containsCjk(query);
                 List<Modrinth.Project> projects = cjkQuery ? new ArrayList<>()
                         : new ArrayList<>(searchProjects(source, query, contentType,
-                        gameVersion, loader, contentPage * 20));
+                        gameVersion, loader, contentPage * 20, sort));
                 List<McMod.Entry> entries;
                 try {
                     entries = new McMod().search(query, "modpack".equals(contentType) ? 2 : 0);
@@ -3668,7 +3775,7 @@ public final class LauncherFrame extends JFrame {
                 }
                 if (cjkQuery && entries.isEmpty()) {
                     projects.addAll(searchProjects(source, query, contentType, gameVersion, loader,
-                            contentPage * 20));
+                            contentPage * 20, sort));
                 }
                 if (cjkQuery) {
                     java.util.Set<String> ids = new java.util.HashSet<>();
@@ -3690,7 +3797,7 @@ public final class LauncherFrame extends JFrame {
                                 continue;
                             }
                             futures.add(pool.submit(() -> searchProjects(source, english,
-                                    contentType, gameVersion, loader, contentPage * 20)));
+                                    contentType, gameVersion, loader, contentPage * 20, sort)));
                         }
                         int index = 0;
                         for (McMod.Entry entry : entries.subList(0, Math.min(12, entries.size()))) {
@@ -3782,10 +3889,14 @@ public final class LauncherFrame extends JFrame {
             if (summary != null && summary.length() > 100) {
                 summary = summary.substring(0, 98) + "…";
             }
-            contentSelectionLabel.setText(summary == null || summary.isBlank()
-                    ? project.title() : "MC百科：" + summary);
-            contentSelectionLabel.setToolTipText(project.mcmodUrl() == null
-                    ? project.description() : project.summaryZh() + "\n" + project.mcmodUrl());
+            String installed = installedContent(project);
+            String base = summary == null || summary.isBlank()
+                    ? project.title() : "MC百科：" + summary;
+            contentSelectionLabel.setText(installed == null ? base
+                    : base + "  ·  已安装：" + installed);
+            contentSelectionLabel.setToolTipText((project.mcmodUrl() == null
+                    ? project.description() : project.summaryZh() + "\n" + project.mcmodUrl())
+                    + (installed == null ? "" : "\n已安装文件：" + installed));
         } else {
             contentSelectionLabel.setText("选择一个项目");
         }
@@ -3818,6 +3929,12 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         String chosenLoader = loader;
+        String installed = installedContent(project);
+        if (installed != null && !askYesNo("已经安装",
+                project.title() + " 已经安装为：\n" + installed
+                        + "\n\n仍要重新安装或更新吗？")) {
+            return;
+        }
         Config installConfig = config.copyForGameDir(config.effectiveGameDir(
                 selectedEntry == null ? "" : selectedEntry.id()));
         beginTask("安装 " + project.title());
@@ -5176,6 +5293,9 @@ public final class LauncherFrame extends JFrame {
             contentSearchField.setEnabled(enabled);
             contentVersionField.setEnabled(enabled);
             contentSourceCombo.setEnabled(enabled);
+            if (contentSortCombo != null) {
+                contentSortCombo.setEnabled(enabled);
+            }
             contentLoaderCombo.setVisible("mod".equals(contentType));
             contentLoaderCombo.setEnabled(enabled && "mod".equals(contentType));
             contentSearchButton.setEnabled(enabled);

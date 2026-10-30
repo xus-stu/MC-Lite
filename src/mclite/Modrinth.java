@@ -76,6 +76,19 @@ public final class Modrinth {
 
     public List<Project> search(String query, String projectType, String gameVersion,
                                 String loader, int offset, int limit) throws IOException {
+        return search(query, projectType, gameVersion, loader, offset, limit, "relevance");
+    }
+
+    public List<Project> search(String query, String projectType, String gameVersion,
+                                String loader, int offset, int limit, String sort)
+            throws IOException {
+        String index = switch (sort == null ? "" : sort) {
+            case "downloads" -> "downloads";
+            case "follows" -> "follows";
+            case "newest" -> "newest";
+            case "updated" -> "updated";
+            default -> "relevance";
+        };
         StringBuilder facets = new StringBuilder("[[\"project_type:");
         facets.append(projectType).append("\"]");
         if (gameVersion != null && !gameVersion.isBlank()) {
@@ -86,7 +99,7 @@ public final class Modrinth {
         }
         facets.append(']');
         String url = API + "/search?limit=" + Math.max(1, limit)
-                + "&offset=" + Math.max(0, offset) + "&index=relevance&query="
+                + "&offset=" + Math.max(0, offset) + "&index=" + index + "&query="
                 + URLEncoder.encode(query == null ? "" : query, StandardCharsets.UTF_8)
                 + "&facets=" + URLEncoder.encode(facets.toString(), StandardCharsets.UTF_8);
         Map<String, Object> root = Json.obj(Json.parse(new String(
