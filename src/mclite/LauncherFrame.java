@@ -2506,73 +2506,96 @@ public final class LauncherFrame extends JFrame {
         }
         Config installConfig = config.copyForGameDir(config.effectiveGameDir(instanceId));
         Modrinth modrinth = new Modrinth(taskProgress, taskToken);
-        DownloadTask recommendTask = taskCenter.start(
-                "推荐模组 · " + items.size() + " 个", "Modrinth");
-        taskProgress.reset("推荐模组（0/" + items.size() + "）…");
-        taskCenter.update(recommendTask, taskProgress);
-        SwingUtilities.invokeLater(this::refreshTasksButton);
-        try {
-            int number = 0;
-            for (Recommendations.Item item : items) {
-                taskToken.check();
-                number++;
-                int index = number;
-                String prefix = "推荐模组 " + index + "/" + items.size() + " · ";
-                taskProgress.stage(prefix + item.title());
-                taskCenter.update(recommendTask, taskProgress);
-                ProgressSink sink = new ProgressSink() {
-                    @Override
-                    public void total(long totalBytes) {
-                        taskProgress.total(totalBytes);
-                        taskCenter.update(recommendTask, taskProgress);
-                    }
+        String loaderName = loaderName(loader);
+        for (Recommendations.Item item : items) {
+            taskToken.check();
+            String prefix = loaderName + " / " + item.title() + " / " + gameVersion;
+            taskProgress.stage(prefix);
+            ProgressSink sink = new ProgressSink() {
+                @Override
+                public void total(long totalBytes) {
+                    taskProgress.total(totalBytes);
+                }
 
-                    @Override
-                    public void addTotal(long bytes) {
-                        taskProgress.addTotal(bytes);
-                        taskCenter.update(recommendTask, taskProgress);
-                    }
+                @Override
+                public void addTotal(long bytes) {
+                    taskProgress.addTotal(bytes);
+                }
 
-                    @Override
-                    public void add(long bytes) {
-                        taskProgress.add(bytes);
-                        taskCenter.update(recommendTask, taskProgress);
-                    }
+                @Override
+                public void add(long bytes) {
+                    taskProgress.add(bytes);
+                }
 
-                    @Override
-                    public void stage(String text) {
-                        taskProgress.stage(prefix + text);
-                        taskCenter.update(recommendTask, taskProgress);
-                    }
+                @Override
+                public void stage(String text) {
+                    // 进度统一显示为“加载器 / 模组 / 游戏版本”。
+                    taskProgress.stage(prefix);
+                }
 
-                    @Override
-                    public void indeterminate(boolean value) {
-                        taskProgress.indeterminate(value);
-                        taskCenter.update(recommendTask, taskProgress);
-                    }
-                };
+                @Override
+                public void indeterminate(boolean value) {
+                    taskProgress.indeterminate(value);
+                }
+            };
+            try {
+                Modrinth.Project project = modrinth.project(item.slug());
+                new ContentInstaller(installConfig, sink, taskToken)
+                        .install(project, gameVersion, loader);
+            } catch (CancellationToken.CancelledException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                Log.warn("推荐模组安装失败 " + item.slug() + ": " + ex.getMessage());
+            }
+        }
+        taskProgress.stage(loaderName + " / 完成 / " + gameVersion);
+    }
+
+    private void startRecommendations(java.util.List<Recommendations.Item> items,
+                                      String instanceId, String loader, String gameVersion) {
+        if (items.isEmpty()) {
+            return;
+        }
+        String loaderName = loaderName(loader);
+        beginTask(loaderName + " / 推荐模组 / " + gameVersion, "Modrinth");
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                installRecommendations(items, instanceId, loader, gameVersion);
+                return null;
+            }
+
+            @Override
+            protected void done() {
                 try {
-                    Modrinth.Project project = modrinth.project(item.slug());
-                    new ContentInstaller(installConfig, sink, taskToken)
-                            .install(project, gameVersion, loader);
-                } catch (CancellationToken.CancelledException ex) {
-                    taskCenter.cancel(recommendTask);
-                    SwingUtilities.invokeLater(this::refreshTasksButton);
-                    throw ex;
+                    get();
+                    finishTask();
+                    statusLabel.setText("推荐模组安装完成 · " + items.size() + " 个");
+                    statusLabel.setForeground(Theme.ACCENT);
                 } catch (Exception ex) {
-                    Log.warn("推荐模组安装失败 " + item.slug() + ": " + ex.getMessage());
+                    Throwable cause = unwrap(ex);
+                    finishTask();
+                    if (LauncherFrame.isCancelled(cause)) {
+                        statusLabel.setText("推荐模组下载已取消");
+                        statusLabel.setForeground(Theme.MUTED);
+                    } else {
+                        Log.error("推荐模组安装失败", cause);
+                        statusLabel.setText("推荐模组安装失败");
+                        statusLabel.setForeground(Theme.DANGER);
+                    }
                 }
             }
-            taskProgress.stage("推荐模组完成");
-            taskCenter.finish(recommendTask);
-        } finally {
-            if (taskToken.isCancelled()) {
-                taskCenter.cancel(recommendTask);
-            } else {
-                taskCenter.finish(recommendTask);
-            }
-            SwingUtilities.invokeLater(this::refreshTasksButton);
-        }
+        }.execute();
+    }
+
+    private static String loaderName(String loader) {
+        return switch (loader == null ? "" : loader) {
+            case "fabric" -> "Fabric";
+            case "quilt" -> "Quilt";
+            case "forge" -> "Forge";
+            case "neoforge" -> "NeoForge";
+            default -> loader == null || loader.isBlank() ? "加载器" : loader;
+        };
     }
 
     private void openVersionDetail() {
@@ -2646,11 +2669,7 @@ public final class LauncherFrame extends JFrame {
                 if (java == null) {
                     throw new IOException("安装加载器需要 Java");
                 }
-                String loaderId = installer.install(loaderType, entry.id(), version, java);
-                if (!recommended.isEmpty()) {
-                    installRecommendations(recommended, loaderId, loaderType, entry.id());
-                }
-                return loaderId;
+                return installer.install(loaderType, entry.id(), version, java);
             }
 
             @Override
@@ -2669,6 +2688,9 @@ public final class LauncherFrame extends JFrame {
                     selectPage("launch");
                     statusLabel.setText("加载器安装完成 · " + loaderId);
                     statusLabel.setForeground(Theme.ACCENT);
+                    if (!recommended.isEmpty()) {
+                        startRecommendations(recommended, loaderId, loaderType, entry.id());
+                    }
                 } catch (Exception ex) {
                     Throwable cause = unwrap(ex);
                     if (!LauncherFrame.isCancelled(cause) && activeTask != null) {
@@ -4372,8 +4394,12 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void beginTask(String title) {
+        beginTask(title, taskSource());
+    }
+
+    private void beginTask(String title, String source) {
         busy = true;
-        activeTask = taskCenter.start(title, taskSource());
+        activeTask = taskCenter.start(title, source);
         refreshTasksButton();
         taskToken = new CancellationToken();
         taskProgress = new TaskProgress();

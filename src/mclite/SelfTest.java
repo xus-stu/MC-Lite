@@ -142,7 +142,7 @@ public final class SelfTest {
 
             Path work = Files.createTempDirectory("mclite-selftest-");
             try {
-                passed += updateTests(work);
+                passed += updateTests(work, config);
             } finally {
                 deleteTree(work);
             }
@@ -163,8 +163,44 @@ public final class SelfTest {
         System.out.println("  [ok] " + name);
     }
 
-    private static int updateTests(Path work) throws Exception {
+    private static int updateTests(Path work, Config config) throws Exception {
         int passed = 0;
+            Path mergeRoot = work.resolve("merge");
+            Path mergeBase = mergeRoot.resolve("versions/1.21");
+            Path mergeLoader = mergeRoot.resolve("versions/fabric-loader-test");
+            Files.createDirectories(mergeBase);
+            Files.createDirectories(mergeLoader.resolve("mods"));
+            Files.writeString(mergeBase.resolve("1.21.json"), """
+                    {"id":"1.21","type":"release","mainClass":"net.minecraft.client.main.Main",
+                     "assets":"34","downloads":{"client":{"url":"https://piston-data.mojang.com/x.jar",
+                     "sha1":"0000000000000000000000000000000000000000","size":1}},
+                     "libraries":[{"name":"base:lib:1.0"}]}
+                    """, StandardCharsets.UTF_8);
+            Files.writeString(mergeLoader.resolve("fabric-loader-test.json"), """
+                    {"id":"fabric-loader-test","inheritsFrom":"1.21","type":"release",
+                     "mainClass":"net.fabricmc.loader.impl.launch.knot.KnotClient",
+                     "libraries":[{"name":"fabric:loader:1.0"}]}
+                    """, StandardCharsets.UTF_8);
+            Files.writeString(mergeLoader.resolve("mods/example.jar"), "mod",
+                    StandardCharsets.UTF_8);
+            Config mergeConfig = config;
+            mergeConfig.gameDir(mergeRoot);
+            Map<String, Object> child = Json.obj(Json.parse(Files.readString(
+                    mergeLoader.resolve("fabric-loader-test.json"), StandardCharsets.UTF_8)));
+            new LoaderInstaller(mergeConfig, ProgressSink.NOOP, new CancellationToken())
+                    .mergeAndWrite("1.21", "fabric-loader-test", child);
+            String merged = Files.readString(mergeBase.resolve("1.21.json"), StandardCharsets.UTF_8);
+            check(merged.contains("KnotClient") && !merged.contains("inheritsFrom"),
+                    "加载器合并到游戏本体");
+            check(merged.contains("base:lib:1.0") && merged.contains("fabric:loader:1.0"),
+                    "加载器库与原版库合并");
+            check(Files.isRegularFile(mergeBase.resolve("1.21.vanilla.json")),
+                    "保留原版 JSON 备份");
+            check(Files.isRegularFile(mergeBase.resolve("mods/example.jar")),
+                    "旧实例模组迁移到本体文件夹");
+            check(!Files.exists(mergeLoader), "旧加载器文件夹已清理");
+            passed += 5;
+
         check(UpdateInstaller.versionedName("MCLite_v1.1.33.jar", "1.1.34", false)
                         .equals("MCLite_v1.1.34.jar"),
                 "普通版更新文件名");
