@@ -4,7 +4,10 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -15,6 +18,10 @@ public final class UpdateDialog extends JDialog {
     private boolean confirmed;
 
     public UpdateDialog(Component parent, String current, String latest) {
+        this(parent, current, latest, "");
+    }
+
+    public UpdateDialog(Component parent, String current, String latest, String notes) {
         super(parent == null ? null : (Frame) javax.swing.SwingUtilities.getWindowAncestor(parent),
                 "启动器更新", true);
         setUndecorated(true);
@@ -48,6 +55,30 @@ public final class UpdateDialog extends JDialog {
         body.add(currentLabel);
         body.add(Ui.vgap(12));
         body.add(note);
+        body.add(Ui.vgap(10));
+        JLabel changesLabel = Ui.label("更新内容", Theme.TINY, Theme.DIM);
+        changesLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(changesLabel);
+        body.add(Ui.vgap(4));
+        JTextArea changes = new JTextArea(notesText(notes));
+        changes.setEditable(false);
+        changes.setLineWrap(true);
+        changes.setWrapStyleWord(true);
+        changes.setFont(Theme.MONO);
+        changes.setForeground(Theme.MUTED);
+        changes.setBackground(Theme.CARD_ALT);
+        changes.setBorder(new EmptyBorder(8, 10, 8, 10));
+        changes.setCaretPosition(0);
+        JScrollPane scroll = new JScrollPane(changes);
+        scroll.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
+        scroll.setPreferredSize(new Dimension(500, 140));
+        scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+        scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(scroll);
+        body.add(Ui.vgap(4));
+        JLabel source = Ui.label("说明来自 GitHub Release，不包含在游戏包内", Theme.TINY, Theme.DIM);
+        source.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(source);
         root.add(body, BorderLayout.CENTER);
 
         JPanel actions = new JPanel();
@@ -68,8 +99,41 @@ public final class UpdateDialog extends JDialog {
 
         setContentPane(root);
         pack();
-        setMinimumSize(new Dimension(520, 260));
+        setMinimumSize(new Dimension(560, 360));
         setLocationRelativeTo(parent);
+    }
+
+    public static void showNotes(Component parent, String version, String notes) {
+        JTextArea area = new JTextArea(notesText(notes));
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setFont(Theme.MONO);
+        area.setForeground(Theme.MUTED);
+        area.setBackground(Theme.CARD_ALT);
+        area.setBorder(new EmptyBorder(8, 10, 8, 10));
+        area.setCaretPosition(0);
+        JScrollPane scroll = new JScrollPane(area);
+        scroll.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
+        scroll.setPreferredSize(new Dimension(560, 260));
+        JPanel content = new JPanel(new BorderLayout(0, 8));
+        content.setOpaque(false);
+        content.add(scroll, BorderLayout.CENTER);
+        content.add(Ui.label("说明来自 GitHub Release，不包含在游戏包内",
+                Theme.TINY, Theme.DIM), BorderLayout.SOUTH);
+        JOptionPane.showMessageDialog(parent, content,
+                "已下载 V" + version + " · 更新内容", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private static String notesText(String notes) {
+        String text = notes == null ? "" : notes.strip();
+        if (text.isEmpty()) {
+            return "本次更新没有填写说明。";
+        }
+        if (text.length() > 6000) {
+            text = text.substring(0, 6000) + "\n…";
+        }
+        return text;
     }
 
     public boolean confirmed() {
