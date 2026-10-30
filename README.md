@@ -20,7 +20,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 
 ## 运行
 
-当前版本：V1.1.47
+当前版本：V1.1.48
 
 需要 Java 21 或更高版本。
 
@@ -28,7 +28,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.47.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.48.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -39,7 +39,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.47-region.jar
+java -jar dist/MCLite_v1.1.48-region.jar
 ```
 
 ## 地区限制
@@ -83,18 +83,18 @@ java -jar dist/MCLite_v1.1.47-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.47.jar
-dist/MCLite_v1.1.47-region.jar
+dist/MCLite_v1.1.48.jar
+dist/MCLite_v1.1.48-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.47.app
-dist/MC Lite Region v1.1.47.app
-dist/MC-Lite_v1.1.47_macOS.zip
-dist/MC-Lite_v1.1.47_region_macOS.zip
-dist/MC-Lite_v1.1.47_region_Windows.zip
+dist/MC Lite v1.1.48.app
+dist/MC Lite Region v1.1.48.app
+dist/MC-Lite_v1.1.48_macOS.zip
+dist/MC-Lite_v1.1.48_region_macOS.zip
+dist/MC-Lite_v1.1.48_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.47_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.48_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -116,7 +116,7 @@ Windows 解压 `dist/MC-Lite_v1.1.47_region_Windows.zip`，双击 `start.bat`。
 - 启动器更新会同时从 GitHub 直连和多个加速镜像竞速，取最先完成的源；全部失败才回退单源下载
 - Windows 安装版会同时更新安装目录里的 jar 和桌面/开始菜单快捷方式
 - macOS 会更新 `.app` 内的 jar、启动脚本和 `Info.plist`，并把应用包改成新版本名
-- 从 1.1.33 及更早版本首次升级时，会通过父进程命令行找到旧 jar / `.app`，把新版本补装回原位置，解决旧版只会从 `~/.mclite/updates/` 启动的问题
+- 从 1.1.34 及更早版本首次升级时，会通过父进程命令行找到旧 jar / `.app`，把新版本补装回原位置，解决旧版只会从 `~/.mclite/updates/` 启动的问题
 - 普通版可以在设置中关闭自动更新，也可以关闭“更新时移除地区限制”
 
 GitHub Release 只需要上传地区版资源：
@@ -145,7 +145,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.47_Setup.exe
+dist/MC-Lite_v1.1.48_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -163,7 +163,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.47.jar --software-render
+java -jar dist/MCLite_v1.1.48.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：

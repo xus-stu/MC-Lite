@@ -124,6 +124,20 @@ public final class Modrinth {
         return results;
     }
 
+    public Project projectById(String id) throws IOException {
+        byte[] bytes = net.getUnverifiedBytes(API + "/project/"
+                + URLEncoder.encode(id, StandardCharsets.UTF_8), "Modrinth 项目");
+        Map<String, Object> item = Json.obj(Json.parse(new String(bytes, StandardCharsets.UTF_8)));
+        String projectId = Json.str(item, "id");
+        String title = Json.str(item, "title");
+        if (projectId == null || title == null) {
+            throw new IOException("项目不存在: " + id);
+        }
+        return new Project(projectId, Json.str(item, "slug", id), title,
+                Json.str(item, "description", ""), "", Json.lng(item, "downloads", 0),
+                Json.str(item, "icon_url"), Json.str(item, "project_type", "mod"));
+    }
+
     public Project project(String slug) throws IOException {
         byte[] bytes = net.getUnverifiedBytes(API + "/project/"
                 + URLEncoder.encode(slug, StandardCharsets.UTF_8), "Modrinth 项目");
