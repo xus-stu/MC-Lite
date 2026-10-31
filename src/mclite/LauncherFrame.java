@@ -55,6 +55,7 @@ import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -75,7 +76,13 @@ public final class LauncherFrame extends JFrame {
     private List<VersionManifest.VersionEntry> allVersions = List.of();
     private DefaultListModel<VersionManifest.VersionEntry> listModel = new DefaultListModel<>();
     private final JList<VersionManifest.VersionEntry> versionList = new JList<>(listModel);
-    private final Map<String, VersionMeta> metaCache = new ConcurrentHashMap<>();
+    private final Map<String, VersionMeta> metaCache = Collections.synchronizedMap(
+            new LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, VersionMeta> eldest) {
+                    return size() > 24;
+                }
+            });
     private final Set<String> installedCache = new HashSet<>();
     private final List<JavaManager.JavaInfo> javaInfos = new ArrayList<>();
     private final Ui.DarkCombo<JavaChoice> javaCombo = new Ui.DarkCombo<>();

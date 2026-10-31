@@ -205,16 +205,15 @@ public final class Updater {
             }
             List<String> command = new ArrayList<>();
             command.add(java.toString());
-            command.add("-Xms32m");
-            command.add("-Xmx256m");
-            command.add("-Dsun.java2d.opengl=false");
-            command.add("-Dsun.java2d.metal=false");
+            command.add("-Xms16m");
+            command.add("-Xmx192m");
+            command.add("-Xss512k");
             command.add("-Dmclite.home=" + config.appHome());
             command.add("-XX:+UseSerialGC");
-            command.add("-XX:MaxMetaspaceSize=96m");
-            command.add("-XX:ReservedCodeCacheSize=48m");
+            command.add("-XX:MaxMetaspaceSize=64m");
+            command.add("-XX:ReservedCodeCacheSize=32m");
+            command.add("-XX:MaxDirectMemorySize=64m");
             command.add("-XX:-UsePerfData");
-            command.add("-XX:TieredStopAtLevel=1");
             command.add("-jar");
             command.add(installed.launch().toString());
             for (String arg : args) {

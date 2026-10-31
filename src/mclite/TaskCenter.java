@@ -14,7 +14,7 @@ public final class TaskCenter {
     public DownloadTask start(String title, String source) {
         DownloadTask task = new DownloadTask(title, source);
         tasks.add(0, task);
-        while (tasks.size() > 40) {
+        while (tasks.size() > 20) {
             tasks.remove(tasks.size() - 1);
         }
         return task;

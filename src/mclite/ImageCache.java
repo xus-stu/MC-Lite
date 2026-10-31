@@ -17,7 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class ImageCache {
-    private static final int MAX_ENTRIES = 80;
+    private static final int MAX_ENTRIES = 40;
     private static final ConcurrentHashMap<String, Image> CACHE = new ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentLinkedDeque<String> ORDER =
             new java.util.concurrent.ConcurrentLinkedDeque<>();

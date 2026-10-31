@@ -142,7 +142,7 @@ if ! echo "$VERSION_OUTPUT" | grep -Eq ' version "(2[1-9]|[3-9][0-9])'; then
   osascript -e "display dialog \"当前 Java 版本过低：\n$VERSION_LINE\n\nMC Lite 需要 Java 21 或更高版本。\" buttons {\"好\"} default button 1 with icon caution" >/dev/null 2>&1 || true
   exit 1
 fi
-exec "$JAVA" -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "$JAR" "$@"
+exec "$JAVA" -Xms16m -Xmx192m -Xss512k -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=64m -XX:-UsePerfData -jar "$JAR" "$@"
 LAUNCHER
   perl -0pi -e "s/\@JAR\@/${NORMAL_JAR}/g" "$APP/Contents/MacOS/MCLite"
   chmod +x "$APP/Contents/MacOS/MCLite"
@@ -179,7 +179,7 @@ cd "$(dirname "$0")"
 if [ ! -f "dist/@NORMAL_JAR@" ]; then
   ./build.sh
 fi
-exec java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist/@NORMAL_JAR@" "$@"
+exec java -Xms16m -Xmx192m -Xss512k -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=64m -XX:-UsePerfData -jar "dist/@NORMAL_JAR@" "$@"
 RUN
 perl -0pi -e "s/\@NORMAL_JAR\@/${NORMAL_JAR}/g" run.sh
 chmod +x run.sh
@@ -198,7 +198,7 @@ cd "$(dirname "$0")"
 if [ ! -f "dist/@REGION_JAR@" ]; then
   ./build.sh
 fi
-exec java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist/@REGION_JAR@" "$@"
+exec java -Xms16m -Xmx192m -Xss512k -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=64m -XX:-UsePerfData -jar "dist/@REGION_JAR@" "$@"
 RUN
 perl -0pi -e "s/\@REGION_JAR\@/${REGION_JAR}/g" run-region.sh
 chmod +x run-region.sh
@@ -219,7 +219,7 @@ if not exist "dist\@REGION_JAR@" (
   pause
   exit /b 1
 )
-java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist\@REGION_JAR@" %*
+java -Xms16m -Xmx192m -Xss512k -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=64m -XX:-UsePerfData -jar "dist\@REGION_JAR@" %*
 BAT
 perl -0pi -e "s/\@REGION_JAR\@/${REGION_JAR}/g" run-region.bat
 
@@ -232,7 +232,7 @@ if not exist "dist\@NORMAL_JAR@" (
   pause
   exit /b 1
 )
-java -Xms32m -Xmx256m -Dsun.java2d.opengl=false -Dsun.java2d.metal=false -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData -XX:TieredStopAtLevel=1 -jar "dist\@NORMAL_JAR@" %*
+java -Xms16m -Xmx192m -Xss512k -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=64m -XX:-UsePerfData -jar "dist\@NORMAL_JAR@" %*
 BAT
 perl -0pi -e "s/\@NORMAL_JAR\@/${NORMAL_JAR}/g" run.bat
 
