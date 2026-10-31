@@ -70,6 +70,8 @@ public final class CurseForgeModpackInstaller {
         Path root = config.instancesRoot();
         Path versionDir = root.resolve("versions").resolve(slug);
         Files.createDirectories(versionDir);
+        boolean baseExisted = Files.isRegularFile(
+                root.resolve("versions").resolve(minecraft).resolve(minecraft + ".json"));
         Config rootConfig = config.copyForGameDir(root);
 
         Versions.FetchResult fetched = Versions.fetch(config, progress, token);
@@ -111,12 +113,10 @@ public final class CurseForgeModpackInstaller {
         Files.createDirectories(marker.getParent());
         Files.writeString(marker, "project=" + projectId + "\nversion=" + versionId
                 + "\nminecraft=" + minecraft + "\nloader=" + manifest.loaderType + "\n", StandardCharsets.UTF_8);
-        Map<String, Object> versionJson = new java.util.LinkedHashMap<>();
-        versionJson.put("id", slug);
-        versionJson.put("inheritsFrom", baseId);
-        versionJson.put("type", "release");
-        Files.writeString(versionDir.resolve(slug + ".json"),
-                LoaderInstaller.prettyJson(versionJson), StandardCharsets.UTF_8);
+        LoaderInstaller.finalizeStandaloneVersion(root, baseId, slug);
+        if (!baseExisted) {
+            LoaderInstaller.removeVersionIfUnused(root, minecraft);
+        }
         return new ContentInstaller.Result(root, slug,
                 title + " · " + minecraft);
     }

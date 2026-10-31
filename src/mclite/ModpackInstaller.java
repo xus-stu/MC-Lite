@@ -93,6 +93,8 @@ public final class ModpackInstaller {
         Path root = config.instancesRoot();
         Path versionDir = root.resolve("versions").resolve(slug);
         Files.createDirectories(versionDir);
+        boolean baseExisted = Files.isRegularFile(
+                root.resolve("versions").resolve(minecraft).resolve(minecraft + ".json"));
 
         Versions.FetchResult fetched = Versions.fetch(config, progress, token);
         VersionManifest.VersionEntry vanilla = fetched.manifest().find(minecraft);
@@ -144,12 +146,10 @@ public final class ModpackInstaller {
         Files.writeString(marker, "project=" + projectId + "\nversion=" + versionId
                 + "\nminecraft=" + minecraft + "\nloader=" + loaderType + "\nloaderVersion="
                 + loaderVersion + "\n", StandardCharsets.UTF_8);
-        Map<String, Object> versionJson = new java.util.LinkedHashMap<>();
-        versionJson.put("id", slug);
-        versionJson.put("inheritsFrom", baseId);
-        versionJson.put("type", "release");
-        Files.writeString(versionDir.resolve(slug + ".json"),
-                LoaderInstaller.prettyJson(versionJson), StandardCharsets.UTF_8);
+        LoaderInstaller.finalizeStandaloneVersion(root, baseId, slug);
+        if (!baseExisted) {
+            LoaderInstaller.removeVersionIfUnused(root, minecraft);
+        }
         return new ContentInstaller.Result(root, slug,
                 title + " · " + minecraft
                         + (loaderType == null ? "" : " / " + loaderType));

@@ -313,6 +313,68 @@ public final class LoaderInstaller {
         throw new IOException("安装器结束，但没有找到生成的版本 JSON");
     }
 
+    static void finalizeStandaloneVersion(Path root, String baseId, String packId)
+            throws IOException {
+        Path baseDir = root.resolve("versions").resolve(baseId);
+        Path packDir = root.resolve("versions").resolve(packId);
+        Path baseJson = baseDir.resolve(baseId + ".json");
+        if (!Files.isRegularFile(baseJson)) {
+            throw new IOException("找不到已安装的游戏版本: " + baseJson);
+        }
+        Map<String, Object> merged = Json.obj(Json.parse(Files.readString(
+                baseJson, StandardCharsets.UTF_8)));
+        merged.put("id", packId);
+        merged.remove("inheritsFrom");
+        merged.put("jar", packId);
+        merged.put("type", "release");
+        Files.createDirectories(packDir);
+        Files.writeString(packDir.resolve(packId + ".json"), prettyJson(merged),
+                StandardCharsets.UTF_8);
+        Path baseJar = baseDir.resolve(baseId + ".jar");
+        Path packJar = packDir.resolve(packId + ".jar");
+        if (Files.isRegularFile(baseJar)) {
+            Files.deleteIfExists(packJar);
+            try {
+                Files.createLink(packJar, baseJar);
+            } catch (IOException | UnsupportedOperationException ex) {
+                Files.copy(baseJar, packJar, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+    }
+
+    static void removeVersionIfUnused(Path root, String baseId) {
+        Path versions = root.resolve("versions");
+        Path baseDir = versions.resolve(baseId);
+        if (!Files.isDirectory(baseDir)) {
+            return;
+        }
+        try (var dirs = Files.newDirectoryStream(versions)) {
+            for (Path dir : dirs) {
+                String id = dir.getFileName().toString();
+                if (id.equals(baseId)) {
+                    continue;
+                }
+                Path json = dir.resolve(id + ".json");
+                if (!Files.isRegularFile(json)) {
+                    continue;
+                }
+                try {
+                    Map<String, Object> child = Json.obj(Json.parse(
+                            Files.readString(json, StandardCharsets.UTF_8)));
+                    if (baseId.equals(Json.str(child, "inheritsFrom"))
+                            || baseId.equals(Json.str(child, "jar"))) {
+                        return;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            deleteTree(baseDir);
+            Log.info("整合包已是独立版本，清理临时游戏文件夹: " + baseId);
+        } catch (IOException ex) {
+            Log.warn("清理临时游戏文件夹失败: " + ex.getMessage());
+        }
+    }
+
     private static String mavenPath(String name) {
         String[] parts = name.split(":");
         if (parts.length < 3) {
