@@ -61,7 +61,9 @@ public final class Net {
             "api.curseforge.com",
             "edge.forgecdn.net",
             "mediafilez.forgecdn.net",
-            "media.forgecdn.net"
+            "media.forgecdn.net",
+            "wsrv.nl",
+            "images.weserv.nl"
     );
     private static final int MAX_METADATA_BYTES = 16 * 1024 * 1024;
     private static final int BUFFER_SIZE = 64 * 1024;
