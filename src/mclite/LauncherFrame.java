@@ -7,6 +7,7 @@ import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultListModel;
 import javax.swing.JComponent;
+import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -28,6 +29,7 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.event.DocumentEvent;
+import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -202,8 +204,12 @@ public final class LauncherFrame extends JFrame {
     private JList<Modrinth.Version> projectVersionList;
     private Ui.AccentButton projectInstallButton;
     private Ui.AccentButton projectRefreshButton;
-    private JTextArea projectDependencyText;
+    private JEditorPane projectDependencyText;
     private int projectDependencyGeneration;
+    private final Map<String, DependencyLink> projectDependencyLinks = new HashMap<>();
+
+    private record DependencyLink(String projectId, String source, String title) {
+    }
     private JLabel sidebarAccount;
     private JLabel launchAccount;
     private JLabel launchVersion;
@@ -239,6 +245,7 @@ public final class LauncherFrame extends JFrame {
     public LauncherFrame(Config config) {
         super("MC Lite 启动器");
         this.config = config;
+        ImageCache.configure(config.cacheDir().resolve("icons"));
         this.gamePaths = new GamePaths(config.gameDir());
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setMinimumSize(new Dimension(1100, 720));
@@ -1294,14 +1301,16 @@ public final class LauncherFrame extends JFrame {
         dependencyPanel.setBorder(new EmptyBorder(12, 14, 12, 14));
         dependencyPanel.setPreferredSize(new Dimension(310, 0));
         dependencyPanel.add(Ui.label("版本详情 · 前置模组", Theme.TINY, Theme.DIM), BorderLayout.NORTH);
-        projectDependencyText = new JTextArea("选择一个文件版本\n查看前置模组和内置模组");
+        projectDependencyText = new JEditorPane();
+        projectDependencyText.setContentType("text/html");
         projectDependencyText.setEditable(false);
-        projectDependencyText.setLineWrap(true);
-        projectDependencyText.setWrapStyleWord(true);
         projectDependencyText.setOpaque(false);
+        projectDependencyText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true);
         projectDependencyText.setForeground(Theme.MUTED);
         projectDependencyText.setFont(Theme.MONO);
         projectDependencyText.setBorder(new EmptyBorder(2, 0, 2, 0));
+        projectDependencyText.addHyperlinkListener(this::openDependencyLink);
+        projectDependencyText.setText(dependencyHtml("选择一个文件版本<br>查看前置模组和内置模组"));
         dependencyPanel.add(Ui.scrollDark(projectDependencyText), BorderLayout.CENTER);
         versionArea.add(dependencyPanel, BorderLayout.EAST);
         page.add(versionArea, BorderLayout.CENTER);
@@ -3281,7 +3290,11 @@ public final class LauncherFrame extends JFrame {
         if (contentList == null || contentList.getSelectedValue() == null) {
             return;
         }
-        detailProject = contentList.getSelectedValue();
+        showProjectDetail(contentList.getSelectedValue());
+    }
+
+    private void showProjectDetail(Modrinth.Project project) {
+        detailProject = project;
         projectDetailTitle.setText(config.forceModTranslation()
                 ? contentChineseTitles.getOrDefault(detailProject.id(), detailProject.title())
                 : detailProject.title());
@@ -3363,20 +3376,50 @@ public final class LauncherFrame extends JFrame {
         }.execute();
     }
 
+    private void openDependencyLink(HyperlinkEvent event) {
+        if (event.getEventType() != HyperlinkEvent.EventType.ACTIVATED) {
+            return;
+        }
+        String description = event.getDescription();
+        String prefix = "mclite://dep/";
+        if (description == null || !description.startsWith(prefix)) {
+            return;
+        }
+        DependencyLink link = projectDependencyLinks.get(description.substring(prefix.length()));
+        if (link == null) {
+            return;
+        }
+        Modrinth.Project project = new Modrinth.Project(link.projectId(), link.projectId(),
+                link.title(), "", "", 0, null, "mod", null, null, link.source());
+        showProjectDetail(project);
+    }
+
+    private static String dependencyHtml(String body) {
+        return "<html><body style='font-family:Menlo,Consolas,monospace;font-size:10px;"
+                + "color:" + colorHex(Theme.MUTED) + ";margin:0;'>" + body + "</body></html>";
+    }
+
+    private static String colorHex(java.awt.Color color) {
+        return String.format("#%06x", color.getRGB() & 0xffffff);
+    }
+
     private void updateProjectVersionDetails(Modrinth.Version version) {
         if (projectDependencyText == null) {
             return;
         }
         int generation = ++projectDependencyGeneration;
         if (version == null) {
-            projectDependencyText.setText("选择一个文件版本\n查看前置模组和内置模组");
+            projectDependencyText.setText(dependencyHtml("选择一个文件版本<br>查看前置模组和内置模组"));
+            projectDependencyLinks.clear();
             return;
         }
-        projectDependencyText.setText("文件：" + (version.primaryFile() == null
+        projectDependencyText.setText(dependencyHtml("文件："
+                + Formatting.html(version.primaryFile() == null
                 ? "无" : version.primaryFile().filename())
-                + "\n游戏版本：" + String.join(", ", version.gameVersions())
-                + "\n加载器：" + String.join(", ", version.loaders())
-                + "\n\n正在读取前置…");
+                + "<br>游戏版本：" + Formatting.html(String.join(", ", version.gameVersions()))
+                + "<br>加载器：" + Formatting.html(String.join(", ", version.loaders()))
+                + "<br><br>正在读取前置…"));
+        projectDependencyLinks.clear();
         new SwingWorker<String, Void>() {
             @Override
             protected String doInBackground() {
@@ -3399,12 +3442,16 @@ public final class LauncherFrame extends JFrame {
     }
 
     private String dependencyDescription(Modrinth.Version version) {
-        StringBuilder text = new StringBuilder();
+        projectDependencyLinks.clear();
+        StringBuilder html = new StringBuilder();
         if (version.primaryFile() != null) {
-            text.append("文件：").append(version.primaryFile().filename()).append('\n');
+            html.append("<div>文件：").append(Formatting.html(version.primaryFile().filename()))
+                    .append("</div>");
         }
-        text.append("游戏版本：").append(String.join(", ", version.gameVersions())).append('\n');
-        text.append("加载器：").append(String.join(", ", version.loaders())).append('\n');
+        html.append("<div>游戏版本：").append(Formatting.html(
+                String.join(", ", version.gameVersions()))).append("</div>");
+        html.append("<div>加载器：").append(Formatting.html(
+                String.join(", ", version.loaders()))).append("</div>");
         List<Modrinth.Dependency> required = new ArrayList<>();
         List<Modrinth.Dependency> embedded = new ArrayList<>();
         List<Modrinth.Dependency> optional = new ArrayList<>();
@@ -3419,23 +3466,26 @@ public final class LauncherFrame extends JFrame {
         }
         Modrinth modrinth = new Modrinth(new TaskProgress(), new CancellationToken());
         java.util.Map<String, String> names = new java.util.HashMap<>();
-        text.append('\n');
-        appendDependencies(text, "必需前置", required, modrinth, names);
-        appendDependencies(text, "已内置模组", embedded, modrinth, names);
-        appendDependencies(text, "可选前置", optional, modrinth, names);
+        html.append("<div style='height:8px'></div>");
+        appendDependencies(html, "必需前置", required, modrinth, names);
+        appendDependencies(html, "已内置模组", embedded, modrinth, names);
+        appendDependencies(html, "可选前置", optional, modrinth, names);
         if (required.isEmpty() && embedded.isEmpty() && optional.isEmpty()) {
-            text.append("没有声明前置或内置模组。\n");
+            html.append("<div>没有声明前置或内置模组。</div>");
         }
-        text.append("\n安装时会自动补齐必需前置。");
-        return text.toString();
+        html.append("<div style='height:8px'></div>");
+        html.append("<div>安装时会自动补齐必需前置。</div>");
+        return dependencyHtml(html.toString());
     }
 
-    private void appendDependencies(StringBuilder text, String title,
+    private void appendDependencies(StringBuilder html, String title,
                                     List<Modrinth.Dependency> dependencies,
                                     Modrinth modrinth, java.util.Map<String, String> names) {
-        text.append(title).append("（").append(dependencies.size()).append("）\n");
+        html.append("<div style='margin-top:8px;font-weight:bold;color:")
+                .append(colorHex(Theme.TEXT)).append(";'>")
+                .append(title).append("（").append(dependencies.size()).append("）</div>");
         if (dependencies.isEmpty()) {
-            text.append("  · 无\n\n");
+            html.append("<div>· 无</div>");
             return;
         }
         for (Modrinth.Dependency dependency : dependencies) {
@@ -3462,9 +3512,17 @@ public final class LauncherFrame extends JFrame {
             if (name == null || name.isBlank()) {
                 name = projectId == null ? "未知前置" : projectId;
             }
-            text.append("  · ").append(name).append('\n');
+            if (projectId == null || projectId.isBlank()) {
+                html.append("<div>· ").append(Formatting.html(name)).append("</div>");
+                continue;
+            }
+            String source = projectId.startsWith("cf:") ? "curseforge" : "modrinth";
+            String key = Integer.toString(projectDependencyLinks.size());
+            projectDependencyLinks.put(key, new DependencyLink(projectId, source, name));
+            html.append("<div>· <a style='color:").append(colorHex(Theme.ACCENT))
+                    .append(";text-decoration:none;' href='mclite://dep/").append(key)
+                    .append("'>").append(Formatting.html(name)).append("</a></div>");
         }
-        text.append('\n');
     }
 
     private void installProjectVersion() {
