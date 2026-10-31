@@ -1242,26 +1242,11 @@ public final class Ui {
     public static final class ProjectIcon extends JComponent {
         private String url;
         private java.awt.Image image;
-        private int shimmerPhase;
-        private long shimmerStarted = System.currentTimeMillis();
-        private Timer shimmer;
 
         public ProjectIcon(int size) {
             setPreferredSize(new Dimension(size, size));
             setMinimumSize(new Dimension(size, size));
             setMaximumSize(new Dimension(size, size));
-            shimmer = new Timer(45, e -> {
-                if (image != null || ImageCache.get(url) != null) {
-                    ((Timer) e.getSource()).stop();
-                    return;
-                }
-                if (System.currentTimeMillis() - shimmerStarted > 15_000) {
-                    ((Timer) e.getSource()).stop();
-                    return;
-                }
-                shimmerPhase = (shimmerPhase + 7) % 140;
-                repaint();
-            });
         }
 
         public void setUrl(String url) {
@@ -1270,32 +1255,13 @@ public final class Ui {
             }
             this.url = url;
             this.image = ImageCache.get(url);
-            shimmerStarted = System.currentTimeMillis();
             if (image == null && url != null) {
                 ImageCache.load(url, () -> {
                     image = ImageCache.get(url);
-                    shimmer.stop();
                     repaint();
                 });
-                shimmer.start();
-            } else {
-                shimmer.stop();
             }
             repaint();
-        }
-
-        @Override
-        public void addNotify() {
-            super.addNotify();
-            if (image == null && ImageCache.get(url) == null && url != null) {
-                shimmer.start();
-            }
-        }
-
-        @Override
-        public void removeNotify() {
-            shimmer.stop();
-            super.removeNotify();
         }
 
         @Override
@@ -1332,12 +1298,6 @@ public final class Ui {
                 g2.fill(left);
                 g2.setColor(Theme.alpha(Theme.DIM, 140));
                 g2.fill(right);
-                g2.setClip(new RoundRectangle2D.Float(0, 0, size, size, 12, 12));
-                int band = (int) ((shimmerPhase / 140.0) * (size + 46)) - 24;
-                g2.setPaint(new GradientPaint(band, 0, Theme.alpha(Theme.ACCENT, 0),
-                        band + 22, 0, Theme.alpha(Theme.ACCENT, 42)));
-                g2.fillRect(0, 0, size, size);
-                g2.setClip(null);
             }
             g2.dispose();
         }
