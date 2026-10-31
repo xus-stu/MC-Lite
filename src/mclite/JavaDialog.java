@@ -105,7 +105,7 @@ public final class JavaDialog extends JDialog {
     }
 
     private void addRuntime() {
-        Path chosen = Ui.chooseFile(this, "选择 java 可执行文件", null, null);
+        Path chosen = Ui.chooseFile(this, "选择 java 可执行文件", null);
         if (chosen == null) {
             return;
         }
