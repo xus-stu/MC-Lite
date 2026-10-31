@@ -169,8 +169,12 @@ public final class ModpackInstaller {
         }
         String base = id;
         Path versions = root.resolve("versions");
-        for (int suffix = 2; Files.exists(versions.resolve(id)); suffix++) {
-            id = base + "-" + suffix;
+        while (Files.exists(versions.resolve(id))) {
+            if (Files.isRegularFile(versions.resolve(id).resolve(".mclite/modpack.properties"))) {
+                return id;
+            }
+            id = base + "-" + (id.equals(base) ? 2 : Integer.parseInt(
+                    id.substring(base.length() + 1)) + 1);
         }
         return id;
     }
