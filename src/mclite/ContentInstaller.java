@@ -115,7 +115,7 @@ public final class ContentInstaller {
                         progress.addTotal(file.size());
                     }
                     // Modrinth 的 Fastly 节点用 4 段连接反而容易超时；
-                    // 这里强制单连接，靠 DNS 选择快节点和 6 路并行模组提速。
+                    // 这里强制单连接，靠 DNS 选择快节点和 3 路并行模组提速。
                     net.download(file.url(), target, file.sha1(), file.size(),
                             file.filename(), true, Long.MAX_VALUE);
                 }

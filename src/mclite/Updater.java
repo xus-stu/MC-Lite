@@ -454,6 +454,7 @@ public final class Updater {
                 if (response == null) {
                     throw new IOException("所有更新源均不可用");
                 }
+                progress.indeterminate(false);
                 long length = response.headers().firstValueAsLong("content-length")
                         .orElse(expectedSize);
                 if (length > MAX_UPDATE_BYTES) {
@@ -787,6 +788,7 @@ public final class Updater {
                                              Path target, long size, DownloadTask task,
                                              TaskProgress progress, TaskCenter taskCenter,
                                              Runnable refresh) {
+        progress.indeterminate(false);
         progress.stage("分块下载更新…");
         int parts = 4;
         long chunk = (size + parts - 1) / parts;

@@ -3520,6 +3520,9 @@ public final class LauncherFrame extends JFrame {
         if ("modpack".equals(project.projectType())) {
             Path instance = result.gameDir();
             config.gameDir(instance);
+            if (result.versionId() != null) {
+                config.lastVersion(result.versionId());
+            }
             config.save();
             gamePaths = new GamePaths(instance);
             gameDirField.setText(instance.toString());
@@ -3614,6 +3617,9 @@ public final class LauncherFrame extends JFrame {
     private void applyImportedModpack(ContentInstaller.Result result) {
         Path instance = result.gameDir();
         config.gameDir(instance);
+        if (result.versionId() != null) {
+            config.lastVersion(result.versionId());
+        }
         config.save();
         gamePaths = new GamePaths(instance);
         gameDirField.setText(instance.toString());
