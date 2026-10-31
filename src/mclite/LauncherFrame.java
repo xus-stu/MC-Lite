@@ -5122,8 +5122,17 @@ public final class LauncherFrame extends JFrame {
                 return;
             }
         }
-        JavaManager.JavaInfo java = resolveJava(launchMeta);
         int required = launchMeta.javaMajor();
+        String requiredPlatform = JavaManager.preferredPlatform(required, launchMeta);
+        JavaManager.JavaInfo candidateJava = resolveJava(launchMeta);
+        if (candidateJava != null
+                && !JavaManager.matchesPlatform(config, candidateJava, requiredPlatform)) {
+            statusLabel.setText("当前 Java 架构与整合包不一致，准备下载 "
+                    + ("mac-os".equals(requiredPlatform) ? "x86_64" : "arm64") + " Java…");
+            statusLabel.setForeground(Theme.WARNING);
+            candidateJava = null;
+        }
+        JavaManager.JavaInfo java = candidateJava;
         if (java == null || java.major() < required) {
             String component = launchMeta.javaComponent() == null || launchMeta.javaComponent().isBlank()
                     ? JavaManager.componentForMajor(required) : launchMeta.javaComponent();
@@ -5139,18 +5148,16 @@ public final class LauncherFrame extends JFrame {
                 statusLabel.setText("缺少 Java " + required + "，正在自动下载…");
                 statusLabel.setForeground(Theme.WARNING);
             }
-            if (required <= 8) {
-                try {
-                    if ("mac-os-arm64".equals(JavaManager.platformKey())) {
-                        showError("无法自动安装 Java 8",
-                                "Mojang 官方没有为 Apple Silicon 提供 Java 8 运行时。\n"
-                                        + "请手动安装 Java 8，并在「Java 运行时」中选择它。");
-                        return;
-                    }
-                } catch (IOException ignored) {
-                }
+            String platform = requiredPlatform;
+            if ("mac-os".equals(platform) && !JavaManager.rosettaAvailable()) {
+                showError("需要 Rosetta 2",
+                        "Java 8 官方只有 x86_64 版本，Apple Silicon 上需要 Rosetta 2。\n\n"
+                                + "请先在终端运行：\n"
+                                + "softwareupdate --install-rosetta --agree-to-license\n\n"
+                                + "然后重新启动游戏。");
+                return;
             }
-            startJavaInstall(entry, launchMeta, component, required);
+            startJavaInstall(entry, launchMeta, component, required, platform);
             return;
         }
         if (required <= 8 && java.major() > 8) {
@@ -5228,6 +5235,11 @@ public final class LauncherFrame extends JFrame {
 
     private void startJavaInstall(VersionManifest.VersionEntry entry, VersionMeta meta,
                                   String component, int major) {
+        startJavaInstall(entry, meta, component, major, null);
+    }
+
+    private void startJavaInstall(VersionManifest.VersionEntry entry, VersionMeta meta,
+                                  String component, int major, String platform) {
         if (busy) {
             return;
         }
@@ -5235,7 +5247,8 @@ public final class LauncherFrame extends JFrame {
         new SwingWorker<JavaManager.JavaInfo, Void>() {
             @Override
             protected JavaManager.JavaInfo doInBackground() throws Exception {
-                return new JavaManager(config, taskProgress, taskToken).install(component, major);
+                return new JavaManager(config, taskProgress, taskToken)
+                        .install(component, major, platform);
             }
 
             @Override
@@ -5245,7 +5258,8 @@ public final class LauncherFrame extends JFrame {
                     javaInfos.removeIf(existing -> existing.path().toAbsolutePath().normalize()
                             .equals(info.path().toAbsolutePath().normalize()));
                     javaInfos.add(0, info);
-                    config.javaPath("");
+                    config.javaPath(platform == null || platform.isBlank()
+                            ? "" : info.path().toString());
                     config.save();
                     refreshJavaChoices(null);
                     progressBar.setIndeterminate(false);

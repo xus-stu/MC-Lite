@@ -344,6 +344,10 @@ public final class VersionMeta {
             return classifiers;
         }
 
+        public Map<String, String> natives() {
+            return natives;
+        }
+
         public List<String> extractExclude() {
             return extractExclude;
         }
