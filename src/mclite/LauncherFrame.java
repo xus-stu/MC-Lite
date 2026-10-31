@@ -7,7 +7,6 @@ import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultListModel;
 import javax.swing.JComponent;
-import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -3553,14 +3552,15 @@ public final class LauncherFrame extends JFrame {
         if (busy) {
             return;
         }
-        javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
-        chooser.setDialogTitle("选择整合包 ZIP");
-        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-                "整合包 (*.zip, *.mrpack)", "zip", "mrpack"));
-        if (chooser.showOpenDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) {
+        Path archive = Ui.chooseFile(this, "选择整合包 ZIP", null, "zip", "mrpack");
+        if (archive == null) {
             return;
         }
-        Path archive = chooser.getSelectedFile().toPath();
+        String lower = archive.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        if (!lower.endsWith(".zip") && !lower.endsWith(".mrpack")) {
+            showError("文件类型不支持", "请选择 .zip 或 .mrpack 整合包文件。");
+            return;
+        }
         String display = archive.getFileName().toString().replaceFirst("(?i)\\.(zip|mrpack)$", "");
         beginTask("导入整合包 " + display);
         new SwingWorker<ContentInstaller.Result, Void>() {
@@ -5688,7 +5688,7 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void chooseJava() {
-        Path path = Ui.chooseFile(this, "选择 java 可执行文件", null, null);
+        Path path = Ui.chooseFile(this, "选择 java 可执行文件", null);
         if (path == null) {
             return;
         }

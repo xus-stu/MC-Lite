@@ -8,7 +8,6 @@ import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
-import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -28,7 +27,10 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.Dialog;
 import java.awt.Dimension;
+import java.awt.FileDialog;
+import java.awt.Frame;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.GradientPaint;
@@ -256,84 +258,69 @@ public final class Ui {
     }
 
     public static Path chooseDirectory(Component parent, String title, Path initial) {
-        if (isMac()) {
-            return nativeDialog(parent, title, initial, true, null);
-        }
-        JFileChooser chooser = new JFileChooser(initial == null ? null : initial.toFile());
-        chooser.setDialogTitle(title);
-        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-        chooser.setAcceptAllFileFilterUsed(false);
-        return chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION
-                ? chooser.getSelectedFile().toPath().toAbsolutePath().normalize() : null;
+        return showFileDialog(parent, title, initial, true, null);
     }
 
     public static Path chooseFile(Component parent, String title, Path initial,
-                                  String extension) {
-        if (isMac()) {
-            return nativeDialog(parent, title, initial, false, extension);
-        }
-        JFileChooser chooser = new JFileChooser(initial == null ? null : initial.toFile());
-        chooser.setDialogTitle(title);
-        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-        if (extension != null && !extension.isBlank()) {
-            chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-                    extension.toUpperCase(java.util.Locale.ROOT) + " 文件", extension));
-        }
-        return chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION
-                ? chooser.getSelectedFile().toPath().toAbsolutePath().normalize() : null;
+                                  String... extensions) {
+        return showFileDialog(parent, title, initial, false, extensions);
     }
 
-    private static Path nativeDialog(Component parent, String title, Path initial,
-                                     boolean directory, String extension) {
-        String prompt = escapeAppleScript(title == null ? "选择" : title);
+    private static Path showFileDialog(Component parent, String title, Path initial,
+                                       boolean directory, String[] extensions) {
+        String dialogTitle = title == null ? "选择" : title;
+        FileDialog picker;
+        if (parent instanceof Frame frame) {
+            picker = new FileDialog(frame, dialogTitle, FileDialog.LOAD);
+        } else if (parent instanceof Dialog dialog) {
+            picker = new FileDialog(dialog, dialogTitle, FileDialog.LOAD);
+        } else {
+            picker = new FileDialog((Frame) null, dialogTitle, FileDialog.LOAD);
+        }
+        String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+        if (os.contains("mac")) {
+            System.setProperty("apple.awt.fileDialogForDirectories",
+                    Boolean.toString(directory));
+        }
         Path location = initial;
-        if (!directory && location != null && !java.nio.file.Files.isDirectory(location)) {
+        if (location != null && !java.nio.file.Files.isDirectory(location)) {
             location = location.getParent();
         }
-        StringBuilder script = new StringBuilder();
-        if (directory) {
-            script.append("set p to choose folder with prompt \"").append(prompt).append("\"");
-        } else {
-            script.append("set p to choose file with prompt \"").append(prompt).append("\"");
-            if (extension != null && !extension.isBlank()) {
-                script.append(" of type {\"public.").append(escapeAppleScript(extension))
-                        .append("\"}");
-            }
+        if (location != null) {
+            picker.setDirectory(location.toAbsolutePath().normalize().toString());
         }
-        if (location != null && java.nio.file.Files.exists(location)) {
-            script.append(" default location (POSIX file \"")
-                    .append(escapeAppleScript(location.toString())).append("\")");
+        if (!directory && extensions != null && extensions.length > 0) {
+            picker.setFilenameFilter((dir, name) -> {
+                String lower = name.toLowerCase(java.util.Locale.ROOT);
+                for (String extension : extensions) {
+                    if (extension == null || extension.isBlank()) {
+                        continue;
+                    }
+                    String suffix = extension.startsWith(".")
+                            ? extension.toLowerCase(java.util.Locale.ROOT)
+                            : "." + extension.toLowerCase(java.util.Locale.ROOT);
+                    if (lower.endsWith(suffix)) {
+                        return true;
+                    }
+                }
+                return false;
+            });
         }
-        script.append("\nreturn POSIX path of p");
-        try {
-            Process process = new ProcessBuilder("/usr/bin/osascript", "-e", script.toString())
-                    .redirectErrorStream(true).start();
-            String output = new String(process.getInputStream().readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8);
-            if (!process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)) {
-                process.destroyForcibly();
-                return null;
-            }
-            if (process.exitValue() != 0) {
-                return null;
-            }
-            String path = output.trim();
-            if (path.isEmpty()) {
-                return null;
-            }
-            return Path.of(path).toAbsolutePath().normalize();
-        } catch (Exception ex) {
-            Log.warn("macOS 原生选择窗口失败: " + ex.getMessage());
+        picker.setMultipleMode(false);
+        picker.setVisible(true);
+        String name = picker.getFile();
+        String dir = picker.getDirectory();
+        picker.dispose();
+        if (name == null) {
             return null;
         }
-    }
-
-    private static String escapeAppleScript(String text) {
-        return text.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
-    private static boolean isMac() {
-        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
+        if (name.isBlank()) {
+            return directory && dir != null && !dir.isBlank()
+                    ? Path.of(dir).toAbsolutePath().normalize() : null;
+        }
+        Path selected = dir == null || dir.isBlank()
+                ? Path.of(name) : Path.of(dir, name);
+        return selected.toAbsolutePath().normalize();
     }
 
     public static final class FadePanel extends JPanel {
