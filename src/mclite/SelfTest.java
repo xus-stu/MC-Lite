@@ -238,6 +238,26 @@ public final class SelfTest {
             check(!Files.exists(mergeLoader), "旧加载器文件夹已清理");
             passed += 5;
 
+            Path standaloneRoot = work.resolve("standalone");
+            Path standaloneBase = standaloneRoot.resolve("versions/1.21");
+            Files.createDirectories(standaloneBase);
+            Files.writeString(standaloneBase.resolve("1.21.json"),
+                    "{\"id\":\"1.21\",\"mainClass\":\"net.minecraft.client.main.Main\","
+                            + "\"libraries\":[]}", StandardCharsets.UTF_8);
+            Files.writeString(standaloneBase.resolve("1.21.jar"), "client",
+                    StandardCharsets.UTF_8);
+            LoaderInstaller.finalizeStandaloneVersion(standaloneRoot, "1.21", "pack");
+            Map<String, Object> packed = Json.obj(Json.parse(Files.readString(
+                    standaloneRoot.resolve("versions/pack/pack.json"), StandardCharsets.UTF_8)));
+            check("pack".equals(Json.str(packed, "id"))
+                            && Json.str(packed, "inheritsFrom") == null
+                            && "pack".equals(Json.str(packed, "jar"))
+                            && Files.isRegularFile(standaloneRoot.resolve("versions/pack/pack.jar")),
+                    "整合包生成独立版本文件夹");
+            LoaderInstaller.removeVersionIfUnused(standaloneRoot, "1.21");
+            check(!Files.exists(standaloneBase), "独立整合包清理临时原版文件夹");
+            passed += 2;
+
         check(UpdateInstaller.versionedName("MCLite_v1.1.33.jar", "1.1.34", false)
                         .equals("MCLite_v1.1.34.jar"),
                 "普通版更新文件名");
