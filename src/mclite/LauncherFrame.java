@@ -5044,6 +5044,23 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
+    private String inheritedParent(VersionManifest.VersionEntry entry) {
+        if (entry == null) {
+            return null;
+        }
+        Path json = gamePaths.versionJson(entry.id());
+        if (!Files.isRegularFile(json)) {
+            return null;
+        }
+        try {
+            Map<String, Object> root = Json.obj(Json.parse(Files.readString(json)));
+            String parent = Json.str(root, "inheritsFrom", "").trim();
+            return parent.isEmpty() ? null : parent;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private void startInstall(boolean thenLaunch) {
         VersionManifest.VersionEntry entry = selectedEntry;
         if (entry == null) {
@@ -5053,11 +5070,6 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void startInstall(VersionManifest.VersionEntry entry, boolean thenLaunch) {
-        if (entry.local()) {
-            statusLabel.setText("本地实例已存在，直接启动即可");
-            statusLabel.setForeground(Theme.MUTED);
-            return;
-        }
         if (RegionGate.restricted()) {
             RegionGate.showGuide(this);
             return;
@@ -5067,7 +5079,7 @@ public final class LauncherFrame extends JFrame {
             enqueueInstall(() -> startInstall(entry, launch));
             return;
         }
-        beginTask("安装 Minecraft " + entry.id());
+        beginTask((entry.local() ? "检查 / 补齐 " : "安装 Minecraft ") + entry.id());
         new SwingWorker<Installer.InstallResult, Void>() {
             @Override
             protected Installer.InstallResult doInBackground() throws Exception {
@@ -5144,6 +5156,14 @@ public final class LauncherFrame extends JFrame {
         config.save();
 
         VersionManifest.VersionEntry entry = selectedEntry;
+        String parentVersion = inheritedParent(entry);
+        if (parentVersion != null && !Files.isRegularFile(gamePaths.versionJson(parentVersion))) {
+            if (askYesNo("游戏文件不完整", "这个实例依赖的 " + parentVersion
+                    + " 还没有安装。\n\n是否现在补齐并启动？")) {
+                startInstall(entry, true);
+            }
+            return;
+        }
         if (!isInstalled(entry)) {
             if (RegionGate.restricted()) {
                 RegionGate.showGuide(this);

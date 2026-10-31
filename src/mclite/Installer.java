@@ -66,14 +66,27 @@ public final class Installer {
         Path versionJson = paths.versionJson(entry.id());
         boolean loaderMerged = Files.isRegularFile(
                 paths.versionDir(entry.id()).resolve(".mclite-loader.properties"));
+        if (Files.isRegularFile(versionJson)) {
+            ensureInheritedBase(versionJson, includeAssets);
+        }
         VersionMeta meta;
         try {
+            boolean hasRemoteJson = entry.url() != null && !entry.url().isBlank();
             if (!Files.isRegularFile(versionJson)
-                    || (!loaderMerged && !Net.sha1Matches(versionJson, entry.sha1()))) {
+                    || (hasRemoteJson && !loaderMerged
+                    && !Net.sha1Matches(versionJson, entry.sha1()))) {
+                if (!hasRemoteJson) {
+                    throw new IOException("找不到本地版本 JSON：" + versionJson);
+                }
                 net.downloadFallback(entry.url(), Mirror.versionJson(entry.id()), versionJson,
                         entry.sha1(), -1, "版本信息 " + entry.id(), true);
             }
-            meta = VersionMeta.parse(Files.readString(versionJson, StandardCharsets.UTF_8), entry.id());
+            Map<String, Object> root = Json.obj(Json.parse(
+                    Files.readString(versionJson, StandardCharsets.UTF_8)));
+            String parent = Json.str(root, "inheritsFrom", "").trim();
+            meta = parent.isEmpty()
+                    ? VersionMeta.parse(Files.readString(versionJson, StandardCharsets.UTF_8), entry.id())
+                    : LocalVersions.load(paths, entry.id());
         } catch (SecurityException ex) {
             throw new IOException(ex.getMessage(), ex);
         }
@@ -197,14 +210,36 @@ public final class Installer {
         }
     }
 
+    private void ensureInheritedBase(Path versionJson, boolean includeAssets) throws IOException {
+        Map<String, Object> root;
+        try {
+            root = Json.obj(Json.parse(Files.readString(versionJson, StandardCharsets.UTF_8)));
+        } catch (RuntimeException ex) {
+            return;
+        }
+        String parent = Json.str(root, "inheritsFrom", "").trim();
+        if (parent.isEmpty() || Files.isRegularFile(paths.versionJson(parent))) {
+            return;
+        }
+        progress.stage("补齐依赖版本 " + parent + "…");
+        Versions.FetchResult fetched = Versions.fetch(config, progress, token);
+        VersionManifest.VersionEntry base = fetched.manifest().find(parent);
+        if (base == null) {
+            throw new IOException("本地实例依赖的版本不存在：" + parent);
+        }
+        progress.stage("补齐游戏 " + parent + "…");
+        new Installer(config, token, progress).install(base, includeAssets);
+    }
+
     private Plan buildPlan(VersionMeta meta, boolean includeAssets) throws IOException {
         List<Planned> files = new ArrayList<>();
         List<NativeJar> natives = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         long total = 0;
 
-        total += add(files, seen, "客户端", meta.client(), paths.clientJar(meta.id()), true,
-                Mirror.client(meta.id()));
+        String clientJarId = meta.clientJarId() == null ? meta.id() : meta.clientJarId();
+        total += add(files, seen, "客户端", meta.client(), paths.clientJar(clientJarId), true,
+                Mirror.client(clientJarId));
 
         for (VersionMeta.Library library : meta.libraries()) {
             if (!library.applies(env)) {

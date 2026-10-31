@@ -30,11 +30,13 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
   导致的 `HTTP 400: fabric 加载器配置`。
 - 单个文件下载超时从最少 3 秒放宽到 20 秒，减少慢连接被误判为失败（日志里的 `closed`）。
 - 启动器默认堆内存降到 192MB，收紧元数据/图标/任务历史缓存，并移除每个图标各自的闪烁定时器，降低启动器自身占用。
+- 本地实例缺失文件时也会真正执行修复，并在底部任务栏显示“检查 / 补齐”、百分比和当前文件。
+- 本地整合包依赖的原版版本缺失时，会先补齐依赖版本，再修复实例，不再直接跳过。
 - 下载任务、进度、速度、剩余时间，以及异常退出后的崩溃报告。
 
 ## 运行
 
-当前版本：V1.1.60
+当前版本：V1.1.62
 
 需要 Java 21 或更高版本。
 
@@ -42,7 +44,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.60.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.62.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -53,7 +55,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.60-region.jar
+java -jar dist/MCLite_v1.1.62-region.jar
 ```
 
 ## 地区限制
@@ -97,18 +99,18 @@ java -jar dist/MCLite_v1.1.60-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.60.jar
-dist/MCLite_v1.1.60-region.jar
+dist/MCLite_v1.1.62.jar
+dist/MCLite_v1.1.62-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.60.app
-dist/MC Lite Region v1.1.60.app
-dist/MC-Lite_v1.1.60_macOS.zip
-dist/MC-Lite_v1.1.60_region_macOS.zip
-dist/MC-Lite_v1.1.60_region_Windows.zip
+dist/MC Lite v1.1.62.app
+dist/MC Lite Region v1.1.62.app
+dist/MC-Lite_v1.1.62_macOS.zip
+dist/MC-Lite_v1.1.62_region_macOS.zip
+dist/MC-Lite_v1.1.62_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.60_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.62_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -159,7 +161,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.60_Setup.exe
+dist/MC-Lite_v1.1.62_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -177,7 +179,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.60.jar --software-render
+java -jar dist/MCLite_v1.1.62.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
