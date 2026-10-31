@@ -239,6 +239,23 @@ public final class Config {
         }
     }
 
+    /** Root used for modpack instances; stays stable after switching into an instance. */
+    public Path instancesRoot() {
+        if (gameDir == null) {
+            return gameDir;
+        }
+        Path parent = gameDir.getParent();
+        if (parent != null && parent.getFileName() != null
+                && "instances".equals(parent.getFileName().toString())) {
+            return parent.getParent() == null ? gameDir : parent.getParent();
+        }
+        return gameDir;
+    }
+
+    public Path modpackInstancesDir() {
+        return instancesRoot().resolve("instances");
+    }
+
     public Path accountsDir() {
         return accountsDir;
     }

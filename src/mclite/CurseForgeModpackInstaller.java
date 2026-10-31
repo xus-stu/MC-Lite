@@ -59,6 +59,9 @@ public final class CurseForgeModpackInstaller {
         if (slug.isBlank()) {
             slug = "curseforge-pack";
         }
+        if (slug.length() > 60) {
+            slug = slug.substring(0, 60);
+        }
         return installArchive(zipFile, slug, displayName == null ? "本地整合包" : displayName,
                 "local", "local");
     }
@@ -68,7 +71,7 @@ public final class CurseForgeModpackInstaller {
             throws IOException {
         Manifest manifest = readManifest(zipFile);
         String minecraft = manifest.minecraft;
-        Path instances = config.gameDir().resolve("instances");
+        Path instances = config.modpackInstancesDir();
         slug = slug.replaceAll("[^A-Za-z0-9._-]", "-");
         Path instance = instances.resolve(slug);
         if (Files.exists(instance)) {

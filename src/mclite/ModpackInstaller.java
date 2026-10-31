@@ -79,6 +79,9 @@ public final class ModpackInstaller {
         if (slug.isBlank()) {
             slug = "local-pack";
         }
+        if (slug.length() > 60) {
+            slug = slug.substring(0, 60);
+        }
         return installArchive(mrpack, slug, displayName == null ? "本地整合包" : displayName,
                 "local", "local");
     }
@@ -87,7 +90,7 @@ public final class ModpackInstaller {
                                                     String projectId, String versionId)
             throws IOException {
         PackIndex index = readIndex(mrpack);
-        Path instances = config.gameDir().resolve("instances");
+        Path instances = config.modpackInstancesDir();
         Path instance = instances.resolve(slug);
         if (Files.exists(instance)) {
             instance = instances.resolve(slug + "-" + System.currentTimeMillis() % 100000);
