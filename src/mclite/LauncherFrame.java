@@ -906,7 +906,25 @@ public final class LauncherFrame extends JFrame {
         });
         contentListFade = new Ui.FadePanel(new BorderLayout());
         contentListFade.add(Ui.scrollDark(contentList), BorderLayout.CENTER);
-        page.add(contentListFade, BorderLayout.CENTER);
+        JPanel listArea = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintChildren(Graphics g) {
+                super.paintChildren(g);
+                int height = Math.min(26, getHeight());
+                if (height <= 0) {
+                    return;
+                }
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setPaint(new java.awt.GradientPaint(0, getHeight() - height,
+                        new Color(Theme.BG.getRed(), Theme.BG.getGreen(), Theme.BG.getBlue(), 0),
+                        0, getHeight(), Theme.BG));
+                g2.fillRect(0, getHeight() - height, getWidth(), height);
+                g2.dispose();
+            }
+        };
+        listArea.setOpaque(false);
+        listArea.add(contentListFade, BorderLayout.CENTER);
+        page.add(listArea, BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(12, 0));
         bottom.setOpaque(true);
@@ -976,6 +994,7 @@ public final class LauncherFrame extends JFrame {
         actions.add(contentInstallButton);
         bottom.add(actions, BorderLayout.EAST);
         page.add(bottom, BorderLayout.SOUTH);
+        page.setComponentZOrder(bottom, 0);
         return page;
     }
 
