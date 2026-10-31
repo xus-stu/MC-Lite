@@ -1360,6 +1360,9 @@ public final class LauncherFrame extends JFrame {
         Ui.AccentButton renameInstance = Ui.smallButton("重命名", Ui.AccentButton.Style.GHOST);
         renameInstance.setToolTipText("修改实例名称和版本文件夹");
         renameInstance.addActionListener(e -> renameSelectedInstance());
+        Ui.AccentButton zipInstall = Ui.smallButton("ZIP 安装", Ui.AccentButton.Style.GHOST);
+        zipInstall.setToolTipText("从本地 .mrpack 或 CurseForge 整合包 ZIP 安装一个新实例");
+        zipInstall.addActionListener(e -> importLocalModpack());
         headerActions.add(instanceLaunchButton);
         headerActions.add(Ui.hgap(8));
         headerActions.add(updateMods);
@@ -1367,6 +1370,8 @@ public final class LauncherFrame extends JFrame {
         headerActions.add(renameInstance);
         headerActions.add(Ui.hgap(8));
         headerActions.add(deleteInstance);
+        headerActions.add(Ui.hgap(8));
+        headerActions.add(zipInstall);
         headerActions.add(Ui.hgap(8));
         headerActions.add(refresh);
         page.add(pageHeader("版本列表", "查看并启动游戏文件夹中的版本、模组和资源包", headerActions),
@@ -3631,6 +3636,16 @@ public final class LauncherFrame extends JFrame {
                 if (listModel.get(i).id().equals(result.versionId())) {
                     versionList.setSelectedIndex(i);
                     versionList.ensureIndexIsVisible(i);
+                    break;
+                }
+            }
+        }
+        refreshInstancesPage();
+        if (result.versionId() != null) {
+            for (int i = 0; i < instancesListModel.size(); i++) {
+                if (instancesListModel.get(i).id().equals(result.versionId())) {
+                    instancesList.setSelectedIndex(i);
+                    instancesList.ensureIndexIsVisible(i);
                     break;
                 }
             }
