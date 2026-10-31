@@ -3651,15 +3651,16 @@ public final class LauncherFrame extends JFrame {
         new SwingWorker<ContentInstaller.Result, Void>() {
             @Override
             protected ContentInstaller.Result doInBackground() throws Exception {
-                String kind = archiveKind(archive);
+                Path actual = resolveModpackArchive(archive, 0);
+                String kind = archiveKind(actual);
                 if ("mrpack".equals(kind)) {
                     return new ModpackInstaller(config, taskProgress, taskToken,
                             new Modrinth(taskProgress, taskToken))
-                            .installArchive(archive, display);
+                            .installArchive(actual, display);
                 }
                 if ("curseforge".equals(kind)) {
                     return new CurseForgeModpackInstaller(config, taskProgress, taskToken)
-                            .installArchive(archive, display);
+                            .installArchive(actual, display);
                 }
                 throw new java.io.IOException("不是支持的整合包：需要 modrinth.index.json 或 manifest.json");
             }
@@ -3690,6 +3691,56 @@ public final class LauncherFrame extends JFrame {
                 }
             }
         }.execute();
+    }
+
+    private Path resolveModpackArchive(Path archive, int depth) throws java.io.IOException {
+        String kind = archiveKind(archive);
+        if (!kind.isBlank()) {
+            return archive;
+        }
+        if (depth >= 3) {
+            throw new java.io.IOException("整合包嵌套层数过多，请手动解压后再导入。");
+        }
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(archive.toFile())) {
+            java.util.List<? extends java.util.zip.ZipEntry> entries = zip.stream()
+                    .filter(entry -> !entry.isDirectory())
+                    .toList();
+            if (entries.size() == 1) {
+                java.util.zip.ZipEntry entry = entries.get(0);
+                String name = entry.getName();
+                if (name.toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
+                    Path inner = config.cacheDir().resolve("pack-import")
+                            .resolve("inner-" + System.nanoTime() + ".zip");
+                    Files.createDirectories(inner.getParent());
+                    try (var in = zip.getInputStream(entry)) {
+                        Files.copy(in, inner, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    try {
+                        return resolveModpackArchive(inner, depth + 1);
+                    } catch (java.io.IOException ex) {
+                        byte[] data = Files.readAllBytes(inner);
+                        String text = new String(data, java.nio.charset.StandardCharsets.UTF_8).trim();
+                        if (text.length() > 300) {
+                            text = text.substring(0, 300) + "…";
+                        }
+                        throw new java.io.IOException("外层 ZIP 里的 " + name
+                                + " 不是有效的整合包。\n\n内层内容：\n" + text
+                                + "\n\n这通常说明下载链接失效，文件只是一个错误响应。", ex);
+                    }
+                }
+            }
+            StringBuilder names = new StringBuilder();
+            for (int i = 0; i < Math.min(5, entries.size()); i++) {
+                if (i > 0) {
+                    names.append("\n");
+                }
+                names.append("· ").append(entries.get(i).getName());
+            }
+            throw new java.io.IOException("不是支持的整合包：根目录需要 manifest.json"
+                    + " 或 modrinth.index.json。\n\n当前 ZIP 内容：\n" + names);
+        } catch (java.util.zip.ZipException ex) {
+            throw new java.io.IOException("不是有效的 ZIP 文件，可能下载不完整。", ex);
+        }
     }
 
     private String archiveKind(Path archive) throws java.io.IOException {
