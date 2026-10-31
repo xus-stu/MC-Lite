@@ -46,10 +46,29 @@ public final class CurseForgeModpackInstaller {
         }
         net.download(packFile.url(), zipFile, packFile.sha1(), packFile.size(),
                 packFile.filename(), true);
+        String slug = project.slug() == null ? "curseforge-pack" : project.slug();
+        slug = slug.replaceAll("[^A-Za-z0-9._-]", "-");
+        return installArchive(zipFile, slug, project.title(), project.id(), version.id());
+    }
+
+    public ContentInstaller.Result installArchive(Path zipFile, String displayName)
+            throws IOException {
+        RegionGate.requireGameDownloadAllowed();
+        String slug = displayName == null ? "curseforge-pack"
+                : displayName.replaceAll("[^A-Za-z0-9._-]", "-");
+        if (slug.isBlank()) {
+            slug = "curseforge-pack";
+        }
+        return installArchive(zipFile, slug, displayName == null ? "本地整合包" : displayName,
+                "local", "local");
+    }
+
+    private ContentInstaller.Result installArchive(Path zipFile, String slug, String title,
+                                                    String projectId, String versionId)
+            throws IOException {
         Manifest manifest = readManifest(zipFile);
         String minecraft = manifest.minecraft;
         Path instances = config.gameDir().resolve("instances");
-        String slug = project.slug() == null ? "curseforge-pack" : project.slug();
         slug = slug.replaceAll("[^A-Za-z0-9._-]", "-");
         Path instance = instances.resolve(slug);
         if (Files.exists(instance)) {
@@ -92,10 +111,10 @@ public final class CurseForgeModpackInstaller {
         extractOverrides(zipFile, instance);
         Path marker = instance.resolve(".mclite/modpack.properties");
         Files.createDirectories(marker.getParent());
-        Files.writeString(marker, "project=" + project.id() + "\nversion=" + version.id()
+        Files.writeString(marker, "project=" + projectId + "\nversion=" + versionId
                 + "\nminecraft=" + minecraft + "\nloader=" + manifest.loaderType + "\n", StandardCharsets.UTF_8);
         return new ContentInstaller.Result(instance, loaderId == null ? minecraft : loaderId,
-                project.title() + " · " + minecraft);
+                title + " · " + minecraft);
     }
 
     private record Manifest(String minecraft, String loaderType, String loaderVersion,

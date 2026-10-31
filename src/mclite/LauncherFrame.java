@@ -166,6 +166,7 @@ public final class LauncherFrame extends JFrame {
     private Ui.AccentButton contentSearchButton;
     private Ui.AccentButton contentRefreshButton;
     private Ui.AccentButton contentMcmodButton;
+    private Ui.AccentButton contentImportButton;
     private Ui.AccentButton contentDetailButton;
     private JLabel contentSelectionLabel;
     private Ui.AccentButton downloadDetailButton;
@@ -913,6 +914,10 @@ public final class LauncherFrame extends JFrame {
         contentInstallButton.setMaximumSize(new Dimension(96, 30));
         contentInstallButton.setEnabled(false);
         contentInstallButton.addActionListener(e -> startContentInstall());
+        contentImportButton = Ui.smallButton("导入整合包 ZIP", Ui.AccentButton.Style.GHOST);
+        contentImportButton.setToolTipText("支持 Modrinth .mrpack 和 CurseForge 整合包 zip");
+        contentImportButton.addActionListener(e -> importLocalModpack());
+        contentImportButton.setVisible(false);
         contentDetailButton = Ui.smallButton("版本 / 详情", Ui.AccentButton.Style.SECONDARY);
         contentDetailButton.setPreferredSize(new Dimension(96, 30));
         contentDetailButton.setMaximumSize(new Dimension(96, 30));
@@ -956,6 +961,8 @@ public final class LauncherFrame extends JFrame {
         actions.add(contentNextPage);
         actions.add(Ui.hgap(10));
         actions.add(contentMcmodButton);
+        actions.add(Ui.hgap(8));
+        actions.add(contentImportButton);
         actions.add(Ui.hgap(8));
         actions.add(contentDetailButton);
         actions.add(Ui.hgap(8));
@@ -3534,6 +3541,98 @@ public final class LauncherFrame extends JFrame {
         updateContentSelection();
     }
 
+    private void importLocalModpack() {
+        if (busy) {
+            return;
+        }
+        javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
+        chooser.setDialogTitle("选择整合包 ZIP");
+        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "整合包 (*.zip, *.mrpack)", "zip", "mrpack"));
+        if (chooser.showOpenDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        Path archive = chooser.getSelectedFile().toPath();
+        String display = archive.getFileName().toString().replaceFirst("(?i)\\.(zip|mrpack)$", "");
+        beginTask("导入整合包 " + display);
+        new SwingWorker<ContentInstaller.Result, Void>() {
+            @Override
+            protected ContentInstaller.Result doInBackground() throws Exception {
+                String kind = archiveKind(archive);
+                if ("mrpack".equals(kind)) {
+                    return new ModpackInstaller(config, taskProgress, taskToken,
+                            new Modrinth(taskProgress, taskToken))
+                            .installArchive(archive, display);
+                }
+                if ("curseforge".equals(kind)) {
+                    return new CurseForgeModpackInstaller(config, taskProgress, taskToken)
+                            .installArchive(archive, display);
+                }
+                throw new java.io.IOException("不是支持的整合包：需要 modrinth.index.json 或 manifest.json");
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ContentInstaller.Result result = get();
+                    finishTask();
+                    applyImportedModpack(result);
+                    statusLabel.setText("整合包导入完成 · " + result.summary());
+                    statusLabel.setForeground(Theme.ACCENT);
+                } catch (Exception ex) {
+                    Throwable cause = unwrap(ex);
+                    if (!LauncherFrame.isCancelled(cause) && activeTask != null) {
+                        taskCenter.fail(activeTask, messageOf(cause, "失败"));
+                        refreshTasksButton();
+                    }
+                    finishTask();
+                    if (LauncherFrame.isCancelled(cause)) {
+                        statusLabel.setText("已取消");
+                    } else {
+                        Log.error("整合包导入失败", cause);
+                        statusLabel.setText("整合包导入失败");
+                        statusLabel.setForeground(Theme.DANGER);
+                        showError("整合包导入失败", messageOf(cause, "请确认 ZIP 是完整整合包。"));
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    private String archiveKind(Path archive) throws java.io.IOException {
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(archive.toFile())) {
+            if (zip.getEntry("modrinth.index.json") != null) {
+                return "mrpack";
+            }
+            if (zip.getEntry("manifest.json") != null) {
+                return "curseforge";
+            }
+        }
+        return "";
+    }
+
+    private void applyImportedModpack(ContentInstaller.Result result) {
+        Path instance = result.gameDir();
+        config.gameDir(instance);
+        config.save();
+        gamePaths = new GamePaths(instance);
+        gameDirField.setText(instance.toString());
+        refreshAllVersions();
+        refreshInstalledCache();
+        applyFilter();
+        if (result.versionId() != null) {
+            for (int i = 0; i < listModel.size(); i++) {
+                if (listModel.get(i).id().equals(result.versionId())) {
+                    versionList.setSelectedIndex(i);
+                    versionList.ensureIndexIsVisible(i);
+                    break;
+                }
+            }
+        }
+        updateContentSelection();
+        updateLaunchInfo();
+    }
+
     private void showDownloadTab(String type) {
         boolean versions = "versions".equals(type);
         if (downloadSubtabs != null) {
@@ -3563,6 +3662,9 @@ public final class LauncherFrame extends JFrame {
         }
         contentLoaderCombo.setVisible("mod".equals(type));
         contentLoaderCombo.setEnabled("mod".equals(type));
+        if (contentImportButton != null) {
+            contentImportButton.setVisible("modpack".equals(type));
+        }
         contentInstallButton.setText(switch (type) {
             case "mod" -> "安装模组";
             case "resourcepack" -> "安装资源包";

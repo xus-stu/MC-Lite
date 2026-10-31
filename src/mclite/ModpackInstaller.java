@@ -66,10 +66,27 @@ public final class ModpackInstaller {
         }
         net.download(packFile.url(), mrpack, packFile.sha1(), packFile.size(),
                 packFile.filename(), true);
-
-        PackIndex index = readIndex(mrpack);
         String slug = project.slug() == null || !project.slug().matches("[A-Za-z0-9._-]{1,60}")
                 ? project.id().substring(0, Math.min(8, project.id().length())) : project.slug();
+        return installArchive(mrpack, slug, project.title(), project.id(), packVersion.id());
+    }
+
+    public ContentInstaller.Result installArchive(Path mrpack, String displayName)
+            throws IOException {
+        RegionGate.requireGameDownloadAllowed();
+        String slug = displayName == null ? "local-pack"
+                : displayName.replaceAll("[^A-Za-z0-9._-]", "-");
+        if (slug.isBlank()) {
+            slug = "local-pack";
+        }
+        return installArchive(mrpack, slug, displayName == null ? "本地整合包" : displayName,
+                "local", "local");
+    }
+
+    private ContentInstaller.Result installArchive(Path mrpack, String slug, String title,
+                                                    String projectId, String versionId)
+            throws IOException {
+        PackIndex index = readIndex(mrpack);
         Path instances = config.gameDir().resolve("instances");
         Path instance = instances.resolve(slug);
         if (Files.exists(instance)) {
@@ -125,12 +142,12 @@ public final class ModpackInstaller {
         extractOverrides(mrpack, instance);
         Path marker = instance.resolve(".mclite/modpack.properties");
         Files.createDirectories(marker.getParent());
-        Files.writeString(marker, "project=" + project.id() + "\nversion=" + packVersion.id()
+        Files.writeString(marker, "project=" + projectId + "\nversion=" + versionId
                 + "\nminecraft=" + minecraft + "\nloader=" + loaderType + "\nloaderVersion="
                 + loaderVersion + "\n", StandardCharsets.UTF_8);
         return new ContentInstaller.Result(instance,
                 loaderVersionId == null ? minecraft : loaderVersionId,
-                project.title() + " · " + minecraft
+                title + " · " + minecraft
                         + (loaderType == null ? "" : " / " + loaderType));
     }
 
