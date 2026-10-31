@@ -108,14 +108,46 @@ public final class JavaManager {
                 }
                 Probe probe = probe(java);
                 if (probe.major() > 0) {
+                    String platform = readPlatform(dir.resolve(".complete"));
                     result.add(new JavaInfo(java, probe.major(),
-                            "Java " + probe.major() + " · Mojang 官方", dir.getFileName().toString(), true));
+                            "Java " + probe.major() + " · Mojang 官方" + archSuffix(platform),
+                            dir.getFileName().toString(), true));
                 }
             }
         } catch (IOException ex) {
             Log.warn("扫描官方 Java 运行时失败: " + ex.getMessage());
         }
         return result;
+    }
+
+    private static String readPlatform(Path marker) {
+        if (!Files.isRegularFile(marker)) {
+            return "";
+        }
+        Properties properties = new Properties();
+        try (var in = Files.newInputStream(marker)) {
+            properties.load(in);
+        } catch (IOException ignored) {
+            return "";
+        }
+        return properties.getProperty("platform", "");
+    }
+
+    private static String archSuffix(String platform) {
+        if (platform == null || platform.isBlank()) {
+            return "";
+        }
+        if (platform.contains("arm64") || platform.contains("aarch64")) {
+            return " · arm64";
+        }
+        if (platform.contains("x86") || platform.contains("i386")) {
+            return " · x86";
+        }
+        if (platform.equals("mac-os") || platform.equals("windows-x64")
+                || platform.equals("linux")) {
+            return " · x86_64";
+        }
+        return "";
     }
 
     public JavaInfo findInstalled(String component, int major) {
@@ -126,13 +158,51 @@ public final class JavaManager {
                 Probe probe = probe(java);
                 if (probe.major() > 0) {
                     return new JavaInfo(java, probe.major(),
-                            "Java " + probe.major() + " · Mojang 官方", component, true);
+                            "Java " + probe.major() + " · Mojang 官方"
+                                    + archSuffix(readPlatform(dir.resolve(".complete"))),
+                            component, true);
                 }
             }
         }
         for (JavaInfo info : installedRuntimes()) {
             if (info.major() == major) {
                 return info;
+            }
+        }
+        return null;
+    }
+
+    public JavaInfo findInstalled(String component, int major, String platform) {
+        if (platform == null || platform.isBlank()) {
+            return findInstalled(component, major);
+        }
+        if (component != null && component.matches("[a-z0-9-]{1,60}")) {
+            Path dir = config.runtimesDir().resolve(component);
+            Path java = runtimeJavaPath(dir);
+            Path marker = dir.resolve(".complete");
+            if (java != null && Files.isRegularFile(java) && Files.isRegularFile(marker)) {
+                String installedPlatform = readPlatform(marker);
+                if (installedPlatform.equals(platform)
+                        || (installedPlatform.isBlank() && "mac-os".equals(platform))) {
+                    Probe probe = probe(java);
+                    if (probe.major() > 0) {
+                        return new JavaInfo(java, probe.major(),
+                                "Java " + probe.major() + " · Mojang 官方"
+                                        + archSuffix(installedPlatform),
+                                component, true);
+                    }
+                }
+            }
+        }
+        for (JavaInfo info : installedRuntimes()) {
+            if (info.major() == major) {
+                Path dir = config.runtimesDir().resolve(
+                        info.component() == null ? "" : info.component());
+                String installedPlatform = readPlatform(dir.resolve(".complete"));
+                if (installedPlatform.equals(platform)
+                        || (installedPlatform.isBlank() && "mac-os".equals(platform))) {
+                    return info;
+                }
             }
         }
         return null;
@@ -177,6 +247,11 @@ public final class JavaManager {
     }
 
     public JavaInfo install(String component, int major) throws IOException {
+        return install(component, major, null);
+    }
+
+    public JavaInfo install(String component, int major, String platformOverride)
+            throws IOException {
         String requested = component;
         if (requested == null || requested.isBlank()) {
             requested = componentForMajor(major);
@@ -184,19 +259,20 @@ public final class JavaManager {
         if (requested == null || !requested.matches("[a-z0-9-]{1,60}")) {
             throw new IOException("无法确定该版本需要的 Java 运行时");
         }
-        JavaInfo existing = findInstalled(requested, major);
+        String platform = platformOverride == null || platformOverride.isBlank()
+                ? platformForMajor(major) : normalizePlatform(platformOverride);
+        JavaInfo existing = findInstalled(requested, major, platform);
         if (existing != null) {
             return existing;
         }
 
         Path runtimeIndex = fetchRuntimeIndex();
-        String platform = platformKey();
         Map<String, Object> index = Json.obj(Json.parse(Files.readString(runtimeIndex, StandardCharsets.UTF_8)));
         Map<String, Object> platformMap = Json.obj(index.get(platform));
         List<Object> candidates = Json.arr(platformMap.get(requested));
         if (candidates.isEmpty()) {
-            throw new IOException("Mojang 官方没有为当前平台提供 " + requested
-                    + "。请手动安装 Java " + major + " 并在设置中选择。");
+            throw new IOException("Mojang 官方没有为 " + platform + " 提供 " + requested
+                    + "。请换一个架构，或手动安装 Java " + major + " 并在设置中选择。");
         }
         Map<String, Object> chosen = null;
         String versionName = "";
@@ -221,7 +297,7 @@ public final class JavaManager {
             throw new IOException("官方 Java 运行时清单为空");
         }
 
-        Path root = config.runtimesDir().resolve(requested);
+        Path root = config.runtimesDir().resolve(runtimeDirName(requested, platform));
         Files.createDirectories(root);
 
         List<RuntimeFile> regularFiles = new ArrayList<>();
@@ -315,9 +391,10 @@ public final class JavaManager {
         }
 
         Properties marker = new Properties();
-        marker.setProperty("component", requested);
+        marker.setProperty("component", root.getFileName().toString());
         marker.setProperty("major", Integer.toString(probe.major()));
         marker.setProperty("version", versionName);
+        marker.setProperty("platform", platform);
         marker.setProperty("installedAt", Config.timestamp());
         marker.setProperty("javaPath", java.toString());
         Path complete = root.resolve(".complete");
@@ -386,6 +463,173 @@ public final class JavaManager {
                 Log.warn("无法创建 Java 运行时链接 " + linkPath.getFileName() + ": " + ex.getMessage());
             }
         }
+    }
+
+    public record PlatformOption(String label, String key) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    public static List<PlatformOption> platformOptions() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
+        boolean arm = arch.contains("aarch64") || arch.contains("arm64");
+        List<PlatformOption> options = new ArrayList<>();
+        options.add(new PlatformOption("自动（推荐）", ""));
+        if (os.contains("mac") || os.contains("darwin")) {
+            if (arm) {
+                options.add(new PlatformOption("Apple Silicon arm64", "mac-os-arm64"));
+                options.add(new PlatformOption("Intel / Rosetta x86_64", "mac-os"));
+            } else {
+                options.add(new PlatformOption("Intel x86_64", "mac-os"));
+            }
+        } else if (os.contains("win")) {
+            options.add(new PlatformOption("Windows x64", "windows-x64"));
+            options.add(new PlatformOption("Windows x86", "windows-x86"));
+        } else if (os.contains("linux")) {
+            options.add(new PlatformOption("Linux x64", "linux"));
+            options.add(new PlatformOption("Linux x86", "linux-i386"));
+        }
+        return options;
+    }
+
+    /** Returns a forced platform for old/native-x86 packs, or null for normal auto. */
+    public static String preferredPlatform(int major, VersionMeta meta) {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
+        boolean arm = arch.contains("aarch64") || arch.contains("arm64");
+        if ((os.contains("mac") || os.contains("darwin")) && arm) {
+            if (major <= 8) {
+                return "mac-os";
+            }
+            if (meta != null) {
+                boolean hasArm = false;
+                boolean hasMac = false;
+                for (VersionMeta.Library library : meta.libraries()) {
+                    String name = library.name() == null ? ""
+                            : library.name().toLowerCase(Locale.ROOT);
+                    if (name.contains("arm64") || name.contains("aarch64")) {
+                        hasArm = true;
+                    }
+                    for (String classifier : library.classifiers().keySet()) {
+                        String key = classifier.toLowerCase(Locale.ROOT);
+                        if (key.contains("arm64") || key.contains("aarch64")) {
+                            hasArm = true;
+                        }
+                        if (key.contains("macos") || key.contains("osx")) {
+                            hasMac = true;
+                        }
+                    }
+                    for (String nativeName : library.natives().values()) {
+                        String key = nativeName == null ? ""
+                                : nativeName.toLowerCase(Locale.ROOT);
+                        if (key.contains("arm64") || key.contains("aarch64")) {
+                            hasArm = true;
+                        }
+                        if (key.contains("macos") || key.contains("osx")) {
+                            hasMac = true;
+                        }
+                    }
+                }
+                if (hasMac && !hasArm) {
+                    return "mac-os";
+                }
+            }
+        }
+        return null;
+    }
+
+    public static boolean matchesPlatform(Config config, JavaInfo info, String platform) {
+        if (platform == null || platform.isBlank() || info == null) {
+            return true;
+        }
+        if (info.component() != null && !info.component().isBlank()) {
+            String marker = readPlatform(config.runtimesDir()
+                    .resolve(info.component()).resolve(".complete"));
+            if (!marker.isBlank()) {
+                return marker.equals(platform);
+            }
+        }
+        String arch = executableArch(info.path());
+        if (arch.isBlank()) {
+            return true;
+        }
+        if ("mac-os".equals(platform)) {
+            return arch.contains("x86");
+        }
+        if ("mac-os-arm64".equals(platform)) {
+            return arch.contains("arm");
+        }
+        if ("windows-x86".equals(platform) || "linux-i386".equals(platform)) {
+            return arch.contains("x86") && !arch.contains("x86_64");
+        }
+        return true;
+    }
+
+    private static String executableArch(Path java) {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (!(os.contains("mac") || os.contains("darwin"))) {
+            return "";
+        }
+        try {
+            Process process = new ProcessBuilder("/usr/bin/file", "-b", java.toString())
+                    .redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes(),
+                    StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+            if (!process.waitFor(3, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return "";
+            }
+            if (output.contains("arm64") || output.contains("aarch64")) {
+                return "arm64";
+            }
+            if (output.contains("x86_64")) {
+                return "x86_64";
+            }
+            if (output.contains("i386")) {
+                return "x86";
+            }
+        } catch (Exception ignored) {
+        }
+        return "";
+    }
+
+    public static boolean rosettaAvailable() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
+        boolean arm = arch.contains("aarch64") || arch.contains("arm64");
+        if (!(os.contains("mac") || os.contains("darwin")) || !arm) {
+            return true;
+        }
+        return Files.exists(Path.of("/Library/Apple/usr/libexec/oah"));
+    }
+
+    public static String platformForMajor(int major) throws IOException {
+        String platform = platformKey();
+        if (major <= 8) {
+            if ("mac-os-arm64".equals(platform)) {
+                return "mac-os";
+            }
+            if ("windows-arm64".equals(platform)) {
+                return "windows-x64";
+            }
+        }
+        return platform;
+    }
+
+    private static String runtimeDirName(String requested, String platform) {
+        return requested + "-" + platform.replace("windows-", "win-")
+                .replace("linux-i386", "linux-x86").replace("mac-os", "macos");
+    }
+
+    private static String normalizePlatform(String platform) throws IOException {
+        return switch (platform) {
+            case "mac-os", "mac-os-arm64", "windows-x64", "windows-x86",
+                    "linux", "linux-i386" -> platform;
+            default -> throw new IOException("不支持的 Java 平台: " + platform);
+        };
     }
 
     public static String componentForMajor(int major) {

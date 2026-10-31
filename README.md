@@ -13,7 +13,9 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 - 每个版本可以单独隔离存档、模组、资源包和配置。
 - 扫描本地 `versions/`，也支持导入 HMCL 的游戏目录。
 - 离线账户的创建、切换、删除，以及皮肤头像。
-- 自动检测 Java；缺少运行时可以从 Mojang 下载，也可以手动添加 `java` / `java.exe`。
+- 自动检测 Java；缺少运行时会自动从 Mojang 下载，也可以手动添加 `java` / `java.exe`。
+- Java 管理列表新增「下载 Java…」，可选 Java 8/17/21 和 arm64/x86_64 架构。
+- Apple Silicon 上 Java 8 自动使用 x86_64 + Rosetta；整合包声明 x86-only native 时自动选 x86。
 - 调整内存、JVM 参数、窗口大小和界面 CSS。
 - 下载模组、资源包和光影，支持 Modrinth、CurseForge 和 MC百科中文搜索。
 - 版本详情会显示必需前置、内置模组和可选前置，安装时自动补齐必需前置。
@@ -25,7 +27,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 
 ## 运行
 
-当前版本：V1.1.53
+当前版本：V1.1.54
 
 需要 Java 21 或更高版本。
 
@@ -33,7 +35,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.53.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.54.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -44,7 +46,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.53-region.jar
+java -jar dist/MCLite_v1.1.54-region.jar
 ```
 
 ## 地区限制
@@ -88,18 +90,18 @@ java -jar dist/MCLite_v1.1.53-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.53.jar
-dist/MCLite_v1.1.53-region.jar
+dist/MCLite_v1.1.54.jar
+dist/MCLite_v1.1.54-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.53.app
-dist/MC Lite Region v1.1.53.app
-dist/MC-Lite_v1.1.53_macOS.zip
-dist/MC-Lite_v1.1.53_region_macOS.zip
-dist/MC-Lite_v1.1.53_region_Windows.zip
+dist/MC Lite v1.1.54.app
+dist/MC Lite Region v1.1.54.app
+dist/MC-Lite_v1.1.54_macOS.zip
+dist/MC-Lite_v1.1.54_region_macOS.zip
+dist/MC-Lite_v1.1.54_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.53_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.54_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -150,7 +152,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.53_Setup.exe
+dist/MC-Lite_v1.1.54_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -168,7 +170,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.53.jar --software-render
+java -jar dist/MCLite_v1.1.54.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
