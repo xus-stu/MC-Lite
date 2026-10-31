@@ -66,49 +66,42 @@ public final class ModpackInstaller {
         }
         net.download(packFile.url(), mrpack, packFile.sha1(), packFile.size(),
                 packFile.filename(), true);
-        String slug = project.slug() == null || !project.slug().matches("[A-Za-z0-9._-]{1,60}")
-                ? project.id().substring(0, Math.min(8, project.id().length())) : project.slug();
-        return installArchive(mrpack, slug, project.title(), project.id(), packVersion.id());
+        Path root = config.instancesRoot();
+        String versionName = versionIdFor(root,
+                project.title() == null ? project.slug() : project.title(), "整合包");
+        return installArchive(mrpack, versionName, project.title(), project.id(), packVersion.id());
     }
 
     public ContentInstaller.Result installArchive(Path mrpack, String displayName)
             throws IOException {
         RegionGate.requireGameDownloadAllowed();
-        String slug = displayName == null ? "local-pack"
-                : displayName.replaceAll("[^A-Za-z0-9._-]", "-");
-        if (slug.isBlank()) {
-            slug = "local-pack";
-        }
-        if (slug.length() > 60) {
-            slug = slug.substring(0, 60);
-        }
-        return installArchive(mrpack, slug, displayName == null ? "本地整合包" : displayName,
-                "local", "local");
+        String title = displayName == null || displayName.isBlank()
+                ? "本地整合包" : displayName.trim();
+        Path root = config.instancesRoot();
+        String versionName = versionIdFor(root, title, "整合包");
+        return installArchive(mrpack, versionName, title, "local", "local");
     }
 
     private ContentInstaller.Result installArchive(Path mrpack, String slug, String title,
                                                     String projectId, String versionId)
             throws IOException {
         PackIndex index = readIndex(mrpack);
-        Path instances = config.modpackInstancesDir();
-        Path instance = instances.resolve(slug);
-        if (Files.exists(instance)) {
-            instance = instances.resolve(slug + "-" + System.currentTimeMillis() % 100000);
-        }
-        Files.createDirectories(instance);
-
         String minecraft = index.dependencies.get("minecraft");
         if (minecraft == null) {
             throw new IOException("整合包没有声明 Minecraft 版本");
         }
+        Path root = config.instancesRoot();
+        Path versionDir = root.resolve("versions").resolve(slug);
+        Files.createDirectories(versionDir);
+
         Versions.FetchResult fetched = Versions.fetch(config, progress, token);
         VersionManifest.VersionEntry vanilla = fetched.manifest().find(minecraft);
         if (vanilla == null) {
             throw new IOException("官方清单中找不到 Minecraft " + minecraft);
         }
-        Config instanceConfig = config.copyForGameDir(instance);
-        progress.stage("安装 Minecraft " + minecraft + " 到实例…");
-        new Installer(instanceConfig, token, progress).install(vanilla, config.downloadAssets());
+        Config rootConfig = config.copyForGameDir(root);
+        progress.stage("安装 Minecraft " + minecraft + " 到当前目录…");
+        new Installer(rootConfig, token, progress).install(vanilla, config.downloadAssets());
 
         String loaderType = null;
         String loaderVersion = null;
@@ -119,15 +112,15 @@ public final class ModpackInstaller {
                 break;
             }
         }
-        String loaderVersionId = null;
+        String baseId = minecraft;
         if (loaderType != null) {
             progress.stage("安装 " + loaderType + " 加载器 " + loaderVersion + "…");
-            JavaManager manager = new JavaManager(instanceConfig, progress, token);
+            JavaManager manager = new JavaManager(rootConfig, progress, token);
             java.util.List<JavaManager.JavaInfo> javas = manager.detectAll();
             int required = 8;
             String component = null;
             try {
-                Path versionJson = new GamePaths(instance).versionJson(minecraft);
+                Path versionJson = new GamePaths(root).versionJson(minecraft);
                 VersionMeta vanillaMeta = VersionMeta.parse(Files.readString(versionJson), minecraft);
                 required = vanillaMeta.javaMajor();
                 component = vanillaMeta.javaComponent();
@@ -137,21 +130,49 @@ public final class ModpackInstaller {
             if (java == null) {
                 throw new IOException("安装加载器需要 Java，但没有检测到可用运行时");
             }
-            loaderVersionId = new LoaderInstaller(instanceConfig, progress, token)
+            String loaderId = new LoaderInstaller(rootConfig, progress, token)
                     .install(loaderType, minecraft, loaderVersion, java);
+            if (loaderId != null && !loaderId.isBlank()) {
+                baseId = loaderId;
+            }
         }
 
-        downloadPackFiles(instance, index.files);
-        extractOverrides(mrpack, instance);
-        Path marker = instance.resolve(".mclite/modpack.properties");
+        downloadPackFiles(versionDir, index.files);
+        extractOverrides(mrpack, versionDir);
+        Path marker = versionDir.resolve(".mclite/modpack.properties");
         Files.createDirectories(marker.getParent());
         Files.writeString(marker, "project=" + projectId + "\nversion=" + versionId
                 + "\nminecraft=" + minecraft + "\nloader=" + loaderType + "\nloaderVersion="
                 + loaderVersion + "\n", StandardCharsets.UTF_8);
-        return new ContentInstaller.Result(instance,
-                loaderVersionId == null ? minecraft : loaderVersionId,
+        Map<String, Object> versionJson = new java.util.LinkedHashMap<>();
+        versionJson.put("id", slug);
+        versionJson.put("inheritsFrom", baseId);
+        versionJson.put("type", "release");
+        Files.writeString(versionDir.resolve(slug + ".json"),
+                LoaderInstaller.prettyJson(versionJson), StandardCharsets.UTF_8);
+        return new ContentInstaller.Result(root, slug,
                 title + " · " + minecraft
                         + (loaderType == null ? "" : " / " + loaderType));
+    }
+
+    static String versionIdFor(Path root, String name, String fallback) {
+        String id = name == null ? "" : name.trim()
+                .replaceAll("[\\\\/:*?\"<>|]", "-").replaceAll("\\s+", " ").trim();
+        if (id.isEmpty()) {
+            id = fallback;
+        }
+        if (id.length() > 80) {
+            id = id.substring(0, 80).trim();
+        }
+        if (!VersionIds.valid(id)) {
+            id = fallback;
+        }
+        String base = id;
+        Path versions = root.resolve("versions");
+        for (int suffix = 2; Files.exists(versions.resolve(id)); suffix++) {
+            id = base + "-" + suffix;
+        }
+        return id;
     }
 
     private record PackIndex(Map<String, String> dependencies, List<PackFile> files) {

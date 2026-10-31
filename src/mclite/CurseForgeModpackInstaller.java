@@ -46,24 +46,20 @@ public final class CurseForgeModpackInstaller {
         }
         net.download(packFile.url(), zipFile, packFile.sha1(), packFile.size(),
                 packFile.filename(), true);
-        String slug = project.slug() == null ? "curseforge-pack" : project.slug();
-        slug = slug.replaceAll("[^A-Za-z0-9._-]", "-");
-        return installArchive(zipFile, slug, project.title(), project.id(), version.id());
+        Path root = config.instancesRoot();
+        String versionName = ModpackInstaller.versionIdFor(root,
+                project.title() == null ? project.slug() : project.title(), "整合包");
+        return installArchive(zipFile, versionName, project.title(), project.id(), version.id());
     }
 
     public ContentInstaller.Result installArchive(Path zipFile, String displayName)
             throws IOException {
         RegionGate.requireGameDownloadAllowed();
-        String slug = displayName == null ? "curseforge-pack"
-                : displayName.replaceAll("[^A-Za-z0-9._-]", "-");
-        if (slug.isBlank()) {
-            slug = "curseforge-pack";
-        }
-        if (slug.length() > 60) {
-            slug = slug.substring(0, 60);
-        }
-        return installArchive(zipFile, slug, displayName == null ? "本地整合包" : displayName,
-                "local", "local");
+        String title = displayName == null || displayName.isBlank()
+                ? "本地整合包" : displayName.trim();
+        Path root = config.instancesRoot();
+        String versionName = ModpackInstaller.versionIdFor(root, title, "整合包");
+        return installArchive(zipFile, versionName, title, "local", "local");
     }
 
     private ContentInstaller.Result installArchive(Path zipFile, String slug, String title,
@@ -71,33 +67,29 @@ public final class CurseForgeModpackInstaller {
             throws IOException {
         Manifest manifest = readManifest(zipFile);
         String minecraft = manifest.minecraft;
-        Path instances = config.modpackInstancesDir();
-        slug = slug.replaceAll("[^A-Za-z0-9._-]", "-");
-        Path instance = instances.resolve(slug);
-        if (Files.exists(instance)) {
-            instance = instances.resolve(slug + "-" + System.currentTimeMillis() % 100000);
-        }
-        Files.createDirectories(instance);
-        Config instanceConfig = config.copyForGameDir(instance);
+        Path root = config.instancesRoot();
+        Path versionDir = root.resolve("versions").resolve(slug);
+        Files.createDirectories(versionDir);
+        Config rootConfig = config.copyForGameDir(root);
 
         Versions.FetchResult fetched = Versions.fetch(config, progress, token);
         VersionManifest.VersionEntry vanilla = fetched.manifest().find(minecraft);
         if (vanilla == null) {
             throw new IOException("官方清单中找不到 Minecraft " + minecraft);
         }
-        progress.stage("安装 Minecraft " + minecraft + " 到整合包实例…");
-        new Installer(instanceConfig, token, progress).install(vanilla, config.downloadAssets());
+        progress.stage("安装 Minecraft " + minecraft + " 到当前目录…");
+        new Installer(rootConfig, token, progress).install(vanilla, config.downloadAssets());
 
-        String loaderId = null;
+        String baseId = minecraft;
         if (manifest.loaderType != null) {
             progress.stage("安装 " + manifest.loaderType + " " + manifest.loaderVersion + "…");
-            java.util.List<JavaManager.JavaInfo> javas = new JavaManager(instanceConfig, progress,
+            java.util.List<JavaManager.JavaInfo> javas = new JavaManager(rootConfig, progress,
                     token).detectAll();
             int required = 8;
             String component = null;
             try {
                 VersionMeta meta = VersionMeta.parse(Files.readString(
-                        new GamePaths(instance).versionJson(minecraft)), minecraft);
+                        new GamePaths(root).versionJson(minecraft)), minecraft);
                 required = meta.javaMajor();
                 component = meta.javaComponent();
             } catch (Exception ignored) {
@@ -106,17 +98,26 @@ public final class CurseForgeModpackInstaller {
             if (java == null) {
                 throw new IOException("安装加载器需要 Java");
             }
-            loaderId = new LoaderInstaller(instanceConfig, progress, token)
+            String loaderId = new LoaderInstaller(rootConfig, progress, token)
                     .install(manifest.loaderType, minecraft, manifest.loaderVersion, java);
+            if (loaderId != null && !loaderId.isBlank()) {
+                baseId = loaderId;
+            }
         }
 
-        downloadFiles(instance, manifest.files);
-        extractOverrides(zipFile, instance);
-        Path marker = instance.resolve(".mclite/modpack.properties");
+        downloadFiles(versionDir, manifest.files);
+        extractOverrides(zipFile, versionDir);
+        Path marker = versionDir.resolve(".mclite/modpack.properties");
         Files.createDirectories(marker.getParent());
         Files.writeString(marker, "project=" + projectId + "\nversion=" + versionId
                 + "\nminecraft=" + minecraft + "\nloader=" + manifest.loaderType + "\n", StandardCharsets.UTF_8);
-        return new ContentInstaller.Result(instance, loaderId == null ? minecraft : loaderId,
+        Map<String, Object> versionJson = new java.util.LinkedHashMap<>();
+        versionJson.put("id", slug);
+        versionJson.put("inheritsFrom", baseId);
+        versionJson.put("type", "release");
+        Files.writeString(versionDir.resolve(slug + ".json"),
+                LoaderInstaller.prettyJson(versionJson), StandardCharsets.UTF_8);
+        return new ContentInstaller.Result(root, slug,
                 title + " · " + minecraft);
     }
 
