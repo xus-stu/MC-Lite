@@ -368,6 +368,7 @@ public final class Ui {
                 return;
             }
             Graphics2D g2 = (Graphics2D) g.create();
+            g2.clipRect(0, 0, getWidth(), getHeight());
             g2.setComposite(java.awt.AlphaComposite.SrcOver.derive(Math.max(0f, alpha)));
             g2.translate(0, offset);
             super.paintChildren(g2);
