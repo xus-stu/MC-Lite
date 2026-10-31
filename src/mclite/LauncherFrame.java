@@ -879,7 +879,7 @@ public final class LauncherFrame extends JFrame {
         contentList.setFixedCellHeight(64);
         contentList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         contentList.setCellRenderer(new ContentRenderer());
-        contentList.setBorder(new EmptyBorder(4, 8, 8, 8));
+        contentList.setBorder(new EmptyBorder(4, 8, 14, 8));
         contentList.addListSelectionListener(e -> updateContentSelection());
         contentList.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
             @Override
@@ -909,6 +909,7 @@ public final class LauncherFrame extends JFrame {
         page.add(contentListFade, BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(12, 0));
+        bottom.setOpaque(true);
         bottom.setBackground(Theme.CARD);
         bottom.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(1, 0, 0, 0, Theme.BORDER),
