@@ -144,7 +144,7 @@ public final class Net {
                         downloadTimeout(expectedSize).toMillis(), TimeUnit.MILLISECONDS);
                 try (InputStream in = body) {
                     if (response.statusCode() != 200) {
-                        throw new IOException("HTTP " + response.statusCode() + "：" + label);
+                        throw httpError(response.statusCode(), label, url);
                     }
                     checkFinalUri(response.uri(), request.uri());
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -240,7 +240,7 @@ public final class Net {
                         downloadTimeout(expectedSize).toMillis(), TimeUnit.MILLISECONDS);
                 try (InputStream in = body) {
                     if (response.statusCode() != 200) {
-                        throw new IOException("HTTP " + response.statusCode() + "：" + label);
+                        throw httpError(response.statusCode(), label, url);
                     }
                     checkFinalUri(response.uri(), request.uri());
                     Files.deleteIfExists(temp);
@@ -778,12 +778,22 @@ public final class Net {
         }
     }
 
+    private static IOException httpError(int status, String label, String url) {
+        String host = "";
+        try {
+            host = java.net.URI.create(url).getHost();
+        } catch (RuntimeException ignored) {
+        }
+        return new IOException("HTTP " + status + "：" + label
+                + (host == null || host.isBlank() ? "" : "（" + host + "）"));
+    }
+
     private static Duration downloadTimeout(long expectedSize) {
         if (expectedSize <= 0) {
             return Duration.ofMinutes(2);
         }
-        long seconds = Math.max(3, Math.min(120,
-                expectedSize / (1024L * 1024L) + 2));
+        long seconds = Math.max(20, Math.min(180,
+                expectedSize / (512L * 1024L) + 10));
         return Duration.ofSeconds(seconds);
     }
 
