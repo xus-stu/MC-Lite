@@ -194,7 +194,13 @@ public final class SelfTest {
                             && Recommendations.forLoader("fabric").stream()
                             .anyMatch(item -> item.slug().equals("emi")),
                     "实用类模组推荐");
-            passed += 3;
+            String[] fabricLoader = CurseForgeModpackInstaller.parseLoader("fabric-loader-0.20.1");
+            check("fabric".equals(fabricLoader[0]) && "0.20.1".equals(fabricLoader[1]),
+                    "CurseForge Fabric 加载器 ID");
+            String[] forgeLoader = CurseForgeModpackInstaller.parseLoader("1.21.1-forge-52.0.1");
+            check("forge".equals(forgeLoader[0]) && "52.0.1".equals(forgeLoader[1]),
+                    "CurseForge Forge 加载器 ID");
+            passed += 5;
 
             Path mergeRoot = work.resolve("merge");
             Path mergeBase = mergeRoot.resolve("versions/1.21");

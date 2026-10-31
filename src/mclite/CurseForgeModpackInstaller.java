@@ -121,6 +121,32 @@ public final class CurseForgeModpackInstaller {
                 title + " · " + minecraft);
     }
 
+    static String[] parseLoader(String loaderId) {
+        String id = loaderId == null ? "" : loaderId.trim();
+        String lower = id.toLowerCase(java.util.Locale.ROOT);
+        for (String prefix : new String[]{"fabric-loader-", "quilt-loader-"}) {
+            if (lower.startsWith(prefix)) {
+                return new String[]{prefix.substring(0, prefix.indexOf('-')),
+                        id.substring(prefix.length())};
+            }
+        }
+        if (lower.startsWith("neoforge-")) {
+            return new String[]{"neoforge", id.substring("neoforge-".length())};
+        }
+        if (lower.startsWith("forge-")) {
+            return new String[]{"forge", id.substring("forge-".length())};
+        }
+        int forge = lower.indexOf("-forge-");
+        if (forge > 0) {
+            return new String[]{"forge", id.substring(forge + "-forge-".length())};
+        }
+        int dash = id.indexOf('-');
+        if (dash > 0) {
+            return new String[]{id.substring(0, dash), id.substring(dash + 1)};
+        }
+        return new String[]{null, null};
+    }
+
     private record Manifest(String minecraft, String loaderType, String loaderVersion,
                             List<FileRef> files) {
     }
@@ -159,11 +185,9 @@ public final class CurseForgeModpackInstaller {
             String loaderType = null;
             String loaderVersion = null;
             if (loaderId != null) {
-                int dash = loaderId.indexOf('-');
-                if (dash > 0) {
-                    loaderType = loaderId.substring(0, dash);
-                    loaderVersion = loaderId.substring(dash + 1);
-                }
+                String[] parsed = parseLoader(loaderId);
+                loaderType = parsed[0];
+                loaderVersion = parsed[1];
             }
             List<FileRef> files = new ArrayList<>();
             for (Object raw : Json.arr(root.get("files"))) {
