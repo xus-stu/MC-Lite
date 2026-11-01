@@ -184,7 +184,7 @@ public final class GameLauncher {
         }
         if (config.autoJvmTuning() && !hasMetadataJvmTuning(metadataJvm)) {
             JvmTuner.Tuning tuning = JvmTuner.tune(javaPath, meta.javaMajor(),
-                    config.effectiveMemoryMb());
+                    config.effectiveMemoryMb(), entry.id());
             if (tuning.applied()) {
                 command.addAll(tuning.args());
                 Log.info("JVM 自动优化: " + tuning.reason());

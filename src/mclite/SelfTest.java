@@ -256,7 +256,11 @@ public final class SelfTest {
                     "整合包生成独立版本文件夹");
             LoaderInstaller.removeVersionIfUnused(standaloneRoot, "1.21");
             check(!Files.exists(standaloneBase), "独立整合包清理临时原版文件夹");
-            passed += 2;
+            check(JvmTuner.isLegacyGame("1.12.2") && !JvmTuner.isLegacyGame("1.21.1"),
+                    "低版本 JVM 参数识别");
+            check(JvmTuner.java8Args(4096).contains("-XX:+UseParallelGC"),
+                    "Java 8 使用 ParallelGC");
+            passed += 4;
 
         check(UpdateInstaller.versionedName("MCLite_v1.1.33.jar", "1.1.34", false)
                         .equals("MCLite_v1.1.34.jar"),
