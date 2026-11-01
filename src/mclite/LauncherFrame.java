@@ -1120,11 +1120,12 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void updateAutoMemoryControls() {
-        if (autoMemoryToggle == null) {
+        if (autoMemoryToggle == null || memorySlider == null) {
             return;
         }
         String versionId = selectedEntry == null ? null : selectedEntry.id();
-        int memory = config.effectiveMemoryMb(versionId);
+        int memory = selectedMeta != null ? config.effectiveMemoryMb(selectedMeta)
+                : config.effectiveMemoryMb(versionId);
         autoMemoryToggle.setText("自动分配内存（推荐 " + memory + " MB）");
         memorySlider.setEnabled(!config.autoMemory());
         if (config.autoMemory()) {
@@ -1140,9 +1141,9 @@ public final class LauncherFrame extends JFrame {
         updateVersionPicker();
         launchMeta.setText(detailMeta == null ? "" : detailMeta.getText());
         launchAccount.setText(config.username() + "  ·  离线账户");
-        launchMemory.setText(config.effectiveMemoryMb(
-                selectedEntry == null ? null : selectedEntry.id()) + " MB"
-                + (config.autoMemory() ? "（自动）" : ""));
+        launchMemory.setText((selectedMeta != null ? config.effectiveMemoryMb(selectedMeta)
+                : config.effectiveMemoryMb(selectedEntry == null ? null : selectedEntry.id()))
+                + " MB" + (config.autoMemory() ? "（自动）" : ""));
         String jvm = config.jvmArgs().isBlank() ? "" : config.jvmArgs();
         if (config.autoJvmTuning()) {
             jvm = jvm.isBlank() ? "自动优化（按 Java/版本选择 GC）"
@@ -5067,6 +5068,7 @@ public final class LauncherFrame extends JFrame {
             statusLabel.setForeground(Theme.DIM);
         }
         updateLaunchInfo();
+        updateAutoMemoryControls();
         updateButtons();
     }
 

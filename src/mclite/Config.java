@@ -421,10 +421,19 @@ public final class Config {
     }
 
     public int effectiveMemoryMb() {
-        return effectiveMemoryMb(null);
+        return effectiveMemoryMb((String) null);
     }
 
     public int effectiveMemoryMb(String versionId) {
+        return effectiveMemoryMb(versionId, null);
+    }
+
+    public int effectiveMemoryMb(VersionMeta meta) {
+        return meta == null ? effectiveMemoryMb()
+                : effectiveMemoryMb(meta.id(), meta.releaseTime());
+    }
+
+    public int effectiveMemoryMb(String versionId, String releaseTime) {
         if (!autoMemory) {
             return memoryMb;
         }
@@ -443,7 +452,7 @@ public final class Config {
         } else {
             recommended = 12288;
         }
-        int tier = JvmTuner.legacyTier(versionId);
+        int tier = JvmTuner.legacyTier(versionId, releaseTime);
         if (tier >= 2) {
             // 1.8.9 and older: more heap usually makes startup/GC worse.
             recommended = Math.min(recommended, 3072);

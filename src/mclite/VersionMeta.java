@@ -22,12 +22,13 @@ public final class VersionMeta {
     private final String loggingArgument;
     private final String javaComponent;
     private final int javaMajor;
+    private final String releaseTime;
 
     private VersionMeta(String id, String clientJarId, String type, String mainClass,
                         String assetsId, AssetIndex assetIndex,
                         Download client, List<Library> libraries, List<Arg> jvmArgs, List<Arg> gameArgs,
                         String legacyArguments, Download loggingFile, String loggingArgument,
-                        String javaComponent, int javaMajor) {
+                        String javaComponent, int javaMajor, String releaseTime) {
         this.id = id;
         this.clientJarId = clientJarId;
         this.type = type;
@@ -43,6 +44,7 @@ public final class VersionMeta {
         this.loggingArgument = loggingArgument;
         this.javaComponent = javaComponent;
         this.javaMajor = javaMajor;
+        this.releaseTime = releaseTime == null ? "" : releaseTime;
     }
 
     public static VersionMeta parse(String json, String fallbackId) {
@@ -121,7 +123,7 @@ public final class VersionMeta {
         return new VersionMeta(id, clientJarId == null ? id : clientJarId, type, mainClass,
                 assetsId, assetIndex, client, libraries,
                 jvmArgs, gameArgs, legacyArguments, loggingFile, loggingArgument,
-                javaComponent, javaMajor);
+                javaComponent, javaMajor, Json.str(root, "releaseTime", ""));
     }
 
     private static int inferJavaMajor(String assetsId) {
@@ -186,6 +188,10 @@ public final class VersionMeta {
 
     public int javaMajor() {
         return javaMajor;
+    }
+
+    public String releaseTime() {
+        return releaseTime;
     }
 
     public record AssetIndex(String id, String url, String sha1, long size, long totalSize) {

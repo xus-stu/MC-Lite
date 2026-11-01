@@ -27,14 +27,19 @@ public final class JvmTuner {
     }
 
     public static Tuning tune(Path java, int major, int memoryMb) {
-        return tune(java, major, memoryMb, "");
+        return tune(java, major, memoryMb, "", "");
     }
 
     public static Tuning tune(Path java, int major, int memoryMb, String gameVersion) {
+        return tune(java, major, memoryMb, gameVersion, "");
+    }
+
+    public static Tuning tune(Path java, int major, int memoryMb, String gameVersion,
+                              String releaseTime) {
         if (java == null || major < 8) {
             return new Tuning(List.of(), "Java 版本不支持自动 GC 参数");
         }
-        boolean legacy = isLegacyGame(gameVersion);
+        boolean legacy = legacyTier(gameVersion, releaseTime) > 0;
         String key = java.toAbsolutePath().normalize() + "|" + major + "|"
                 + Math.max(1, memoryMb / 1024) + "|" + (major <= 8 ? "java8" : legacy ? "legacy" : "modern");
         Tuning cached = CACHE.get(key);
@@ -58,24 +63,38 @@ public final class JvmTuner {
 
     /** 2 = 1.8.9 and older, 1 = 1.12.2 and older, 0 = newer. */
     static int legacyTier(String version) {
-        if (version == null || version.isBlank()) {
-            return 0;
-        }
-        Matcher matcher = LEGACY_VERSION.matcher(version);
-        if (!matcher.find()) {
-            return 0;
-        }
-        try {
-            int minor = Integer.parseInt(matcher.group(2));
-            if (minor <= 8) {
-                return 2;
+        return legacyTier(version, null);
+    }
+
+    static int legacyTier(String version, String releaseTime) {
+        int byVersion = 0;
+        if (version != null) {
+            Matcher matcher = LEGACY_VERSION.matcher(version);
+            if (matcher.find()) {
+                try {
+                    int minor = Integer.parseInt(matcher.group(2));
+                    if (minor <= 8) {
+                        byVersion = 2;
+                    } else if (minor <= 12) {
+                        byVersion = 1;
+                    }
+                } catch (NumberFormatException ignored) {
+                }
             }
-            if (minor <= 12) {
-                return 1;
-            }
-        } catch (NumberFormatException ignored) {
         }
-        return 0;
+        int byRelease = 0;
+        if (releaseTime != null && releaseTime.length() >= 4) {
+            try {
+                int year = Integer.parseInt(releaseTime.substring(0, 4));
+                if (year <= 2015) {
+                    byRelease = 2;
+                } else if (year <= 2017) {
+                    byRelease = 1;
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return Math.max(byVersion, byRelease);
     }
 
     static List<String> java8Args(int memoryMb) {
