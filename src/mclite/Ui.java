@@ -31,6 +31,8 @@ import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.FileDialog;
 import java.awt.Frame;
+import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.GradientPaint;
@@ -40,6 +42,8 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.nio.file.Path;
 
@@ -268,6 +272,9 @@ public final class Ui {
 
     private static Path showFileDialog(Component parent, String title, Path initial,
                                        boolean directory, String[] extensions) {
+        if (isMac()) {
+            return macFileDialog(title, initial, directory);
+        }
         String dialogTitle = title == null ? "选择" : title;
         FileDialog picker;
         if (parent instanceof Frame frame) {
@@ -321,6 +328,48 @@ public final class Ui {
         Path selected = dir == null || dir.isBlank()
                 ? Path.of(name) : Path.of(dir, name);
         return selected.toAbsolutePath().normalize();
+    }
+
+    private static Path macFileDialog(String title, Path initial, boolean directory) {
+        String prompt = escapeAppleScript(title == null ? "选择" : title);
+        Path location = initial;
+        if (!directory && location != null
+                && !java.nio.file.Files.isDirectory(location)) {
+            location = location.getParent();
+        }
+        StringBuilder script = new StringBuilder();
+        script.append(directory ? "set p to choose folder with prompt \"" :
+                "set p to choose file with prompt \"").append(prompt).append("\"");
+        if (location != null && java.nio.file.Files.exists(location)) {
+            script.append(" default location (POSIX file \"")
+                    .append(escapeAppleScript(location.toString())).append("\")");
+        }
+        script.append("\nreturn POSIX path of p");
+        try {
+            Process process = new ProcessBuilder("/usr/bin/osascript", "-e", script.toString())
+                    .redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).trim();
+            if (!process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return null;
+            }
+            if (process.exitValue() != 0 || output.isEmpty()) {
+                return null;
+            }
+            return Path.of(output).toAbsolutePath().normalize();
+        } catch (Exception ex) {
+            Log.warn("macOS 文件选择窗口失败: " + ex.getMessage());
+            return null;
+        }
+    }
+
+    private static String escapeAppleScript(String text) {
+        return text.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static boolean isMac() {
+        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
     }
 
     public static final class FadePanel extends JPanel {
@@ -624,6 +673,41 @@ public final class Ui {
         }
     }
 
+    private static void installPaste(JTextField field) {
+        javax.swing.AbstractAction paste = new javax.swing.AbstractAction("paste") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent event) {
+                try {
+                    Object value = Toolkit.getDefaultToolkit().getSystemClipboard()
+                            .getData(DataFlavor.stringFlavor);
+                    if (value != null) {
+                        field.replaceSelection(value.toString()
+                                .replace('\n', ' ').replace('\r', ' '));
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        };
+        field.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+                .put(javax.swing.KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.META_DOWN_MASK),
+                        "mclite-paste");
+        field.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+                .put(javax.swing.KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_DOWN_MASK),
+                        "mclite-paste");
+        field.getActionMap().put("mclite-paste", paste);
+        javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+        javax.swing.JMenuItem cut = new javax.swing.JMenuItem("剪切");
+        cut.addActionListener(e -> field.cut());
+        javax.swing.JMenuItem copy = new javax.swing.JMenuItem("复制");
+        copy.addActionListener(e -> field.copy());
+        javax.swing.JMenuItem pasteItem = new javax.swing.JMenuItem("粘贴");
+        pasteItem.addActionListener(e -> paste.actionPerformed(null));
+        menu.add(cut);
+        menu.add(copy);
+        menu.add(pasteItem);
+        field.setComponentPopupMenu(menu);
+    }
+
     public static final class PlaceholderField extends JTextField {
         private final String placeholder;
 
@@ -637,6 +721,7 @@ public final class Ui {
             setSelectedTextColor(Theme.TEXT);
             setBorder(new EmptyBorder(7, 9, 7, 9));
             setBackground(Theme.FIELD);
+            installPaste(this);
             addFocusListener(new FocusAdapter() {
                 @Override
                 public void focusGained(FocusEvent e) {
