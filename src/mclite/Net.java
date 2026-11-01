@@ -63,7 +63,8 @@ public final class Net {
             "mediafilez.forgecdn.net",
             "media.forgecdn.net",
             "wsrv.nl",
-            "images.weserv.nl"
+            "images.weserv.nl",
+            "mod.mcimirror.top"
     );
     private static final int MAX_METADATA_BYTES = 16 * 1024 * 1024;
     private static final int BUFFER_SIZE = 64 * 1024;
@@ -75,7 +76,9 @@ public final class Net {
             ? 8L * 1024 * 1024 : Long.MAX_VALUE;
     private static final int CLIENT_POOL_SIZE = 6;
     private static final HttpClient[] CLIENTS = new HttpClient[CLIENT_POOL_SIZE];
+    private static final HttpClient[] HTTP1_CLIENTS = new HttpClient[CLIENT_POOL_SIZE];
     private static final AtomicInteger CLIENT_INDEX = new AtomicInteger();
+    private static final AtomicInteger HTTP1_INDEX = new AtomicInteger();
     private static final ScheduledExecutorService WATCHDOG =
             Executors.newSingleThreadScheduledExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "mclite-download-watchdog");
@@ -89,6 +92,11 @@ public final class Net {
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .connectTimeout(Duration.ofSeconds(20))
                     .version(HttpClient.Version.HTTP_2)
+                    .build();
+            HTTP1_CLIENTS[i] = HttpClient.newBuilder()
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .connectTimeout(Duration.ofSeconds(20))
+                    .version(HttpClient.Version.HTTP_1_1)
                     .build();
         }
     }
@@ -105,6 +113,10 @@ public final class Net {
 
     private static HttpClient client() {
         return CLIENTS[Math.floorMod(CLIENT_INDEX.getAndIncrement(), CLIENT_POOL_SIZE)];
+    }
+
+    private static HttpClient http1Client() {
+        return HTTP1_CLIENTS[Math.floorMod(HTTP1_INDEX.getAndIncrement(), CLIENT_POOL_SIZE)];
     }
 
     public byte[] getUnverifiedBytes(String url, String label) throws IOException {
@@ -136,7 +148,8 @@ public final class Net {
             try {
                 progress.stage(label);
                 HttpRequest request = buildRequest(url, headers);
-                HttpResponse<InputStream> response = client().send(request, HttpResponse.BodyHandlers.ofInputStream());
+                HttpResponse<InputStream> response = client().send(request,
+                        HttpResponse.BodyHandlers.ofInputStream());
                 InputStream body = response.body();
                 token.register(body);
                 ScheduledFuture<?> watchdog = WATCHDOG.schedule(
@@ -195,9 +208,21 @@ public final class Net {
                 SEGMENT_MIN_BYTES);
     }
 
+    public void downloadMod(String url, Path target, String expectedSha1, long expectedSize,
+                            String label) throws IOException {
+        download(url, target, expectedSha1, expectedSize, label, true, Long.MAX_VALUE, true);
+    }
+
     public void download(String url, Path target, String expectedSha1, long expectedSize,
                          String label, boolean verifyExistingSha1, long segmentMinBytes)
             throws IOException {
+        download(url, target, expectedSha1, expectedSize, label, verifyExistingSha1,
+                segmentMinBytes, false);
+    }
+
+    private void download(String url, Path target, String expectedSha1, long expectedSize,
+                          String label, boolean verifyExistingSha1, long segmentMinBytes,
+                          boolean http1) throws IOException {
         requireSha1(expectedSha1);
         token.check();
         try {
@@ -212,13 +237,13 @@ public final class Net {
 
         }
 
-        if (expectedSize >= segmentMinBytes) {
+        if (!http1 && expectedSize >= segmentMinBytes) {
             Segmented segmented = downloadSegmented(url, target, expectedSha1, expectedSize, label);
             if (segmented == Segmented.SUCCESS) {
                 return;
             }
             if (segmented == Segmented.FAILED) {
-                throw new IOException("分块下载失败：" + label);
+                Log.warn("分块下载失败，回退单连接：" + label);
             }
         }
 
@@ -232,7 +257,8 @@ public final class Net {
                 progress.stage(label);
                 HttpRequest request = buildRequest(url, Map.of(),
                         downloadTimeout(expectedSize));
-                HttpResponse<InputStream> response = client().send(request, HttpResponse.BodyHandlers.ofInputStream());
+                HttpResponse<InputStream> response = (http1 ? http1Client() : client())
+                        .send(request, HttpResponse.BodyHandlers.ofInputStream());
                 InputStream body = response.body();
                 token.register(body);
                 ScheduledFuture<?> watchdog = WATCHDOG.schedule(
@@ -365,7 +391,10 @@ public final class Net {
             if (token.isCancelled()) {
                 throw new CancellationToken.CancelledException();
             }
-            Log.warn("分块下载失败，稍后重试：" + label + " · " + ex.getMessage());
+            Log.warn("分块下载失败，回退单连接：" + label + " · " + ex.getMessage());
+            if (transferred.get() > 0) {
+                progress.rewind(transferred.get());
+            }
             return transferred.get() > 0 ? Segmented.FAILED : Segmented.UNSUPPORTED;
         } finally {
             pool.shutdownNow();
@@ -388,7 +417,15 @@ public final class Net {
                         "Range", "bytes=" + from + "-" + to));
                 HttpResponse<InputStream> response = client().send(request,
                         HttpResponse.BodyHandlers.ofInputStream());
-                try (InputStream in = response.body()) {
+                InputStream body = response.body();
+                java.util.concurrent.atomic.AtomicLong lastRead =
+                        new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
+                ScheduledFuture<?> watchdog = WATCHDOG.scheduleAtFixedRate(() -> {
+                    if (System.currentTimeMillis() - lastRead.get() > 20_000) {
+                        closeQuietly(body);
+                    }
+                }, 5, 5, TimeUnit.SECONDS);
+                try (InputStream in = body) {
                     if (response.statusCode() != 206) {
                         throw new IOException("服务器未返回分段内容：" + label);
                     }
@@ -404,12 +441,15 @@ public final class Net {
                     int read;
                     while ((read = in.read(buffer)) != -1) {
                         token.check();
+                        lastRead.set(System.currentTimeMillis());
                         channel.write(ByteBuffer.wrap(buffer, 0, read), position);
                         position += read;
                         segmentBytes += read;
                         transferred.addAndGet(read);
                         progress.add(read);
                     }
+                } finally {
+                    watchdog.cancel(false);
                 }
                 long expected = to - from + 1;
                 if (segmentBytes != expected) {

@@ -116,8 +116,24 @@ public final class ContentInstaller {
                     }
                     // Modrinth 的 Fastly 节点用 4 段连接反而容易超时；
                     // 这里强制单连接，靠 DNS 选择快节点和 3 路并行模组提速。
-                    net.download(file.url(), target, file.sha1(), file.size(),
-                            file.filename(), true, Long.MAX_VALUE);
+                    String downloadUrl = file.url();
+                    boolean mirrored = false;
+                    if (downloadUrl.startsWith("https://cdn.modrinth.com/")
+                            && file.size() > 0 && file.size() <= 20L * 1024 * 1024) {
+                        try {
+                            net.downloadMod(downloadUrl.replace(
+                                            "https://cdn.modrinth.com/",
+                                            "https://mod.mcimirror.top/"),
+                                    target, file.sha1(), file.size(), file.filename());
+                            mirrored = true;
+                        } catch (IOException ex) {
+                            Log.warn("Modrinth 镜像下载失败，回退官方源: " + ex.getMessage());
+                        }
+                    }
+                    if (!mirrored) {
+                        net.downloadMod(downloadUrl, target, file.sha1(), file.size(),
+                                file.filename());
+                    }
                 }
             }
             if (previous != null && !previous.equals(file.filename())) {
