@@ -1119,6 +1119,19 @@ public final class LauncherFrame extends JFrame {
         return row;
     }
 
+    private void updateAutoMemoryControls() {
+        if (autoMemoryToggle == null) {
+            return;
+        }
+        String versionId = selectedEntry == null ? null : selectedEntry.id();
+        int memory = config.effectiveMemoryMb(versionId);
+        autoMemoryToggle.setText("自动分配内存（推荐 " + memory + " MB）");
+        memorySlider.setEnabled(!config.autoMemory());
+        if (config.autoMemory()) {
+            memorySlider.setValue(memory);
+        }
+    }
+
     private void updateLaunchInfo() {
         if (launchVersion == null) {
             return;
@@ -1127,11 +1140,12 @@ public final class LauncherFrame extends JFrame {
         updateVersionPicker();
         launchMeta.setText(detailMeta == null ? "" : detailMeta.getText());
         launchAccount.setText(config.username() + "  ·  离线账户");
-        launchMemory.setText(config.effectiveMemoryMb() + " MB"
+        launchMemory.setText(config.effectiveMemoryMb(
+                selectedEntry == null ? null : selectedEntry.id()) + " MB"
                 + (config.autoMemory() ? "（自动）" : ""));
         String jvm = config.jvmArgs().isBlank() ? "" : config.jvmArgs();
         if (config.autoJvmTuning()) {
-            jvm = jvm.isBlank() ? "自动优化（G1，启动时验证）"
+            jvm = jvm.isBlank() ? "自动优化（按 Java/版本选择 GC）"
                     : jvm + "  ·  自动优化";
         }
         launchJvm.setText(jvm.isBlank() ? "无额外参数" : jvm);
@@ -2296,10 +2310,6 @@ public final class LauncherFrame extends JFrame {
         memoryRow.add(memorySlider);
         memoryRow.add(Box.createHorizontalGlue());
         memoryRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        memorySlider.setEnabled(!config.autoMemory());
-        if (config.autoMemory()) {
-            memorySlider.setValue(config.effectiveMemoryMb());
-        }
         memoryRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         performance.add(memoryRow);
         performance.add(Ui.vgap(8));
@@ -2311,17 +2321,13 @@ public final class LauncherFrame extends JFrame {
         autoMemoryToggle.addActionListener(e -> {
             config.autoMemory(autoMemoryToggle.isSelected());
             config.save();
-            autoMemoryToggle.setText("自动分配内存（推荐 "
-                    + config.effectiveMemoryMb() + " MB）");
-            memorySlider.setEnabled(!config.autoMemory());
-            if (config.autoMemory()) {
-                memorySlider.setValue(config.effectiveMemoryMb());
-            }
+            updateAutoMemoryControls();
             updateLaunchInfo();
         });
         performance.add(autoMemoryToggle);
+        updateAutoMemoryControls();
         performance.add(Ui.vgap(8));
-        autoJvmToggle = new Ui.ToggleChip("自动 JVM 优化参数（G1，启动时验证）");
+        autoJvmToggle = new Ui.ToggleChip("自动 JVM 优化参数（按 Java/版本选择 GC）");
         autoJvmToggle.setSelected(config.autoJvmTuning());
         autoJvmToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
         autoJvmToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -4964,6 +4970,7 @@ public final class LauncherFrame extends JFrame {
                 + " · 正在读取版本信息…");
         statusLabel.setText(isInstalled(entry) ? "已安装" : "未安装");
         statusLabel.setForeground(Theme.DIM);
+        updateAutoMemoryControls();
         updateButtons();
         updateJavaHint();
 

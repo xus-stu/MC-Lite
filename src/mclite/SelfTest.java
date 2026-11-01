@@ -258,9 +258,14 @@ public final class SelfTest {
             check(!Files.exists(standaloneBase), "独立整合包清理临时原版文件夹");
             check(JvmTuner.isLegacyGame("1.12.2") && !JvmTuner.isLegacyGame("1.21.1"),
                     "低版本 JVM 参数识别");
-            check(JvmTuner.java8Args(4096).contains("-XX:+UseParallelGC"),
+            check(JvmTuner.java8Args(4096).contains("-XX:+UseParallelGC")
+                            && JvmTuner.java8Args(4096).contains("-XX:+DisableExplicitGC"),
                     "Java 8 使用 ParallelGC");
-            passed += 4;
+            check(JvmTuner.legacyTier("1.6.4") == 2
+                            && JvmTuner.legacyTier("1.12.2") == 1
+                            && JvmTuner.legacyTier("1.21.1") == 0,
+                    "低版本内存分级");
+            passed += 5;
 
         check(UpdateInstaller.versionedName("MCLite_v1.1.33.jar", "1.1.34", false)
                         .equals("MCLite_v1.1.34.jar"),
