@@ -712,13 +712,62 @@ public final class Net {
         return builder.GET().build();
     }
 
+    private static String encodeUrl(String raw) {
+        StringBuilder out = new StringBuilder(raw.length() + 16);
+        for (int i = 0; i < raw.length(); ) {
+            int codePoint = raw.codePointAt(i);
+            int width = Character.charCount(codePoint);
+            if (codePoint < 128) {
+                char c = (char) codePoint;
+                if (c == '%') {
+                    boolean escape = i + 2 < raw.length()
+                            && isHex(raw.charAt(i + 1)) && isHex(raw.charAt(i + 2));
+                    if (escape) {
+                        out.append(c);
+                    } else {
+                        out.append("%25");
+                    }
+                } else if (isUriAscii(c)) {
+                    out.append(c);
+                } else {
+                    appendEncoded(out, c);
+                }
+            } else {
+                byte[] bytes = raw.substring(i, i + width)
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                for (byte value : bytes) {
+                    out.append('%').append(String.format("%02X", value & 0xff));
+                }
+            }
+            i += width;
+        }
+        return out.toString();
+    }
+
+    private static boolean isUriAscii(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                || (c >= '0' && c <= '9') || "-._~:/?#@!$&'()*+,;=".indexOf(c) >= 0;
+    }
+
+    private static boolean isHex(char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')
+                || (c >= 'A' && c <= 'F');
+    }
+
+    private static void appendEncoded(StringBuilder out, char c) {
+        byte[] bytes = String.valueOf(c).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        for (byte value : bytes) {
+            out.append('%').append(String.format("%02X", value & 0xff));
+        }
+    }
+
     public static URI normalizeAndValidate(String url) {
         if (url == null || url.isBlank()) {
             throw new SecurityException("下载地址为空");
         }
         URI original;
         try {
-            original = URI.create(url.trim());
+            original = URI.create(encodeUrl(url.trim()));
         } catch (IllegalArgumentException ex) {
             throw new SecurityException("非法下载地址");
         }

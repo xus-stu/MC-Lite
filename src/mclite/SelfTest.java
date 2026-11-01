@@ -82,6 +82,12 @@ public final class SelfTest {
             check(encoded.contains("%20") && !encoded.contains("%2520"),
                     "URL 百分号编码不会被二次转义");
             passed++;
+            String special = Net.normalizeAndValidate(
+                    "https://cdn.modrinth.com/data/a/versions/b/New-§6[Default]§r.zip")
+                    .toString();
+            check(special.contains("%C2%A7") && special.contains("%5B"),
+                    "Modrinth 特殊字符 URL 编码");
+            passed++;
             try {
                 Net.normalizeAndValidate("https://example.com/evil.jar");
                 check(false, "非官方域名必须被拒绝");
