@@ -125,7 +125,24 @@ public final class SelfTest {
             check(command.contains("--width") && command.contains("854"), "启动参数窗口尺寸");
             check(command.contains("-Djava.library.path=" + new GamePaths(config.gameDir())
                     .nativesDir("selftest")), "启动参数 natives 路径");
-            passed += 4;
+            String legacyJson = """
+                    {"id":"legacy-test","mainClass":"net.minecraft.client.main.Main",
+                     "assets":"legacy","downloads":{"client":{"url":"https://piston-meta.mojang.com/x.jar",
+                     "sha1":"0000000000000000000000000000000000000000","size":1}},
+                     "minecraftArguments":"--username ${auth_player_name} --width 1280 --height 720",
+                     "javaVersion":{"component":"jre-legacy","majorVersion":8}}
+                    """;
+            VersionMeta legacy = VersionMeta.parse(legacyJson, "legacy-test");
+            VersionManifest.VersionEntry legacyEntry = new VersionManifest.VersionEntry(
+                    "legacy-test", "release", "https://piston-meta.mojang.com/x.json",
+                    "0000000000000000000000000000000000000000", "2013-09-19T00:00:00+00:00", 1);
+            List<String> legacyCommand = GameLauncher.buildCommand(config, legacy, legacyEntry,
+                    java, false);
+            int widthIndex = legacyCommand.indexOf("--width");
+            check(widthIndex >= 0 && widthIndex + 1 < legacyCommand.size()
+                            && "854".equals(legacyCommand.get(widthIndex + 1)),
+                    "低版本窗口尺寸覆盖");
+            passed += 5;
 
             TaskCenter center = new TaskCenter();
             DownloadTask task = center.start("测试任务");

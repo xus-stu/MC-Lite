@@ -234,15 +234,28 @@ public final class GameLauncher {
             gameArgs.addAll(minimalGameArgs(placeholders));
         }
 
-        if (!gameArgs.contains("--width") && !gameArgs.contains("--height")
-                && !meta.gameArgs().isEmpty()) {
-            gameArgs.add("--width");
-            gameArgs.add(Integer.toString(config.windowWidth()));
-            gameArgs.add("--height");
-            gameArgs.add(Integer.toString(config.windowHeight()));
-        }
+        setGameArg(gameArgs, "--width", Integer.toString(config.windowWidth()));
+        setGameArg(gameArgs, "--height", Integer.toString(config.windowHeight()));
         command.addAll(gameArgs);
         return command;
+    }
+
+    private static void setGameArg(List<String> args, String name, String value) {
+        for (int i = 0; i < args.size(); i++) {
+            String arg = args.get(i);
+            if (arg.equals(name)) {
+                if (i + 1 < args.size()) {
+                    args.set(i + 1, value);
+                }
+                return;
+            }
+            if (arg.startsWith(name + "=")) {
+                args.set(i, name + "=" + value);
+                return;
+            }
+        }
+        args.add(name);
+        args.add(value);
     }
 
     private static List<String> minimalGameArgs(Map<String, String> values) {
