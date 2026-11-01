@@ -90,12 +90,12 @@ public final class Net {
         for (int i = 0; i < CLIENTS.length; i++) {
             CLIENTS[i] = HttpClient.newBuilder()
                     .followRedirects(HttpClient.Redirect.NORMAL)
-                    .connectTimeout(Duration.ofSeconds(20))
+                    .connectTimeout(Duration.ofSeconds(5))
                     .version(HttpClient.Version.HTTP_2)
                     .build();
             HTTP1_CLIENTS[i] = HttpClient.newBuilder()
                     .followRedirects(HttpClient.Redirect.NORMAL)
-                    .connectTimeout(Duration.ofSeconds(20))
+                    .connectTimeout(Duration.ofSeconds(5))
                     .version(HttpClient.Version.HTTP_1_1)
                     .build();
         }
