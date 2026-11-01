@@ -884,7 +884,7 @@ public final class LauncherFrame extends JFrame {
         contentList.setSelectionBackground(Theme.BG);
         contentList.setSelectionForeground(Theme.TEXT);
         contentList.setFixedCellHeight(64);
-        contentList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        contentList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         contentList.setCellRenderer(new ContentRenderer());
         contentList.setBorder(new EmptyBorder(4, 8, 14, 8));
         contentList.addListSelectionListener(e -> updateContentSelection());
@@ -4277,9 +4277,24 @@ public final class LauncherFrame extends JFrame {
         }
         Modrinth.Project project = contentList.getSelectedValue();
         boolean selected = project != null;
+        int selectedCount = contentList.getSelectedIndices().length;
         contentInstallButton.setEnabled(selected && !busy);
+        contentInstallButton.setText(selectedCount > 1 ? "安装 " + selectedCount + " 个"
+                : switch (contentType) {
+                    case "mod" -> "安装模组";
+                    case "resourcepack" -> "安装资源包";
+                    case "modpack" -> "安装整合包";
+                    case "shader" -> "安装光影";
+                    default -> "安装所选";
+                });
         contentMcmodButton.setVisible(selected && project.mcmodUrl() != null);
         if (selected) {
+            if (selectedCount > 1) {
+                contentSelectionLabel.setText("已选择 " + selectedCount
+                        + " 个内容 · 最多 3 个并发下载");
+                contentSelectionLabel.setToolTipText("按住 Command 或 Ctrl 可多选");
+                return;
+            }
             String summary = project.summaryZh() == null ? project.description() : project.summaryZh();
             if (summary != null && summary.length() > 100) {
                 summary = summary.substring(0, 98) + "…";
@@ -4301,10 +4316,18 @@ public final class LauncherFrame extends JFrame {
         if (busy) {
             return;
         }
-        Modrinth.Project project = contentList == null ? null : contentList.getSelectedValue();
-        if (project == null) {
+        java.util.List<Modrinth.Project> projects = contentList == null
+                ? java.util.List.of() : new java.util.ArrayList<>(contentList.getSelectedValuesList());
+        if (projects.isEmpty()) {
             return;
         }
+        boolean hasModpack = projects.stream()
+                .anyMatch(project -> "modpack".equals(project.projectType()));
+        if (hasModpack && projects.size() > 1) {
+            showError("整合包不能批量安装", "整合包请一次选择一个安装。");
+            return;
+        }
+        Modrinth.Project project = projects.get(0);
         if (RegionGate.restricted() && "modpack".equals(project.projectType())) {
             RegionGate.showGuide(this);
             return;
@@ -4324,70 +4347,111 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         String chosenLoader = loader;
-        String installed = installedContent(project);
-        if (installed != null && !askYesNo("已经安装",
-                project.title() + " 已经安装为：\n" + installed
-                        + "\n\n仍要重新安装或更新吗？")) {
-            return;
+        if (projects.size() == 1) {
+            String installed = installedContent(project);
+            if (installed != null && !askYesNo("已经安装",
+                    project.title() + " 已经安装为：\n" + installed
+                            + "\n\n仍要重新安装或更新吗？")) {
+                return;
+            }
         }
         Config installConfig = config.copyForGameDir(config.effectiveGameDir(
                 selectedEntry == null ? "" : selectedEntry.id()));
-        beginTask("安装 " + project.title());
-        new SwingWorker<ContentInstaller.Result, Void>() {
+        if (projects.size() == 1) {
+            beginTask("安装 " + project.title());
+            new SwingWorker<ContentInstaller.Result, Void>() {
+                @Override
+                protected ContentInstaller.Result doInBackground() throws Exception {
+                    return new ContentInstaller(installConfig, taskProgress, taskToken)
+                            .install(project, gameVersion, chosenLoader);
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        ContentInstaller.Result result = get();
+                        finishTask();
+                        applyContentResult(project, result);
+                        statusLabel.setText("安装完成 · " + result.summary());
+                        statusLabel.setForeground(Theme.ACCENT);
+                        updateContentSelection();
+                    } catch (Exception ex) {
+                        contentInstallFailed(ex);
+                    }
+                }
+            }.execute();
+            return;
+        }
+
+        beginTask("安装 " + projects.size() + " 个内容（最多 3 个并发）");
+        new SwingWorker<java.util.List<ContentInstaller.Result>, Void>() {
             @Override
-            protected ContentInstaller.Result doInBackground() throws Exception {
-                return new ContentInstaller(installConfig, taskProgress, taskToken)
-                        .install(project, gameVersion, chosenLoader);
+            protected java.util.List<ContentInstaller.Result> doInBackground() throws Exception {
+                java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors
+                        .newFixedThreadPool(Math.min(3, projects.size()), runnable -> {
+                            Thread thread = new Thread(runnable, "mclite-content");
+                            thread.setDaemon(true);
+                            return thread;
+                        });
+                java.util.List<java.util.concurrent.Future<ContentInstaller.Result>> futures =
+                        new java.util.ArrayList<>();
+                try {
+                    for (Modrinth.Project item : projects) {
+                        taskToken.check();
+                        futures.add(pool.submit(() -> new ContentInstaller(
+                                installConfig, taskProgress, taskToken)
+                                .install(item, gameVersion, chosenLoader)));
+                    }
+                    java.util.List<ContentInstaller.Result> results = new java.util.ArrayList<>();
+                    for (java.util.concurrent.Future<ContentInstaller.Result> future : futures) {
+                        taskToken.check();
+                        try {
+                            results.add(future.get());
+                        } catch (java.util.concurrent.ExecutionException ex) {
+                            taskToken.cancel();
+                            Throwable cause = ex.getCause();
+                            throw cause instanceof Exception exception
+                                    ? exception : new java.io.IOException(cause);
+                        }
+                    }
+                    return results;
+                } finally {
+                    pool.shutdownNow();
+                }
             }
 
             @Override
             protected void done() {
                 try {
-                    ContentInstaller.Result result = get();
+                    java.util.List<ContentInstaller.Result> results = get();
                     finishTask();
-                    if ("modpack".equals(project.projectType())) {
-                        Path instance = result.gameDir();
-                        config.gameDir(instance);
-                        config.save();
-                        gamePaths = new GamePaths(instance);
-                        gameDirField.setText(instance.toString());
-                        refreshAllVersions();
-                        refreshInstalledCache();
-                        applyFilter();
-                        if (result.versionId() != null) {
-                            for (int i = 0; i < listModel.size(); i++) {
-                                if (listModel.get(i).id().equals(result.versionId())) {
-                                    versionList.setSelectedIndex(i);
-                                    versionList.ensureIndexIsVisible(i);
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        refreshInstalledCache();
-                    }
-                    statusLabel.setText("安装完成 · " + result.summary());
+                    refreshInstalledCache();
+                    statusLabel.setText("安装完成 · " + results.size() + " 个内容");
                     statusLabel.setForeground(Theme.ACCENT);
                     updateContentSelection();
                 } catch (Exception ex) {
-                    Throwable cause = unwrap(ex);
-                    if (!LauncherFrame.isCancelled(cause) && activeTask != null) {
-                        taskCenter.fail(activeTask, messageOf(cause, "失败"));
-                        refreshTasksButton();
-                    }
-                    finishTask();
-                    if (LauncherFrame.isCancelled(cause)) {
-                        statusLabel.setText("已取消");
-                        statusLabel.setForeground(Theme.MUTED);
-                    } else {
-                        Log.error("内容安装失败", cause);
-                        statusLabel.setText("内容安装失败");
-                        statusLabel.setForeground(Theme.DANGER);
-                        showError("安装失败", messageOf(cause, "请检查网络和游戏版本。"));
-                    }
+                    contentInstallFailed(ex);
                 }
             }
         }.execute();
+    }
+
+    private void contentInstallFailed(Exception ex) {
+        Throwable cause = unwrap(ex);
+        if (!LauncherFrame.isCancelled(cause) && activeTask != null) {
+            taskCenter.fail(activeTask, messageOf(cause, "失败"));
+            refreshTasksButton();
+        }
+        finishTask();
+        if (LauncherFrame.isCancelled(cause)) {
+            statusLabel.setText("已取消");
+            statusLabel.setForeground(Theme.MUTED);
+        } else {
+            Log.error("内容安装失败", cause);
+            statusLabel.setText("内容安装失败");
+            statusLabel.setForeground(Theme.DANGER);
+            showError("安装失败", messageOf(cause, "请检查网络和游戏版本。"));
+        }
     }
 
     private void showPage(String page) {

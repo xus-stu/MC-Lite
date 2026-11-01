@@ -41,11 +41,12 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
   低版本 Java 8 自动使用 `-Xms` 约 2/3、`-Xmn` 约 1/2 的初始/新生代设置。
 - MITE 这类版本名不含 1.6.4 的整合包，会读取版本 JSON 的 `releaseTime`（2013）识别为低版本。
 - 1.6.4 等老版本的 `minecraftArguments` 里自带 `--width 1280 --height 720` 时，启动器会用设置中的窗口尺寸覆盖，不再固定 854×480。
+- 内容列表支持多选，最多 3 个模组并发安装；Modrinth 单文件改用 HTTP/1.1 连接池，20MB 以下优先尝试 MCIM 镜像。
 - 下载任务、进度、速度、剩余时间，以及异常退出后的崩溃报告。
 
 ## 运行
 
-当前版本：V1.1.69
+当前版本：V1.1.70
 
 需要 Java 21 或更高版本。
 
@@ -53,7 +54,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.69.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.70.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -64,7 +65,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.69-region.jar
+java -jar dist/MCLite_v1.1.70-region.jar
 ```
 
 ## 地区限制
@@ -108,18 +109,18 @@ java -jar dist/MCLite_v1.1.69-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.69.jar
-dist/MCLite_v1.1.69-region.jar
+dist/MCLite_v1.1.70.jar
+dist/MCLite_v1.1.70-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.69.app
-dist/MC Lite Region v1.1.69.app
-dist/MC-Lite_v1.1.69_macOS.zip
-dist/MC-Lite_v1.1.69_region_macOS.zip
-dist/MC-Lite_v1.1.69_region_Windows.zip
+dist/MC Lite v1.1.70.app
+dist/MC Lite Region v1.1.70.app
+dist/MC-Lite_v1.1.70_macOS.zip
+dist/MC-Lite_v1.1.70_region_macOS.zip
+dist/MC-Lite_v1.1.70_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.69_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.70_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -170,7 +171,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.69_Setup.exe
+dist/MC-Lite_v1.1.70_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -188,7 +189,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.69.jar --software-render
+java -jar dist/MCLite_v1.1.70.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
