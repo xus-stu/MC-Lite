@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 public final class JvmTuner {
     private static final Map<String, Tuning> CACHE = new ConcurrentHashMap<>();
     private static final Pattern LEGACY_VERSION = Pattern.compile(
-            "(?:^|[^\\d])(1\\.(?:7|8|9|10|11|12)(?:\\.\\d+)?)(?:[^\\d]|$)");
+            "(?:^|[^\\d])(1\\.(\\d+)(?:\\.\\d+)?)(?:[^\\d]|$)");
 
     public record Tuning(List<String> args, String reason) {
         public boolean applied() {
@@ -53,21 +53,39 @@ public final class JvmTuner {
     }
 
     static boolean isLegacyGame(String version) {
+        return legacyTier(version) > 0;
+    }
+
+    /** 2 = 1.8.9 and older, 1 = 1.12.2 and older, 0 = newer. */
+    static int legacyTier(String version) {
         if (version == null || version.isBlank()) {
-            return false;
+            return 0;
         }
         Matcher matcher = LEGACY_VERSION.matcher(version);
-        return matcher.find();
+        if (!matcher.find()) {
+            return 0;
+        }
+        try {
+            int minor = Integer.parseInt(matcher.group(2));
+            if (minor <= 8) {
+                return 2;
+            }
+            if (minor <= 12) {
+                return 1;
+            }
+        } catch (NumberFormatException ignored) {
+        }
+        return 0;
     }
 
     static List<String> java8Args(int memoryMb) {
-        int threads = Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors()));
+        int threads = Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors()));
         return List.of(
                 "-XX:+UseParallelGC",
-                "-XX:+UseAdaptiveSizePolicy",
+                "-XX:ParallelGCThreads=" + threads,
+                "-XX:+DisableExplicitGC",
                 "-XX:+ParallelRefProcEnabled",
-                "-XX:+PerfDisableSharedMem",
-                "-XX:ParallelGCThreads=" + threads);
+                "-XX:+PerfDisableSharedMem");
     }
 
     private static Tuning detectAndValidate(Path java, int major, int memoryMb) {

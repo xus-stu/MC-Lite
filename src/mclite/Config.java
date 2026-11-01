@@ -421,6 +421,10 @@ public final class Config {
     }
 
     public int effectiveMemoryMb() {
+        return effectiveMemoryMb(null);
+    }
+
+    public int effectiveMemoryMb(String versionId) {
         if (!autoMemory) {
             return memoryMb;
         }
@@ -438,6 +442,13 @@ public final class Config {
             recommended = 8192;
         } else {
             recommended = 12288;
+        }
+        int tier = JvmTuner.legacyTier(versionId);
+        if (tier >= 2) {
+            // 1.8.9 and older: more heap usually makes startup/GC worse.
+            recommended = Math.min(recommended, 3072);
+        } else if (tier == 1) {
+            recommended = Math.min(recommended, 4096);
         }
         return clampMemory(recommended);
     }

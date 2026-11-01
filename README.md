@@ -37,11 +37,13 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 - 导入时会识别外层 ZIP 套内层 ZIP；内层不是有效整合包时会显示实际内容（例如下载链接失效返回的错误 JSON）。
 - 所有文本框都支持 Cmd/Ctrl+V 和右键粘贴；macOS 文件选择改回原生面板，避免第一次点击出现黑色残影。
 - Java 8 / 1.12.2 及更早版本改用 ParallelGC，不再套用现代版本的激进 G1 参数。
+- 自动内存按版本分级：1.8.9 及更早最高 3072MB，1.12.2 及更早最高 4096MB；
+  低版本 Java 8 自动使用 `-Xms` 约 2/3、`-Xmn` 约 1/2 的初始/新生代设置。
 - 下载任务、进度、速度、剩余时间，以及异常退出后的崩溃报告。
 
 ## 运行
 
-当前版本：V1.1.66
+当前版本：V1.1.67
 
 需要 Java 21 或更高版本。
 
@@ -49,7 +51,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.66.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.67.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -60,7 +62,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.66-region.jar
+java -jar dist/MCLite_v1.1.67-region.jar
 ```
 
 ## 地区限制
@@ -104,18 +106,18 @@ java -jar dist/MCLite_v1.1.66-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.66.jar
-dist/MCLite_v1.1.66-region.jar
+dist/MCLite_v1.1.67.jar
+dist/MCLite_v1.1.67-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.66.app
-dist/MC Lite Region v1.1.66.app
-dist/MC-Lite_v1.1.66_macOS.zip
-dist/MC-Lite_v1.1.66_region_macOS.zip
-dist/MC-Lite_v1.1.66_region_Windows.zip
+dist/MC Lite v1.1.67.app
+dist/MC Lite Region v1.1.67.app
+dist/MC-Lite_v1.1.67_macOS.zip
+dist/MC-Lite_v1.1.67_region_macOS.zip
+dist/MC-Lite_v1.1.67_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.66_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.67_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -166,7 +168,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.66_Setup.exe
+dist/MC-Lite_v1.1.67_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -184,7 +186,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.66.jar --software-render
+java -jar dist/MCLite_v1.1.67.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
