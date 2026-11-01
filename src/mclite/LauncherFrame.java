@@ -4320,7 +4320,7 @@ public final class LauncherFrame extends JFrame {
         Modrinth.Project project = contentList.getSelectedValue();
         boolean selected = project != null;
         int selectedCount = contentList.getSelectedIndices().length;
-        contentInstallButton.setEnabled(selected && !busy);
+        contentInstallButton.setEnabled(selected);
         contentInstallButton.setText(selectedCount > 1 ? "安装 " + selectedCount + " 个"
                 : switch (contentType) {
                     case "mod" -> "安装模组";
@@ -4356,6 +4356,7 @@ public final class LauncherFrame extends JFrame {
 
     private void startContentInstall() {
         if (busy) {
+            enqueueInstall(this::startContentInstall);
             return;
         }
         java.util.List<Modrinth.Project> projects = contentList == null
@@ -5205,7 +5206,7 @@ public final class LauncherFrame extends JFrame {
             downloadDetailButton.setEnabled(hasSelection && !busy);
         }
         if (contentInstallButton != null) {
-            contentInstallButton.setEnabled(!busy && contentList != null
+            contentInstallButton.setEnabled(contentList != null
                     && contentList.getSelectedValue() != null);
         }
     }
@@ -5827,20 +5828,21 @@ public final class LauncherFrame extends JFrame {
         allFilter.setEnabled(enabled);
         openDirButton.setEnabled(enabled);
         if (contentSearchField != null) {
-            contentSearchField.setEnabled(enabled);
-            contentVersionField.setEnabled(enabled);
-            contentSourceCombo.setEnabled(enabled);
+            // 下载过程中仍允许浏览、搜索和翻页，只有安装按钮受 busy 限制。
+            contentSearchField.setEnabled(true);
+            contentVersionField.setEnabled(true);
+            contentSourceCombo.setEnabled(true);
             if (contentSortCombo != null) {
-                contentSortCombo.setEnabled(enabled);
+                contentSortCombo.setEnabled(true);
             }
             contentLoaderCombo.setVisible("mod".equals(contentType));
-            contentLoaderCombo.setEnabled(enabled && "mod".equals(contentType));
-            contentSearchButton.setEnabled(enabled);
-            contentRefreshButton.setEnabled(enabled);
-            contentList.setEnabled(enabled);
-            contentDetailButton.setEnabled(enabled && contentList.getSelectedValue() != null);
+            contentLoaderCombo.setEnabled("mod".equals(contentType));
+            contentSearchButton.setEnabled(true);
+            contentRefreshButton.setEnabled(true);
+            contentList.setEnabled(true);
+            contentDetailButton.setEnabled(contentList.getSelectedValue() != null);
             if (contentInstallButton != null) {
-                contentInstallButton.setEnabled(enabled && contentList.getSelectedValue() != null);
+                contentInstallButton.setEnabled(contentList.getSelectedValue() != null);
             }
         }
     }

@@ -43,11 +43,13 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 - 1.6.4 等老版本的 `minecraftArguments` 里自带 `--width 1280 --height 720` 时，启动器会用设置中的窗口尺寸覆盖，不再固定 854×480。
 - 内容列表支持多选，最多 3 个模组并发安装；Modrinth 单文件改用 HTTP/1.1 连接池，20MB 以下优先尝试 MCIM 镜像。
 - 内容页码可直接输入后回车跳转；上一页/下一页不再等待当前页加载完成，旧请求结果会自动丢弃。
+- 下载过程中仍可浏览、搜索、翻页和选择其他模组；再次点安装会加入队列。
+- 单个文件超过 60 秒（最低 90 秒）才判定超时重连，避免慢连接被过早中断。
 - 下载任务、进度、速度、剩余时间，以及异常退出后的崩溃报告。
 
 ## 运行
 
-当前版本：V1.1.71
+当前版本：V1.1.72
 
 需要 Java 21 或更高版本。
 
@@ -55,7 +57,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.71.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.72.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -66,7 +68,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.71-region.jar
+java -jar dist/MCLite_v1.1.72-region.jar
 ```
 
 ## 地区限制
@@ -110,18 +112,18 @@ java -jar dist/MCLite_v1.1.71-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.71.jar
-dist/MCLite_v1.1.71-region.jar
+dist/MCLite_v1.1.72.jar
+dist/MCLite_v1.1.72-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.71.app
-dist/MC Lite Region v1.1.71.app
-dist/MC-Lite_v1.1.71_macOS.zip
-dist/MC-Lite_v1.1.71_region_macOS.zip
-dist/MC-Lite_v1.1.71_region_Windows.zip
+dist/MC Lite v1.1.72.app
+dist/MC Lite Region v1.1.72.app
+dist/MC-Lite_v1.1.72_macOS.zip
+dist/MC-Lite_v1.1.72_region_macOS.zip
+dist/MC-Lite_v1.1.72_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.71_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.72_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -172,7 +174,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.71_Setup.exe
+dist/MC-Lite_v1.1.72_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -190,7 +192,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.71.jar --software-render
+java -jar dist/MCLite_v1.1.72.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：

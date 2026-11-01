@@ -832,8 +832,8 @@ public final class Net {
         if (expectedSize <= 0) {
             return Duration.ofMinutes(2);
         }
-        long seconds = Math.max(20, Math.min(180,
-                expectedSize / (512L * 1024L) + 10));
+        long seconds = Math.max(90, Math.min(300,
+                expectedSize / (256L * 1024L) + 10));
         return Duration.ofSeconds(seconds);
     }
 
