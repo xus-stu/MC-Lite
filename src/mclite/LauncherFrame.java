@@ -181,7 +181,7 @@ public final class LauncherFrame extends JFrame {
     private String contentType = "mod";
     private boolean contentSearching;
     private int contentPage;
-    private JLabel contentPageLabel;
+    private JTextField contentPageLabel;
     private Ui.AccentButton contentPrevPage;
     private Ui.AccentButton contentNextPage;
     private int contentGeneration;
@@ -981,8 +981,23 @@ public final class LauncherFrame extends JFrame {
             contentPage++;
             runContentSearch();
         });
-        contentPageLabel = Ui.label("1", Theme.MONO, Theme.DIM);
-        contentPageLabel.setBorder(new EmptyBorder(0, 5, 0, 5));
+        contentPageLabel = new JTextField("1");
+        contentPageLabel.setFont(Theme.MONO);
+        contentPageLabel.setForeground(Theme.DIM);
+        contentPageLabel.setBackground(Theme.CARD_ALT);
+        contentPageLabel.setCaretColor(Theme.ACCENT);
+        contentPageLabel.setHorizontalAlignment(JTextField.CENTER);
+        contentPageLabel.setBorder(new EmptyBorder(2, 2, 2, 2));
+        contentPageLabel.setPreferredSize(new Dimension(42, 28));
+        contentPageLabel.setMaximumSize(new Dimension(42, 28));
+        contentPageLabel.setToolTipText("输入页码后按回车跳转");
+        contentPageLabel.addActionListener(e -> applyContentPageInput());
+        contentPageLabel.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent e) {
+                contentPageLabel.setText(Integer.toString(contentPage + 1));
+            }
+        });
         contentPrevPage.setEnabled(false);
         contentNextPage.setEnabled(false);
         JPanel actions = new JPanel();
@@ -4125,6 +4140,28 @@ public final class LauncherFrame extends JFrame {
         return null;
     }
 
+    private void applyContentPageInput() {
+        if (contentPageLabel == null) {
+            return;
+        }
+        String text = contentPageLabel.getText().trim();
+        int page;
+        try {
+            page = Integer.parseInt(text);
+        } catch (NumberFormatException ex) {
+            contentPageLabel.setText(Integer.toString(contentPage + 1));
+            return;
+        }
+        page = Math.max(1, page);
+        if (page - 1 == contentPage) {
+            contentPageLabel.setText(Integer.toString(contentPage + 1));
+            return;
+        }
+        contentPage = page - 1;
+        contentPageLabel.setText(Integer.toString(page));
+        runContentSearch();
+    }
+
     private void searchContent() {
         contentPage = 0;
         runContentSearch();
@@ -4136,11 +4173,16 @@ public final class LauncherFrame extends JFrame {
         }
         contentSearching = true;
         int generation = ++contentGeneration;
+        final int pageNumber = contentPage;
+        final int pageOffset = contentPage * 20;
+        if (contentPageLabel != null && !contentPageLabel.hasFocus()) {
+            contentPageLabel.setText(Integer.toString(pageNumber + 1));
+        }
         if (contentPrevPage != null) {
-            contentPrevPage.setEnabled(false);
+            contentPrevPage.setEnabled(pageNumber > 0);
         }
         if (contentNextPage != null) {
-            contentNextPage.setEnabled(false);
+            contentNextPage.setEnabled(true);
         }
         contentChineseTitles.clear();
         contentModel.clear();
@@ -4160,7 +4202,7 @@ public final class LauncherFrame extends JFrame {
                 boolean cjkQuery = containsCjk(query);
                 List<Modrinth.Project> projects = cjkQuery ? new ArrayList<>()
                         : new ArrayList<>(searchProjects(source, query, contentType,
-                        gameVersion, loader, contentPage * 20, sort));
+                        gameVersion, loader, pageOffset, sort));
                 List<McMod.Entry> entries;
                 try {
                     entries = new McMod().search(query, "modpack".equals(contentType) ? 2 : 0);
@@ -4170,7 +4212,7 @@ public final class LauncherFrame extends JFrame {
                 }
                 if (cjkQuery && entries.isEmpty()) {
                     projects.addAll(searchProjects(source, query, contentType, gameVersion, loader,
-                            contentPage * 20, sort));
+                            pageOffset, sort));
                 }
                 if (cjkQuery) {
                     java.util.Set<String> ids = new java.util.HashSet<>();
@@ -4192,7 +4234,7 @@ public final class LauncherFrame extends JFrame {
                                 continue;
                             }
                             futures.add(pool.submit(() -> searchProjects(source, english,
-                                    contentType, gameVersion, loader, contentPage * 20, sort)));
+                                    contentType, gameVersion, loader, pageOffset, sort)));
                         }
                         int index = 0;
                         for (McMod.Entry entry : entries.subList(0, Math.min(12, entries.size()))) {
@@ -4250,14 +4292,14 @@ public final class LauncherFrame extends JFrame {
                     }
                     contentSelectionLabel.setText(projects.isEmpty()
                             ? "没有找到内容" : projects.size() + " 个结果 · 选择后安装");
-                    if (contentPageLabel != null) {
-                        contentPageLabel.setText(Integer.toString(contentPage + 1));
+                    if (contentPageLabel != null && !contentPageLabel.hasFocus()) {
+                        contentPageLabel.setText(Integer.toString(pageNumber + 1));
                     }
                     if (contentPrevPage != null) {
-                        contentPrevPage.setEnabled(contentPage > 0 && !contentSearching);
+                        contentPrevPage.setEnabled(pageNumber > 0);
                     }
                     if (contentNextPage != null) {
-                        contentNextPage.setEnabled(projects.size() >= 20 && !contentSearching);
+                        contentNextPage.setEnabled(projects.size() >= 20);
                     }
                     if (!projects.isEmpty()) {
                         contentList.setSelectedIndex(0);
