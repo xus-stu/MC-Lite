@@ -160,8 +160,8 @@ public final class GameLauncher {
         placeholders.put("quickPlayMultiplayer", "");
         placeholders.put("quickPlayRealms", "");
 
-        int memoryMb = config.effectiveMemoryMb(entry.id());
-        boolean legacy = JvmTuner.legacyTier(entry.id()) > 0;
+        int memoryMb = config.effectiveMemoryMb(meta);
+        boolean legacy = JvmTuner.legacyTier(entry.id(), meta.releaseTime()) > 0;
         int initialMb = legacy
                 ? Math.max(512, Math.min(memoryMb - 256, memoryMb * 2 / 3)) : 512;
         List<String> command = new ArrayList<>();
@@ -191,7 +191,7 @@ public final class GameLauncher {
         }
         if (config.autoJvmTuning() && !hasMetadataJvmTuning(metadataJvm)) {
             JvmTuner.Tuning tuning = JvmTuner.tune(javaPath, meta.javaMajor(),
-                    memoryMb, entry.id());
+                    memoryMb, entry.id(), meta.releaseTime());
             if (tuning.applied()) {
                 command.addAll(tuning.args());
                 Log.info("JVM 自动优化: " + tuning.reason());
