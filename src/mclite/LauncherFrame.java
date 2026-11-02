@@ -1640,13 +1640,13 @@ public final class LauncherFrame extends JFrame {
             showError("更新推荐模组", "读取版本信息失败：" + ex.getMessage());
             return;
         }
-        String loader = detectLoader(entry.id(), dir, meta);
+        String loader = InstanceService.detectLoader(entry.id(), dir, meta);
         if (loader == null) {
             showError("没有模组加载器", "这个实例没有检测到 Fabric / Quilt / Forge / NeoForge，"
                     + "推荐模组不会加载。");
             return;
         }
-        String gameVersion = detectBaseVersion(entry.id(), dir, json);
+        String gameVersion = InstanceService.detectBaseVersion(entry.id(), dir, json);
         java.util.List<Recommendations.Item> items = Recommendations
                 .forLoader(loader, gameVersion).stream()
                 .filter(Recommendations.Item::selected)
@@ -1661,59 +1661,6 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         startRecommendations(items, entry.id(), loader, gameVersion);
-    }
-
-    private static String detectLoader(String versionId, Path dir, VersionMeta meta) {
-        java.util.Properties properties = new java.util.Properties();
-        Path marker = dir.resolve(".mclite-loader.properties");
-        if (Files.isRegularFile(marker)) {
-            try (var in = Files.newInputStream(marker)) {
-                properties.load(in);
-            } catch (IOException ignored) {
-            }
-        }
-        String loader = properties.getProperty("loader", "").toLowerCase(java.util.Locale.ROOT);
-        String id = versionId.toLowerCase(java.util.Locale.ROOT);
-        String main = meta.mainClass() == null ? ""
-                : meta.mainClass().toLowerCase(java.util.Locale.ROOT);
-        String combined = loader + " " + id + " " + main;
-        if (combined.contains("neoforge") || combined.contains("neoforged")) {
-            return "neoforge";
-        }
-        if (combined.contains("fabric")) {
-            return "fabric";
-        }
-        if (combined.contains("quilt")) {
-            return "quilt";
-        }
-        if (combined.contains("forge") || combined.contains("bootstraplauncher")) {
-            return "forge";
-        }
-        return null;
-    }
-
-    private static String detectBaseVersion(String versionId, Path dir, Path json) {
-        Path marker = dir.resolve(".mclite-loader.properties");
-        if (Files.isRegularFile(marker)) {
-            java.util.Properties properties = new java.util.Properties();
-            try (var in = Files.newInputStream(marker)) {
-                properties.load(in);
-            } catch (IOException ignored) {
-            }
-            String base = properties.getProperty("base", "").trim();
-            if (!base.isEmpty()) {
-                return base;
-            }
-        }
-        try {
-            Map<String, Object> root = Json.obj(Json.parse(Files.readString(json)));
-            String parent = Json.str(root, "inheritsFrom", "").trim();
-            if (!parent.isEmpty()) {
-                return parent;
-            }
-        } catch (Exception ignored) {
-        }
-        return versionId;
     }
 
     private void renameSelectedInstance() {
@@ -1759,7 +1706,7 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         try {
-            renameInstanceFolder(entry.id(), newId, oldDir, newDir);
+            InstanceService.rename(gamePaths.gameDir(), entry.id(), newId, oldDir, newDir);
             metaCache.remove(entry.id());
             metaCache.remove(newId);
             installedCache.remove(entry.id());
@@ -1788,117 +1735,6 @@ public final class LauncherFrame extends JFrame {
         } catch (Exception ex) {
             Log.error("重命名实例失败", ex);
             showError("重命名失败", ex.getMessage() == null ? "无法重命名实例" : ex.getMessage());
-        }
-    }
-
-    private void renameInstanceFolder(String oldId, String newId, Path oldDir, Path newDir)
-            throws IOException {
-        Files.move(oldDir, newDir);
-        renameVersionJson(newDir, oldId, newId, false);
-        renameVersionJson(newDir, oldId, newId, true);
-        Path oldJar = newDir.resolve(oldId + ".jar");
-        Path newJar = newDir.resolve(newId + ".jar");
-        if (Files.isRegularFile(oldJar)) {
-            Files.move(oldJar, newJar);
-        }
-        Path oldJson = newDir.resolve(newId + ".json");
-        if (Files.isRegularFile(oldJson)) {
-            rewriteVersionJson(oldJson, oldId, newId);
-        }
-        Path oldVanilla = newDir.resolve(newId + ".vanilla.json");
-        if (Files.isRegularFile(oldVanilla)) {
-            rewriteVersionJson(oldVanilla, oldId, newId);
-        }
-        updateInstanceMarker(newDir, oldId, newId);
-        updateInheritedVersions(oldId, newId);
-    }
-
-    private void renameVersionJson(Path dir, String oldId, String newId, boolean vanilla)
-            throws IOException {
-        String suffix = vanilla ? ".vanilla.json" : ".json";
-        Path oldFile = dir.resolve(oldId + suffix);
-        if (!Files.isRegularFile(oldFile)) {
-            return;
-        }
-        Path newFile = dir.resolve(newId + suffix);
-        rewriteVersionJson(oldFile, oldId, newId);
-        Files.move(oldFile, newFile);
-    }
-
-    private void rewriteVersionJson(Path file, String oldId, String newId) throws IOException {
-        Map<String, Object> root = Json.obj(Json.parse(Files.readString(file)));
-        boolean changed = false;
-        for (String key : new String[]{"id", "jar", "inheritsFrom"}) {
-            if (oldId.equals(Json.str(root, key))) {
-                root.put(key, newId);
-                changed = true;
-            }
-        }
-        if (changed) {
-            Files.writeString(file, LoaderInstaller.prettyJson(root));
-        }
-    }
-
-    private void updateInstanceMarker(Path dir, String oldId, String newId) throws IOException {
-        Path marker = dir.resolve(".mclite.properties");
-        if (Files.isRegularFile(marker)) {
-            java.util.Properties properties = new java.util.Properties();
-            try (var in = Files.newInputStream(marker)) {
-                properties.load(in);
-            }
-            if (oldId.equals(properties.getProperty("versionId"))) {
-                properties.setProperty("versionId", newId);
-                try (var out = Files.newOutputStream(marker)) {
-                    properties.store(out, "MC Lite instance");
-                }
-            }
-        }
-        Path loader = dir.resolve(".mclite-loader.properties");
-        if (Files.isRegularFile(loader)) {
-            java.util.Properties properties = new java.util.Properties();
-            try (var in = Files.newInputStream(loader)) {
-                properties.load(in);
-            }
-            if (oldId.equals(properties.getProperty("base"))) {
-                properties.setProperty("base", newId);
-                try (var out = Files.newOutputStream(loader)) {
-                    properties.store(out, "MC Lite loader");
-                }
-            }
-        }
-    }
-
-    private void updateInheritedVersions(String oldId, String newId) {
-        try (var dirs = Files.list(gamePaths.versionsDir())) {
-            for (Path dir : dirs.toList()) {
-                if (!Files.isDirectory(dir)) {
-                    continue;
-                }
-                String id = dir.getFileName().toString();
-                Path json = dir.resolve(id + ".json");
-                if (!Files.isRegularFile(json)) {
-                    continue;
-                }
-                try {
-                    Map<String, Object> root = Json.obj(Json.parse(Files.readString(json)));
-                    boolean changed = false;
-                    if (oldId.equals(Json.str(root, "inheritsFrom"))) {
-                        root.put("inheritsFrom", newId);
-                        changed = true;
-                    }
-                    if (oldId.equals(Json.str(root, "jar"))) {
-                        root.put("jar", newId);
-                        changed = true;
-                    }
-                    if (changed) {
-                        Files.writeString(json, LoaderInstaller.prettyJson(root));
-                    }
-                } catch (Exception ex) {
-                    Log.warn("更新继承版本失败 " + json + ": " + ex.getMessage());
-                }
-            }
-        } catch (IOException ex) {
-            Log.warn("扫描继承版本失败: " + ex.getMessage());
         }
     }
 
@@ -1933,7 +1769,7 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         try {
-            deleteTree(dir);
+            InstanceService.deleteTree(dir);
             metaCache.remove(entry.id());
             instanceCounts.remove(entry.id());
             installedCache.remove(entry.id());
@@ -1958,14 +1794,6 @@ public final class LauncherFrame extends JFrame {
         } catch (IOException ex) {
             Log.error("删除实例失败", ex);
             showError("删除实例失败", ex.getMessage() == null ? "无法删除实例文件夹" : ex.getMessage());
-        }
-    }
-
-    private static void deleteTree(Path root) throws IOException {
-        try (var walk = Files.walk(root)) {
-            for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(path);
-            }
         }
     }
 
@@ -4200,7 +4028,7 @@ public final class LauncherFrame extends JFrame {
         if (Files.isRegularFile(json)) {
             try {
                 VersionMeta meta = LocalVersions.load(gamePaths, versionId);
-                String detected = detectLoader(versionId, dir, meta);
+                String detected = InstanceService.detectLoader(versionId, dir, meta);
                 if (detected != null) {
                     return detected;
                 }
@@ -5295,23 +5123,6 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private String inheritedParent(VersionManifest.VersionEntry entry) {
-        if (entry == null) {
-            return null;
-        }
-        Path json = gamePaths.versionJson(entry.id());
-        if (!Files.isRegularFile(json)) {
-            return null;
-        }
-        try {
-            Map<String, Object> root = Json.obj(Json.parse(Files.readString(json)));
-            String parent = Json.str(root, "inheritsFrom", "").trim();
-            return parent.isEmpty() ? null : parent;
-        } catch (Exception ex) {
-            return null;
-        }
-    }
-
     private void startInstall(boolean thenLaunch) {
         VersionManifest.VersionEntry entry = selectedEntry;
         if (entry == null) {
@@ -5407,7 +5218,7 @@ public final class LauncherFrame extends JFrame {
         config.save();
 
         VersionManifest.VersionEntry entry = selectedEntry;
-        String parentVersion = inheritedParent(entry);
+        String parentVersion = InstanceService.inheritedParent(gamePaths.versionJson(entry.id()));
         if (parentVersion != null && !Files.isRegularFile(gamePaths.versionJson(parentVersion))) {
             if (askYesNo("游戏文件不完整", "这个实例依赖的 " + parentVersion
                     + " 还没有安装。\n\n是否现在补齐并启动？")) {

@@ -12,8 +12,9 @@ public final class LauncherApp {
     }
 
     public static void main(String[] args) {
-        System.setProperty("java.net.preferIPv6Addresses", "true");
         System.setProperty("apple.awt.application.name", "MC Lite");
+        System.setProperty("awt.useSystemAAFontSettings", "on");
+        System.setProperty("swing.aatext", "true");
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
         Updater.captureParent();
         RegionGate.configure(args);
