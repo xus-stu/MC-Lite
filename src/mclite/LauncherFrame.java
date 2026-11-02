@@ -1428,6 +1428,9 @@ public final class LauncherFrame extends JFrame {
         Ui.AccentButton zipInstall = Ui.smallButton("ZIP 安装", Ui.AccentButton.Style.GHOST);
         zipInstall.setToolTipText("从本地 .mrpack 或 CurseForge 整合包 ZIP 安装一个新实例");
         zipInstall.addActionListener(e -> importLocalModpack());
+        Ui.AccentButton datapackInstall = Ui.smallButton("数据包", Ui.AccentButton.Style.GHOST);
+        datapackInstall.setToolTipText("把数据包 ZIP 安装到所选实例的某个存档");
+        datapackInstall.addActionListener(e -> installDatapack());
         headerActions.add(instanceLaunchButton);
         headerActions.add(Ui.hgap(8));
         headerActions.add(updateMods);
@@ -1437,6 +1440,8 @@ public final class LauncherFrame extends JFrame {
         headerActions.add(deleteInstance);
         headerActions.add(Ui.hgap(8));
         headerActions.add(zipInstall);
+        headerActions.add(Ui.hgap(8));
+        headerActions.add(datapackInstall);
         headerActions.add(Ui.hgap(8));
         headerActions.add(refresh);
         page.add(pageHeader("版本列表", "查看并启动游戏文件夹中的版本、模组和资源包", headerActions),
@@ -1530,6 +1535,85 @@ public final class LauncherFrame extends JFrame {
         box.add(header, BorderLayout.NORTH);
         box.add(Ui.scrollDark(list), BorderLayout.CENTER);
         return box;
+    }
+
+    private void installDatapack() {
+        if (busy) {
+            showError("暂时不能安装", "下载或安装任务正在进行，请稍后再试。");
+            return;
+        }
+        VersionManifest.VersionEntry entry = instancesList == null
+                ? null : instancesList.getSelectedValue();
+        if (entry == null) {
+            showError("安装数据包", "请先在左侧选择一个实例。");
+            return;
+        }
+        Path gameDir = config.effectiveGameDir(entry.id());
+        Path saves = gameDir.resolve("saves");
+        java.util.List<Path> worlds = new java.util.ArrayList<>();
+        if (Files.isDirectory(saves)) {
+            try (var dirs = Files.newDirectoryStream(saves)) {
+                for (Path dir : dirs) {
+                    if (Files.isDirectory(dir) && Files.isRegularFile(dir.resolve("level.dat"))) {
+                        worlds.add(dir);
+                    }
+                }
+            } catch (IOException ex) {
+                showError("读取存档失败", ex.getMessage());
+                return;
+            }
+        }
+        worlds.sort(java.util.Comparator.comparing(path -> path.getFileName().toString()));
+        if (worlds.isEmpty()) {
+            showError("没有存档", "这个实例还没有创建世界。\n\n请先进入游戏创建一个世界，再安装数据包。");
+            return;
+        }
+        Path world;
+        if (worlds.size() == 1) {
+            world = worlds.get(0);
+        } else {
+            String[] names = worlds.stream().map(path -> path.getFileName().toString())
+                    .toArray(String[]::new);
+            String selected = (String) JOptionPane.showInputDialog(this, "选择要安装数据包的存档：",
+                    "安装数据包", JOptionPane.QUESTION_MESSAGE, null, names, names[0]);
+            if (selected == null) {
+                return;
+            }
+            world = saves.resolve(selected);
+        }
+        Path archive = Ui.chooseFile(this, "选择数据包 ZIP", null, "zip");
+        if (archive == null) {
+            return;
+        }
+        if (!archive.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
+            showError("文件类型不支持", "数据包需要是 .zip 文件。");
+            return;
+        }
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(archive.toFile())) {
+            if (zip.getEntry("pack.mcmeta") == null) {
+                showError("不是有效的数据包", "ZIP 根目录缺少 pack.mcmeta。");
+                return;
+            }
+        } catch (IOException ex) {
+            showError("数据包无效", "无法读取 ZIP：" + ex.getMessage());
+            return;
+        }
+        Path datapacks = world.resolve("datapacks");
+        Path target = datapacks.resolve(archive.getFileName().toString());
+        try {
+            Files.createDirectories(datapacks);
+            if (Files.exists(target) && !askYesNo("覆盖数据包",
+                    target.getFileName() + " 已存在，是否覆盖？")) {
+                return;
+            }
+            Files.copy(archive, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            statusLabel.setText("数据包已安装 · " + world.getFileName() + " / "
+                    + target.getFileName() + "（进入世界后 /reload 或重进世界）");
+            statusLabel.setForeground(Theme.ACCENT);
+            Log.info("安装数据包 " + target);
+        } catch (IOException ex) {
+            showError("安装数据包失败", ex.getMessage());
+        }
     }
 
     private void updateRecommendedMods() {
