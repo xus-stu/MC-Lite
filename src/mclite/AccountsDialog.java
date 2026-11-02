@@ -199,8 +199,7 @@ public final class AccountsDialog extends JDialog {
             SkinStore.save(config, account.id(), selected);
             updateSkinPreview();
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, ex.getMessage(), "皮肤无效",
-                    JOptionPane.ERROR_MESSAGE);
+            ModernDialogs.message(this, "皮肤无效", ex.getMessage());
         }
     }
 
@@ -216,14 +215,13 @@ public final class AccountsDialog extends JDialog {
     private void createAccount() {
         String name = nameField.getText().trim();
         if (!Config.isValidUsername(name)) {
-            JOptionPane.showMessageDialog(this, "用户名必须为 3-16 位字母、数字或下划线。",
-                    "用户名无效", JOptionPane.ERROR_MESSAGE);
+            ModernDialogs.message(this, "用户名无效",
+                    "用户名必须为 3-16 位字母、数字或下划线。");
             return;
         }
         for (int i = 0; i < model.size(); i++) {
             if (model.get(i).name().equalsIgnoreCase(name)) {
-                JOptionPane.showMessageDialog(this, "已经存在同名账户。", "重复账户",
-                        JOptionPane.WARNING_MESSAGE);
+                ModernDialogs.message(this, "重复账户", "已经存在同名账户。");
                 return;
             }
         }
@@ -254,12 +252,11 @@ public final class AccountsDialog extends JDialog {
             return;
         }
         if (model.size() <= 1) {
-            JOptionPane.showMessageDialog(this, "至少保留一个账户。", "无法删除",
-                    JOptionPane.WARNING_MESSAGE);
+            ModernDialogs.message(this, "无法删除", "至少保留一个账户。");
             return;
         }
-        if (JOptionPane.showConfirmDialog(this, "删除账户 “" + account.name() + "”？",
-                "删除账户", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+        if (!ModernDialogs.confirm(this, "删除账户",
+                "删除账户 “" + account.name() + "”？")) {
             return;
         }
         model.removeElement(account);

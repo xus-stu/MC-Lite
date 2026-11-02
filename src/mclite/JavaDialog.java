@@ -133,10 +133,9 @@ public final class JavaDialog extends JDialog {
     }
 
     private void downloadRuntime() {
-        Object[] majors = {"Java 8", "Java 17", "Java 21"};
-        String majorText = (String) JOptionPane.showInputDialog(this,
-                "选择要下载的 Java 大版本：", "下载 Java",
-                JOptionPane.QUESTION_MESSAGE, null, majors, majors[0]);
+        String[] majors = {"Java 8", "Java 17", "Java 21"};
+        String majorText = ModernDialogs.choice(this, "下载 Java",
+                "选择要下载的 Java 大版本：", majors, majors[0]);
         if (majorText == null) {
             return;
         }
@@ -146,13 +145,19 @@ public final class JavaDialog extends JDialog {
             default -> 21;
         };
         java.util.List<JavaManager.PlatformOption> platforms = JavaManager.platformOptions();
-        JavaManager.PlatformOption platform = (JavaManager.PlatformOption) JOptionPane.showInputDialog(
-                this, "选择架构：\nJava 8 官方只有 x86_64，Apple Silicon 需要 Rosetta 2。",
-                "Java " + major + " 架构", JOptionPane.QUESTION_MESSAGE, null,
-                platforms.toArray(), platforms.get(0));
-        if (platform == null) {
+        String[] platformLabels = platforms.stream().map(JavaManager.PlatformOption::label)
+                .toArray(String[]::new);
+        String platformLabel = ModernDialogs.choice(this, "Java " + major + " 架构",
+                "选择架构：\nJava 8 官方只有 x86_64，Apple Silicon 需要 Rosetta 2。",
+                platformLabels, platformLabels[0]);
+        if (platformLabel == null) {
             return;
         }
+        int platformIndex = java.util.Arrays.asList(platformLabels).indexOf(platformLabel);
+        if (platformIndex < 0) {
+            return;
+        }
+        JavaManager.PlatformOption platform = platforms.get(platformIndex);
         String platformKey = platform.key();
         if (major <= 8 && "mac-os-arm64".equals(platformKey)) {
             platformKey = "mac-os";
