@@ -552,8 +552,22 @@ public final class LauncherFrame extends JFrame {
         JPanel content = new JPanel(new BorderLayout());
         content.setOpaque(true);
         content.setBackground(Theme.BG);
-        content.add(contentCardsPanel, BorderLayout.CENTER);
-        content.add(buildStatusbar(), BorderLayout.SOUTH);
+        // 页面只允许在 CENTER 区域内绘制，避免列表/图标越过状态栏。
+        JPanel pageClip = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintChildren(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.clipRect(0, 0, getWidth(), getHeight());
+                super.paintChildren(g2);
+                g2.dispose();
+            }
+        };
+        pageClip.setOpaque(false);
+        pageClip.add(contentCardsPanel, BorderLayout.CENTER);
+        content.add(pageClip, BorderLayout.CENTER);
+        JPanel status = buildStatusbar();
+        content.add(status, BorderLayout.SOUTH);
+        content.setComponentZOrder(status, 0);
         return content;
     }
 
