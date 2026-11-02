@@ -279,6 +279,23 @@ public final class SelfTest {
                     "整合包生成独立版本文件夹");
             LoaderInstaller.removeVersionIfUnused(standaloneRoot, "1.21");
             check(!Files.exists(standaloneBase), "独立整合包清理临时原版文件夹");
+            Path instanceRoot = work.resolve("instance-service");
+            Path instanceOld = instanceRoot.resolve("versions/old");
+            Path instanceNew = instanceRoot.resolve("versions/new");
+            Files.createDirectories(instanceOld);
+            Files.writeString(instanceOld.resolve("old.json"),
+                    "{\"id\":\"old\",\"mainClass\":\"net.minecraft.client.main.Main\","
+                            + "\"downloads\":{\"client\":{\"url\":\"https://x/y.jar\","
+                            + "\"sha1\":\"0000000000000000000000000000000000000000\",\"size\":1}},"
+                            + "\"libraries\":[]}", StandardCharsets.UTF_8);
+            Files.writeString(instanceOld.resolve("old.jar"), "jar", StandardCharsets.UTF_8);
+            InstanceService.rename(instanceRoot, "old", "new", instanceOld, instanceNew);
+            check(Files.isRegularFile(instanceNew.resolve("new.json"))
+                            && Files.isRegularFile(instanceNew.resolve("new.jar"))
+                            && Files.readString(instanceNew.resolve("new.json")).contains("\"id\": \"new\""),
+                    "实例重命名服务");
+            InstanceService.deleteTree(instanceNew);
+            check(!Files.exists(instanceNew), "实例删除服务");
             check(JvmTuner.isLegacyGame("1.12.2") && !JvmTuner.isLegacyGame("1.21.1"),
                     "低版本 JVM 参数识别");
             check(JvmTuner.java8Args(4096).contains("-XX:+UseParallelGC")
@@ -291,7 +308,7 @@ public final class SelfTest {
                             && JvmTuner.legacyTier("MITE-R196",
                             "2013-09-19T15:52:37+00:00") == 2,
                     "低版本内存分级");
-            passed += 5;
+            passed += 7;
 
         check(UpdateInstaller.versionedName("MCLite_v1.1.33.jar", "1.1.34", false)
                         .equals("MCLite_v1.1.34.jar"),
