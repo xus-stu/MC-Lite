@@ -189,6 +189,8 @@ public final class LauncherFrame extends JFrame {
     private boolean contentVersionUpdating;
     private String lastSearchedContentVersion = "";
     private final java.util.Map<String, String> contentChineseTitles = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, java.util.Optional<McMod.Entry>> mcmodLookupCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
     private Ui.ToggleChip forceTranslationToggle;
     private JLabel versionDetailTitle;
     private JTextArea versionDetailMeta;
@@ -3879,6 +3881,28 @@ public final class LauncherFrame extends JFrame {
         return false;
     }
 
+    private java.util.Optional<McMod.Entry> lookupMcmod(Modrinth.Project project, int filter) {
+        return mcmodLookupCache.computeIfAbsent(project.id(), ignored -> {
+            String[] queries = {project.title(), project.slug()};
+            for (String query : queries) {
+                if (query == null || query.isBlank()) {
+                    continue;
+                }
+                try {
+                    for (McMod.Entry entry : new McMod().search(query, filter)) {
+                        if (namesMatch(project.title(), entry.englishName())
+                                || namesMatch(project.slug(), entry.englishName())) {
+                            return java.util.Optional.of(entry);
+                        }
+                    }
+                } catch (IOException ex) {
+                    Log.warn("MC百科查询失败 " + query + ": " + ex.getMessage());
+                }
+            }
+            return java.util.Optional.empty();
+        });
+    }
+
     private static boolean namesMatch(String a, String b) {
         if (a == null || b == null) {
             return false;
@@ -4129,6 +4153,47 @@ public final class LauncherFrame extends JFrame {
                         enriched.add(project.withMcmod(match.summary(), match.url()));
                     } else {
                         enriched.add(project);
+                    }
+                }
+                if (config.forceModTranslation()) {
+                    java.util.Map<String, java.util.concurrent.Future<java.util.Optional<McMod.Entry>>> lookups =
+                            new java.util.LinkedHashMap<>();
+                    java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors
+                            .newFixedThreadPool(4, runnable -> {
+                                Thread thread = new Thread(runnable, "mclite-mcmod-title");
+                                thread.setDaemon(true);
+                                return thread;
+                            });
+                    try {
+                        int filter = "modpack".equals(contentType) ? 2 : 0;
+                        for (Modrinth.Project project : enriched) {
+                            if (contentChineseTitles.containsKey(project.id())) {
+                                continue;
+                            }
+                            lookups.put(project.id(), pool.submit(() -> lookupMcmod(project, filter)));
+                        }
+                        for (int i = 0; i < enriched.size(); i++) {
+                            Modrinth.Project project = enriched.get(i);
+                            java.util.concurrent.Future<java.util.Optional<McMod.Entry>> future =
+                                    lookups.get(project.id());
+                            if (future == null) {
+                                continue;
+                            }
+                            try {
+                                java.util.Optional<McMod.Entry> found = future.get(
+                                        8, java.util.concurrent.TimeUnit.SECONDS);
+                                if (found.isPresent()) {
+                                    McMod.Entry entry = found.get();
+                                    contentChineseTitles.put(project.id(), entry.title());
+                                    enriched.set(i, project.withMcmod(entry.summary(), entry.url()));
+                                }
+                            } catch (Exception ex) {
+                                future.cancel(true);
+                                Log.warn("MC百科中文名查询失败: " + ex.getMessage());
+                            }
+                        }
+                    } finally {
+                        pool.shutdownNow();
                     }
                 }
                 return enriched;
