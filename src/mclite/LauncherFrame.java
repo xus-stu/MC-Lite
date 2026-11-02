@@ -3208,9 +3208,7 @@ public final class LauncherFrame extends JFrame {
 
     private void showProjectDetail(Modrinth.Project project) {
         detailProject = project;
-        projectDetailTitle.setText(config.forceModTranslation()
-                ? contentChineseTitles.getOrDefault(detailProject.id(), detailProject.title())
-                : detailProject.title());
+        projectDetailTitle.setText(contentDisplayTitle(detailProject));
         projectDetailMeta.setText(detailProject.author() + "  ·  "
                 + Formatting.bytes(detailProject.downloads()) + " 下载  ·  "
                 + detailProject.projectType());
@@ -3901,6 +3899,25 @@ public final class LauncherFrame extends JFrame {
             }
             return java.util.Optional.empty();
         });
+    }
+
+    private String contentDisplayTitle(Modrinth.Project project) {
+        String english = project.title();
+        if (!config.forceModTranslation()) {
+            return english;
+        }
+        String chinese = contentChineseTitles.get(project.id());
+        if (chinese == null || chinese.isBlank() || chinese.equalsIgnoreCase(english)) {
+            return english;
+        }
+        String normalizedChinese = chinese.toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^a-z0-9]", "");
+        String normalizedEnglish = english.toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^a-z0-9]", "");
+        if (normalizedEnglish.length() >= 3 && normalizedChinese.contains(normalizedEnglish)) {
+            return chinese;
+        }
+        return chinese + " (" + english + ")";
     }
 
     private static boolean namesMatch(String a, String b) {
@@ -6316,9 +6333,7 @@ public final class LauncherFrame extends JFrame {
         public Component getListCellRendererComponent(JList<? extends Modrinth.Project> list,
                                                       Modrinth.Project value, int index,
                                                       boolean isSelected, boolean cellHasFocus) {
-            title.setText(config.forceModTranslation()
-                    ? contentChineseTitles.getOrDefault(value.id(), value.title())
-                    : value.title());
+            title.setText(contentDisplayTitle(value));
             icon.setUrl(value.iconUrl());
             String text = value.summaryZh() != null ? value.summaryZh() : value.description();
             if (text == null) {
