@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 public final class JvmTuner {
     private static final Map<String, Tuning> CACHE = new ConcurrentHashMap<>();
     private static final Pattern LEGACY_VERSION = Pattern.compile(
-            "(?:^|[^\\d])(1\\.(\\d+)(?:\\.\\d+)?)(?:[^\\d]|$)");
+            "(?<![0-9.])1\\.(\\d+)(?:\\.\\d+)?(?![0-9.])");
 
     public record Tuning(List<String> args, String reason) {
         public boolean applied() {
@@ -67,25 +67,12 @@ public final class JvmTuner {
     }
 
     static int legacyTier(String version, String releaseTime) {
-        int byVersion = 0;
-        if (version != null) {
-            Matcher matcher = LEGACY_VERSION.matcher(version);
-            if (matcher.find()) {
-                try {
-                    int minor = Integer.parseInt(matcher.group(2));
-                    if (minor <= 8) {
-                        byVersion = 2;
-                    } else if (minor <= 12) {
-                        byVersion = 1;
-                    }
-                } catch (NumberFormatException ignored) {
-                }
-            }
-        }
         int byRelease = 0;
+        boolean releaseKnown = false;
         if (releaseTime != null && releaseTime.length() >= 4) {
             try {
                 int year = Integer.parseInt(releaseTime.substring(0, 4));
+                releaseKnown = true;
                 if (year <= 2015) {
                     byRelease = 2;
                 } else if (year <= 2017) {
@@ -94,7 +81,25 @@ public final class JvmTuner {
             } catch (NumberFormatException ignored) {
             }
         }
-        return Math.max(byVersion, byRelease);
+        if (releaseKnown) {
+            return byRelease;
+        }
+        if (version != null) {
+            Matcher matcher = LEGACY_VERSION.matcher(version);
+            if (matcher.find()) {
+                try {
+                    int minor = Integer.parseInt(matcher.group(1));
+                    if (minor <= 8) {
+                        return 2;
+                    }
+                    if (minor <= 12) {
+                        return 1;
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return 0;
     }
 
     static List<String> java8Args(int memoryMb) {
