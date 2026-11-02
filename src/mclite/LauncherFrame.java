@@ -206,6 +206,7 @@ public final class LauncherFrame extends JFrame {
     }
     private Modrinth.Project detailProject;
     private JLabel projectDetailTitle;
+    private Ui.AccentButton detailMcmodButton;
     private JLabel projectDetailMeta;
     private JLabel projectDetailSummary;
     private Ui.ProjectIcon projectDetailIcon;
@@ -975,12 +976,7 @@ public final class LauncherFrame extends JFrame {
         contentMcmodButton.setPreferredSize(new Dimension(68, 30));
         contentMcmodButton.setMaximumSize(new Dimension(68, 30));
         contentMcmodButton.setVisible(false);
-        contentMcmodButton.addActionListener(e -> {
-            Modrinth.Project project = contentList.getSelectedValue();
-            if (project != null && project.mcmodUrl() != null) {
-                openUrl(project.mcmodUrl());
-            }
-        });
+        contentMcmodButton.addActionListener(e -> openMcmod(contentList.getSelectedValue()));
         contentPrevPage = Ui.smallButton("<", Ui.AccentButton.Style.GHOST);
         contentPrevPage.setPreferredSize(new Dimension(28, 30));
         contentPrevPage.setMaximumSize(new Dimension(28, 30));
@@ -1324,13 +1320,9 @@ public final class LauncherFrame extends JFrame {
         info.add(Ui.vgap(3));
         info.add(projectDetailSummary);
         top.add(info, BorderLayout.CENTER);
-        Ui.AccentButton mcmod = Ui.smallButton("MC百科", Ui.AccentButton.Style.LINK);
-        mcmod.addActionListener(e -> {
-            if (detailProject != null && detailProject.mcmodUrl() != null) {
-                openUrl(detailProject.mcmodUrl());
-            }
-        });
-        top.add(mcmod, BorderLayout.EAST);
+        detailMcmodButton = Ui.smallButton("MC百科", Ui.AccentButton.Style.LINK);
+        detailMcmodButton.addActionListener(e -> openMcmod(detailProject));
+        top.add(detailMcmodButton, BorderLayout.EAST);
         page.add(top, BorderLayout.NORTH);
 
         projectVersionModel = new DefaultListModel<>();
@@ -3209,6 +3201,11 @@ public final class LauncherFrame extends JFrame {
     private void showProjectDetail(Modrinth.Project project) {
         detailProject = project;
         projectDetailTitle.setText(contentDisplayTitle(detailProject));
+        boolean hasMcmod = detailProject.mcmodUrl() != null
+                && !detailProject.mcmodUrl().isBlank();
+        detailMcmodButton.setVisible(hasMcmod);
+        detailMcmodButton.setToolTipText(hasMcmod ? detailProject.mcmodUrl()
+                : "MC百科没有收录这个项目");
         projectDetailMeta.setText(detailProject.author() + "  ·  "
                 + Formatting.bytes(detailProject.downloads()) + " 下载  ·  "
                 + detailProject.projectType());
@@ -4270,7 +4267,8 @@ public final class LauncherFrame extends JFrame {
                     case "shader" -> "安装光影";
                     default -> "安装所选";
                 });
-        contentMcmodButton.setVisible(selected && project.mcmodUrl() != null);
+        contentMcmodButton.setVisible(selected && project.mcmodUrl() != null
+                && !project.mcmodUrl().isBlank());
         if (selected) {
             if (selectedCount > 1) {
                 contentSelectionLabel.setText("已选择 " + selectedCount
@@ -5981,6 +5979,35 @@ public final class LauncherFrame extends JFrame {
                         + "\tat com.example.examplemod.Foo.tick(Foo.java:42)\n"
                         + "\tat net.minecraft.client.Minecraft.tick(Minecraft.java:1)\n",
                 null), 1).setVisible(true);
+    }
+
+    private void openMcmod(Modrinth.Project project) {
+        if (project == null) {
+            return;
+        }
+        String url = project.mcmodUrl();
+        if (url == null || url.isBlank()) {
+            showError("没有 MC百科页面", project.title() + " 暂时没有匹配到 MC百科条目。");
+            return;
+        }
+        if (url.startsWith("//")) {
+            url = "https:" + url;
+        } else if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            url = "https://www.mcmod.cn/" + url.replaceFirst("^/+", "");
+        }
+        try {
+            String host = java.net.URI.create(url).getHost();
+            if (host == null || !(host.equals("mcmod.cn") || host.endsWith(".mcmod.cn"))) {
+                showError("MC百科地址无效", url);
+                return;
+            }
+        } catch (RuntimeException ex) {
+            showError("MC百科地址无效", url);
+            return;
+        }
+        if (!Browser.open(url)) {
+            showError("无法打开浏览器", "请手动打开：\n" + url);
+        }
     }
 
     private void openUrl(String url) {
