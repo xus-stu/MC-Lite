@@ -3902,22 +3902,15 @@ public final class LauncherFrame extends JFrame {
     }
 
     private String contentDisplayTitle(Modrinth.Project project) {
-        String english = project.title();
         if (!config.forceModTranslation()) {
-            return english;
+            return project.title();
         }
         String chinese = contentChineseTitles.get(project.id());
-        if (chinese == null || chinese.isBlank() || chinese.equalsIgnoreCase(english)) {
-            return english;
+        if (chinese == null || chinese.isBlank()) {
+            return project.title();
         }
-        String normalizedChinese = chinese.toLowerCase(java.util.Locale.ROOT)
-                .replaceAll("[^a-z0-9]", "");
-        String normalizedEnglish = english.toLowerCase(java.util.Locale.ROOT)
-                .replaceAll("[^a-z0-9]", "");
-        if (normalizedEnglish.length() >= 3 && normalizedChinese.contains(normalizedEnglish)) {
-            return chinese;
-        }
-        return chinese + " (" + english + ")";
+        // MC百科标题通常已经包含英文原名，不再重复追加。
+        return chinese;
     }
 
     private static boolean namesMatch(String a, String b) {
