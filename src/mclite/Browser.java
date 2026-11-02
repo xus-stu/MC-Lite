@@ -7,9 +7,9 @@ public final class Browser {
     private Browser() {
     }
 
-    public static void open(String url) {
+    public static boolean open(String url) {
         if (url == null || url.isBlank()) {
-            return;
+            return false;
         }
         String target = url.startsWith("//") ? "https:" + url : url;
         try {
@@ -23,15 +23,19 @@ public final class Browser {
                 builder = new ProcessBuilder("xdg-open", target);
             }
             builder.redirectErrorStream(true).start();
-            return;
-        } catch (Exception ignored) {
+            return true;
+        } catch (Exception ex) {
+            Log.warn("打开浏览器失败: " + ex.getMessage());
         }
         try {
             if (Desktop.isDesktopSupported()
                     && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(URI.create(target));
+                return true;
             }
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            Log.warn("Desktop 打开浏览器失败: " + ex.getMessage());
         }
+        return false;
     }
 }

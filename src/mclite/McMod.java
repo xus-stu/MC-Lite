@@ -52,7 +52,8 @@ public final class McMod {
             if (summary.length() > 220) {
                 summary = summary.substring(0, 218) + "…";
             }
-            entries.add(new Entry(Integer.parseInt(link.group(2)), link.group(1), rawTitle,
+            int id = Integer.parseInt(link.group(2));
+            entries.add(new Entry(id, "https://www.mcmod.cn/class/" + id + ".html", rawTitle,
                     englishName(rawTitle), summary));
         }
         return entries;
