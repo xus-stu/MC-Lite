@@ -66,7 +66,7 @@ public final class AccountsDialog extends JDialog {
         list.setFixedCellHeight(58);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new AccountCell());
-        JScrollPane scroll = new JScrollPane(list);
+        JScrollPane scroll = Ui.scrollDark(list);
         scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
         scroll.getViewport().setBackground(Theme.CARD);
         list.addListSelectionListener(e -> {

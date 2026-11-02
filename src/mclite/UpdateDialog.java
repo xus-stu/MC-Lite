@@ -46,8 +46,7 @@ public final class UpdateDialog extends JDialog {
         JLabel currentLabel = Ui.label("当前版本 V" + current, Theme.TINY, Theme.DIM);
         currentLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel note = Ui.label("<html><body style='width:420px'>"
-                + "启动器有新版本可用。下载会在后台进行，不会影响正在运行的游戏。"
-                + "下载完成后，下次打开启动器时生效；更新会直接替换当前的 jar 或 macOS 应用包。"
+                + "更新会在后台下载，期间可以继续游戏。下载完成后，下次启动生效。"
                 + "</body></html>", Theme.BODY, Theme.MUTED);
         note.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(version);
@@ -64,19 +63,20 @@ public final class UpdateDialog extends JDialog {
         changes.setEditable(false);
         changes.setLineWrap(true);
         changes.setWrapStyleWord(true);
-        changes.setFont(Theme.MONO);
+        changes.setFont(Theme.BODY);
         changes.setForeground(Theme.MUTED);
         changes.setBackground(Theme.CARD_ALT);
         changes.setBorder(new EmptyBorder(8, 10, 8, 10));
         changes.setCaretPosition(0);
-        JScrollPane scroll = new JScrollPane(changes);
-        scroll.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
+        JScrollPane scroll = Ui.scrollDark(changes);
+        scroll.setBorder(BorderFactory.createLineBorder(Theme.BORDER, 1, true));
+        scroll.getViewport().setBackground(Theme.CARD_ALT);
         scroll.setPreferredSize(new Dimension(500, 140));
         scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
         scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(scroll);
         body.add(Ui.vgap(4));
-        JLabel source = Ui.label("说明来自 GitHub Release，不包含在游戏包内", Theme.TINY, Theme.DIM);
+        JLabel source = Ui.label("更新说明来自 GitHub Release", Theme.TINY, Theme.DIM);
         source.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(source);
         root.add(body, BorderLayout.CENTER);
