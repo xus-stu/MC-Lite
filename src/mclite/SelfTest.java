@@ -287,6 +287,7 @@ public final class SelfTest {
             check(JvmTuner.legacyTier("1.6.4") == 2
                             && JvmTuner.legacyTier("1.12.2") == 1
                             && JvmTuner.legacyTier("1.21.1") == 0
+                            && JvmTuner.legacyTier("26.1.2", "2026-10-30T19:09:50+00:00") == 0
                             && JvmTuner.legacyTier("MITE-R196",
                             "2013-09-19T15:52:37+00:00") == 2,
                     "低版本内存分级");
