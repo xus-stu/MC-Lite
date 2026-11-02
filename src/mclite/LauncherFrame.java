@@ -443,11 +443,11 @@ public final class LauncherFrame extends JFrame {
         form.setOpaque(false);
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
         form.setBorder(new EmptyBorder(20, 16, 12, 16));
-        form.add(lockedHeight(buildSidebarAccount()));
+        form.add(LauncherLayout.lockedHeight(buildSidebarAccount()));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
-        form.add(lockedHeight(buildSidebarVersion()));
+        form.add(LauncherLayout.lockedHeight(buildSidebarVersion()));
         form.add(Box.createVerticalGlue());
         return form;
     }
@@ -1024,14 +1024,14 @@ public final class LauncherFrame extends JFrame {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        page.add(pageHeader("启动游戏", "确认账户、版本和 Java 后启动", null), BorderLayout.NORTH);
+        page.add(LauncherLayout.pageHeader("启动游戏", "确认账户、版本和 Java 后启动", null), BorderLayout.NORTH);
 
         JPanel form = new JPanel();
         form.setOpaque(false);
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
         form.setBorder(new EmptyBorder(30, 30, 30, 30));
 
-        JPanel account = section("账户", "离线账户，仅用于单机 / 局域网");
+        JPanel account = LauncherLayout.section("账户", "离线账户，仅用于单机 / 局域网");
         JPanel accountRow = new JPanel(new BorderLayout(10, 0));
         accountRow.setOpaque(false);
         launchSkin = new Ui.SkinHead(34);
@@ -1044,12 +1044,12 @@ public final class LauncherFrame extends JFrame {
         accountRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
         accountRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         account.add(accountRow);
-        form.add(lockedHeight(account));
+        form.add(LauncherLayout.lockedHeight(account));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel version = section("版本", "下载或修复会先补全客户端、运行库和资源");
+        JPanel version = LauncherLayout.section("版本", "下载或修复会先补全客户端、运行库和资源");
         launchVersion = Ui.label("未选择版本", Theme.TITLE, Theme.TEXT);
         launchVersion.setAlignmentX(Component.LEFT_ALIGNMENT);
         version.add(launchVersion);
@@ -1067,12 +1067,12 @@ public final class LauncherFrame extends JFrame {
         launchMeta.setAlignmentX(Component.LEFT_ALIGNMENT);
         launchMeta.setMaximumSize(new Dimension(Integer.MAX_VALUE, 52));
         version.add(launchMeta);
-        form.add(lockedHeight(version));
+        form.add(LauncherLayout.lockedHeight(version));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel details = section("启动参数", "这些值来自「启动器配置」和「设置」");
+        JPanel details = LauncherLayout.section("启动参数", "这些值来自「启动器配置」和「设置」");
         launchJava = Ui.label("检测中…", Theme.MONO, Theme.MUTED);
         launchMemory = Ui.label(config.memoryMb() + " MB", Theme.MONO, Theme.MUTED);
         launchJvm = Ui.label(config.jvmArgs().isBlank() ? "无额外参数" : config.jvmArgs(),
@@ -1086,7 +1086,7 @@ public final class LauncherFrame extends JFrame {
         details.add(infoLine("资源", launchAssets));
         details.add(Ui.vgap(8));
         details.add(infoLine("JVM", launchJvm));
-        form.add(lockedHeight(details));
+        form.add(LauncherLayout.lockedHeight(details));
         form.add(Ui.vgap(30));
 
         JPanel actions = new JPanel();
@@ -1115,7 +1115,7 @@ public final class LauncherFrame extends JFrame {
         actions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         form.add(actions);
         form.add(Ui.vgap(14));
-        form.add(sidebarNote("启动前会检查客户端、运行库和资源；缺失时会提示下载 / 修复。"));
+        form.add(LauncherLayout.sidebarNote("启动前会检查客户端、运行库和资源；缺失时会提示下载 / 修复。"));
         form.add(Box.createVerticalGlue());
         page.add(form, BorderLayout.CENTER);
         updateButtons();
@@ -1178,14 +1178,14 @@ public final class LauncherFrame extends JFrame {
         page.setBackground(Theme.BG);
         Ui.AccentButton back = Ui.smallButton("返回列表", Ui.AccentButton.Style.GHOST);
         back.addActionListener(e -> showDownloadTab("versions"));
-        page.add(pageHeader("安装选项", "先选加载器，再下载原版与加载器", back), BorderLayout.NORTH);
+        page.add(LauncherLayout.pageHeader("安装选项", "先选加载器，再下载原版与加载器", back), BorderLayout.NORTH);
 
         JPanel form = new JPanel();
         form.setOpaque(false);
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
         form.setBorder(new EmptyBorder(30, 30, 30, 30));
 
-        JPanel version = section("版本", "下载客户端、运行库和资源");
+        JPanel version = LauncherLayout.section("版本", "下载客户端、运行库和资源");
         versionDetailTitle = Ui.label("未选择版本", Theme.TITLE, Theme.TEXT);
         versionDetailTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         version.add(versionDetailTitle);
@@ -1202,12 +1202,12 @@ public final class LauncherFrame extends JFrame {
         versionDetailMeta.setAlignmentX(Component.LEFT_ALIGNMENT);
         versionDetailMeta.setMaximumSize(new Dimension(Integer.MAX_VALUE, 52));
         version.add(versionDetailMeta);
-        form.add(lockedHeight(version));
+        form.add(LauncherLayout.lockedHeight(version));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel loader = section("模组启动器", "原版不需要加载器；版本留空时自动获取最新版");
+        JPanel loader = LauncherLayout.section("模组启动器", "原版不需要加载器；版本留空时自动获取最新版");
         JPanel loaderChoices = new JPanel();
         loaderChoices.setOpaque(false);
         loaderChoices.setLayout(new BoxLayout(loaderChoices, BoxLayout.X_AXIS));
@@ -1239,7 +1239,7 @@ public final class LauncherFrame extends JFrame {
         versionLoaderVersion.setAlignmentX(Component.LEFT_ALIGNMENT);
         loader.add(versionLoaderVersion);
         loader.add(Ui.vgap(7));
-        loader.add(sidebarNote("Forge / NeoForge 会自动查询当前游戏版本对应的最新版本。"
+        loader.add(LauncherLayout.sidebarNote("Forge / NeoForge 会自动查询当前游戏版本对应的最新版本。"
                 + "也可以手动填写覆盖。"));
         recommendationPanel = new Ui.RoundedPanel(Theme.CARD_ALT, Theme.BORDER, 14);
         recommendationPanel.setLayout(new BoxLayout(recommendationPanel, BoxLayout.Y_AXIS));
@@ -1284,7 +1284,7 @@ public final class LauncherFrame extends JFrame {
             });
             downloadSubtitle.setText("来自 Modrinth · 自动补齐必需前置 · SHA-1 校验");
         });
-        page.add(pageHeader("文件版本", "选择具体文件版本后安装", back), BorderLayout.NORTH);
+        page.add(LauncherLayout.pageHeader("文件版本", "选择具体文件版本后安装", back), BorderLayout.NORTH);
 
         JPanel top = new JPanel(new BorderLayout(12, 0));
         top.setBackground(Theme.CARD);
@@ -1444,7 +1444,7 @@ public final class LauncherFrame extends JFrame {
         headerActions.add(datapackInstall);
         headerActions.add(Ui.hgap(8));
         headerActions.add(refresh);
-        page.add(pageHeader("版本列表", "查看并启动游戏文件夹中的版本、模组和资源包", headerActions),
+        page.add(LauncherLayout.pageHeader("版本列表", "查看并启动游戏文件夹中的版本、模组和资源包", headerActions),
                 BorderLayout.NORTH);
 
         JPanel body = new JPanel(new BorderLayout(14, 0));
@@ -1549,53 +1549,67 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         Path gameDir = config.effectiveGameDir(entry.id());
-        Path saves = gameDir.resolve("saves");
-        java.util.List<Path> worlds = new java.util.ArrayList<>();
-        if (Files.isDirectory(saves)) {
-            try (var dirs = Files.newDirectoryStream(saves)) {
-                for (Path dir : dirs) {
-                    if (Files.isDirectory(dir) && Files.isRegularFile(dir.resolve("level.dat"))) {
-                        worlds.add(dir);
-                    }
-                }
+        String[] modes = {"仅当前存档", "全局数据包（应用到所有存档）"};
+        String mode = ModernDialogs.choice(this, "安装数据包",
+                "要把数据包安装到哪里？\n\n全局数据包会保存到实例的 datapacks 文件夹，"
+                        + "并在每次启动前同步到所有存档。", modes, modes[0]);
+        if (mode == null) {
+            return;
+        }
+        boolean global = modes[1].equals(mode);
+        java.util.List<Path> worlds = java.util.List.of();
+        Path world = null;
+        if (!global) {
+            try {
+                worlds = GlobalDatapacks.worlds(gameDir);
             } catch (IOException ex) {
                 showError("读取存档失败", ex.getMessage());
                 return;
             }
-        }
-        worlds.sort(java.util.Comparator.comparing(path -> path.getFileName().toString()));
-        if (worlds.isEmpty()) {
-            showError("没有存档", "这个实例还没有创建世界。\n\n请先进入游戏创建一个世界，再安装数据包。");
-            return;
-        }
-        Path world;
-        if (worlds.size() == 1) {
-            world = worlds.get(0);
-        } else {
-            String[] names = worlds.stream().map(path -> path.getFileName().toString())
-                    .toArray(String[]::new);
-            String selected = (String) JOptionPane.showInputDialog(this, "选择要安装数据包的存档：",
-                    "安装数据包", JOptionPane.QUESTION_MESSAGE, null, names, names[0]);
-            if (selected == null) {
+            if (worlds.isEmpty()) {
+                showError("没有存档", "这个实例还没有创建世界。\n\n"
+                        + "请先进入游戏创建一个世界；或选择「全局数据包」。");
                 return;
             }
-            world = saves.resolve(selected);
+            if (worlds.size() == 1) {
+                world = worlds.get(0);
+            } else {
+                String[] names = worlds.stream().map(path -> path.getFileName().toString())
+                        .toArray(String[]::new);
+                String selected = ModernDialogs.choice(this, "安装数据包",
+                        "选择要安装数据包的存档：", names, names[0]);
+                if (selected == null) {
+                    return;
+                }
+                world = gameDir.resolve("saves").resolve(selected);
+            }
         }
         Path archive = Ui.chooseFile(this, "选择数据包 ZIP", null, "zip");
         if (archive == null) {
             return;
         }
-        if (!archive.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
-            showError("文件类型不支持", "数据包需要是 .zip 文件。");
+        try {
+            GlobalDatapacks.validate(archive);
+        } catch (IOException ex) {
+            showError("不是有效的数据包", ex.getMessage());
             return;
         }
-        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(archive.toFile())) {
-            if (zip.getEntry("pack.mcmeta") == null) {
-                showError("不是有效的数据包", "ZIP 根目录缺少 pack.mcmeta。");
+        if (global) {
+            Path target = GlobalDatapacks.folder(gameDir).resolve(archive.getFileName().toString());
+            if (Files.exists(target) && !askYesNo("覆盖全局数据包",
+                    target.getFileName() + " 已存在，是否覆盖？")) {
                 return;
             }
-        } catch (IOException ex) {
-            showError("数据包无效", "无法读取 ZIP：" + ex.getMessage());
+            try {
+                int count = GlobalDatapacks.worlds(gameDir).size();
+                GlobalDatapacks.install(gameDir, archive);
+                statusLabel.setText("全局数据包已安装 · " + target.getFileName()
+                        + " · 已同步到 " + count + " 个存档（新存档下次启动时同步）");
+                statusLabel.setForeground(Theme.ACCENT);
+                Log.info("安装全局数据包 " + target);
+            } catch (IOException ex) {
+                showError("安装全局数据包失败", ex.getMessage());
+            }
             return;
         }
         Path datapacks = world.resolve("datapacks");
@@ -1686,8 +1700,8 @@ public final class LauncherFrame extends JFrame {
             showError("游戏正在运行", "这个实例的 Minecraft 还在运行，请先退出游戏再重命名。");
             return;
         }
-        String input = JOptionPane.showInputDialog(this, "新的实例名称：",
-                "重命名实例 " + entry.id(), JOptionPane.PLAIN_MESSAGE);
+        String input = ModernDialogs.input(this, "重命名实例",
+                "新的实例名称：", entry.id());
         if (input == null) {
             return;
         }
@@ -2021,7 +2035,7 @@ public final class LauncherFrame extends JFrame {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        page.add(pageHeader("启动器配置", "账户、游戏目录和 Java 运行时", null), BorderLayout.NORTH);
+        page.add(LauncherLayout.pageHeader("启动器配置", "账户、游戏目录和 Java 运行时", null), BorderLayout.NORTH);
         JScrollPane scroll = Ui.scroll(buildConfigForm());
         page.add(scroll, BorderLayout.CENTER);
         return page;
@@ -2033,7 +2047,7 @@ public final class LauncherFrame extends JFrame {
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
         form.setBorder(new EmptyBorder(30, 30, 30, 30));
 
-        JPanel account = section("账户", "离线账户只用于单机 / 局域网，正版服务器仍需正版登录");
+        JPanel account = LauncherLayout.section("账户", "离线账户只用于单机 / 局域网，正版服务器仍需正版登录");
         JPanel accountRow = new JPanel(new BorderLayout(10, 0));
         accountRow.setOpaque(false);
         configSkin = new Ui.SkinHead(36);
@@ -2054,14 +2068,14 @@ public final class LauncherFrame extends JFrame {
         accountRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
         account.add(accountRow);
         account.add(Ui.vgap(7));
-        account.add(sidebarNote("账户保存在 " + config.accountsDir()
+        account.add(LauncherLayout.sidebarNote("账户保存在 " + config.accountsDir()
                 + "，可在账户管理里修改保存目录；创建离线账户不需要密码。"));
-        form.add(lockedHeight(account));
+        form.add(LauncherLayout.lockedHeight(account));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel directory = section("游戏目录", "版本、存档、资源和日志都会放在这个目录");
+        JPanel directory = LauncherLayout.section("游戏目录", "版本、存档、资源和日志都会放在这个目录");
         JPanel dirRow = new JPanel(new BorderLayout(6, 0));
         dirRow.setOpaque(false);
         gameDirField = Ui.field(config.gameDir().toString(), "游戏目录");
@@ -2112,14 +2126,14 @@ public final class LauncherFrame extends JFrame {
         });
         directory.add(isolate);
         directory.add(Ui.vgap(6));
-        directory.add(sidebarNote("开启后游戏目录使用 versions/<版本>/ 作为实例目录；"
+        directory.add(LauncherLayout.sidebarNote("开启后游戏目录使用 versions/<版本>/ 作为实例目录；"
                 + "关闭时所有版本共用同一个 .minecraft。"));
-        form.add(lockedHeight(directory));
+        form.add(LauncherLayout.lockedHeight(directory));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel java = section("Java 运行时", "自动选择会优先匹配该版本需要的 Java 大版本");
+        JPanel java = LauncherLayout.section("Java 运行时", "自动选择会优先匹配该版本需要的 Java 大版本");
         JPanel javaRow = new JPanel(new BorderLayout(6, 0));
         javaRow.setOpaque(false);
         javaCombo.setPreferredSize(new Dimension(100, 32));
@@ -2178,7 +2192,7 @@ public final class LauncherFrame extends JFrame {
             config.save();
         });
         java.add(autoJavaToggle);
-        form.add(lockedHeight(java));
+        form.add(LauncherLayout.lockedHeight(java));
         form.add(Box.createVerticalGlue());
         return form;
     }
@@ -2202,7 +2216,7 @@ public final class LauncherFrame extends JFrame {
         settingsActions.add(checkUpdate);
         settingsActions.add(Ui.hgap(6));
         settingsActions.add(openData);
-        page.add(pageHeader("设置", "性能、窗口和下载选项会自动保存", settingsActions), BorderLayout.NORTH);
+        page.add(LauncherLayout.pageHeader("设置", "性能、窗口和下载选项会自动保存", settingsActions), BorderLayout.NORTH);
         JScrollPane scroll = Ui.scroll(buildSettingsForm());
         page.add(scroll, BorderLayout.CENTER);
         SwingUtilities.invokeLater(() -> {
@@ -2223,7 +2237,7 @@ public final class LauncherFrame extends JFrame {
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
         form.setBorder(new EmptyBorder(30, 30, 30, 30));
 
-        JPanel performance = section("性能", "修改后会在下一次启动游戏时生效");
+        JPanel performance = LauncherLayout.section("性能", "修改后会在下一次启动游戏时生效");
         JPanel memoryRow = new JPanel();
         memoryRow.setOpaque(false);
         memoryRow.setLayout(new BoxLayout(memoryRow, BoxLayout.X_AXIS));
@@ -2301,13 +2315,13 @@ public final class LauncherFrame extends JFrame {
         });
         performance.add(jvmArgsField);
         performance.add(Ui.vgap(6));
-        performance.add(sidebarNote("按空格分隔；引号可用于包含空格的参数。不要把 access token 等敏感信息写在这里。"));
-        form.add(lockedHeight(performance));
+        performance.add(LauncherLayout.sidebarNote("按空格分隔；引号可用于包含空格的参数。不要把 access token 等敏感信息写在这里。"));
+        form.add(LauncherLayout.lockedHeight(performance));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel window = section("窗口", "首次启动使用该尺寸；游戏内设置可能覆盖它");
+        JPanel window = LauncherLayout.section("窗口", "首次启动使用该尺寸；游戏内设置可能覆盖它");
         JPanel windowRow = new JPanel();
         windowRow.setOpaque(false);
         windowRow.setLayout(new BoxLayout(windowRow, BoxLayout.X_AXIS));
@@ -2336,12 +2350,12 @@ public final class LauncherFrame extends JFrame {
         windowRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         windowRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         window.add(windowRow);
-        form.add(lockedHeight(window));
+        form.add(LauncherLayout.lockedHeight(window));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel download = section("下载", "完整资源包含声音、语言和图标");
+        JPanel download = LauncherLayout.section("下载", "完整资源包含声音、语言和图标");
         assetsToggle = new Ui.ToggleChip("下载完整资源");
         assetsToggle.setSelected(config.downloadAssets());
         assetsToggle.setToolTipText("首次下载约 300–500 MB；关闭后现代版本可能无法启动。");
@@ -2440,15 +2454,15 @@ public final class LauncherFrame extends JFrame {
         });
         download.add(curseForgeKeyField);
         download.add(Ui.vgap(6));
-        download.add(sidebarNote("CurseForge 官方 API 需要个人 Key；Modrinth 不需要 Key。"
+        download.add(LauncherLayout.sidebarNote("CurseForge 官方 API 需要个人 Key；Modrinth 不需要 Key。"
                 + "HMCL 内置了它自己申请的 Key，本项目不能复用。"
                 + "资源对象在多个版本之间共享；删除后可通过「修复 / 更新」补全。"));
-        form.add(lockedHeight(download));
+        form.add(LauncherLayout.lockedHeight(download));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel benchmark = section("跑分模块", "可选下载，不随启动器捆绑，不强制安装");
+        JPanel benchmark = LauncherLayout.section("跑分模块", "可选下载，不随启动器捆绑，不强制安装");
         JLabel benchmarkStatus = Ui.label(BenchmarkManager.installed(config)
                 ? "已安装" : "未下载", Theme.TINY, Theme.DIM);
         benchmarkStatus.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -2480,14 +2494,14 @@ public final class LauncherFrame extends JFrame {
         benchmarkActions.setAlignmentX(Component.LEFT_ALIGNMENT);
         benchmark.add(benchmarkActions);
         benchmark.add(Ui.vgap(7));
-        benchmark.add(sidebarNote("模块独立运行，扫描 CPU、内存、系统和显卡；"
+        benchmark.add(LauncherLayout.sidebarNote("模块独立运行，扫描 CPU、内存、系统和显卡；"
                 + "扫描不到硬件时显示未知硬件。"));
-        form.add(lockedHeight(benchmark));
+        form.add(LauncherLayout.lockedHeight(benchmark));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel style = section("界面样式", "支持简单 CSS：background / color / card / accent / border / font-size");
+        JPanel style = LauncherLayout.section("界面样式", "支持简单 CSS：background / color / card / accent / border / font-size");
         JLabel presetLabel = Ui.label("样式样例（横向滚动）", Theme.TINY, Theme.DIM);
         presetLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         style.add(presetLabel);
@@ -2557,12 +2571,12 @@ public final class LauncherFrame extends JFrame {
         cssActions.setAlignmentX(Component.LEFT_ALIGNMENT);
         cssActions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         style.add(cssActions);
-        form.add(lockedHeight(style));
+        form.add(LauncherLayout.lockedHeight(style));
         form.add(Ui.vgap(30));
-        form.add(divider());
+        form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel data = section("数据目录", "启动器配置、缓存、账户和官方 Java 运行时");
+        JPanel data = LauncherLayout.section("数据目录", "启动器配置、缓存、账户和官方 Java 运行时");
         JLabel dataPath = Ui.label(config.appHome().toString(), Theme.MONO, Theme.MUTED);
         dataPath.setAlignmentX(Component.LEFT_ALIGNMENT);
         data.add(dataPath);
@@ -2580,8 +2594,8 @@ public final class LauncherFrame extends JFrame {
         accountsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         data.add(accountsRow);
         data.add(Ui.vgap(5));
-        data.add(sidebarNote("游戏文件不会放在这里，而是放在「启动器配置」中选择的游戏目录。"));
-        form.add(lockedHeight(data));
+        data.add(LauncherLayout.sidebarNote("游戏文件不会放在这里，而是放在「启动器配置」中选择的游戏目录。"));
+        form.add(LauncherLayout.lockedHeight(data));
         form.add(Box.createVerticalGlue());
         return form;
     }
@@ -2764,84 +2778,6 @@ public final class LauncherFrame extends JFrame {
         row.add(meta, BorderLayout.EAST);
         status.add(row, BorderLayout.CENTER);
         return status;
-    }
-
-    private JPanel pageHeader(String title, String subtitle, JComponent right) {
-        JPanel top = new JPanel(new BorderLayout(16, 0));
-        top.setBackground(Theme.CARD);
-        top.setBorder(BorderFactory.createCompoundBorder(
-                new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(9, 14, 9, 14)));
-        JPanel info = new JPanel();
-        info.setOpaque(false);
-        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
-        JLabel titleLabel = Ui.label(title, Theme.H2, Theme.TEXT);
-        JLabel subtitleLabel = Ui.label(subtitle, Theme.MONO, Theme.DIM);
-        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        info.add(titleLabel);
-        info.add(Ui.vgap(1));
-        info.add(subtitleLabel);
-        top.add(info, BorderLayout.CENTER);
-        if (right != null) {
-            top.add(right, BorderLayout.EAST);
-        }
-        return top;
-    }
-
-    private JPanel section(String title, String subtitle) {
-        JPanel panel = new JPanel();
-        panel.setOpaque(false);
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel heading = Ui.label(title, Theme.H1, Theme.TEXT);
-        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
-        panel.add(heading);
-        if (subtitle != null && !subtitle.isBlank()) {
-            JLabel sub = Ui.label(subtitle, Theme.TINY, Theme.DIM);
-            sub.setAlignmentX(Component.LEFT_ALIGNMENT);
-            panel.add(Ui.vgap(3));
-            panel.add(sub);
-        }
-        panel.add(Ui.vgap(10));
-        return panel;
-    }
-
-    private static JComponent lockedHeight(JComponent component) {
-        int height = Math.max(1, component.getPreferredSize().height);
-        component.setMinimumSize(new Dimension(0, height));
-        component.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
-        return component;
-    }
-
-    private static JLabel sidebarNote(String text) {
-        JLabel label = new JLabel("<html><body style='width:600px'>" + Formatting.html(text) + "</body></html>");
-        label.setFont(Theme.TINY);
-        label.setForeground(Theme.DIM);
-        label.setAlignmentX(Component.LEFT_ALIGNMENT);
-        return label;
-    }
-
-    private static JPanel divider() {
-        JPanel line = new JPanel();
-        line.setBackground(Theme.BORDER);
-        line.setPreferredSize(new Dimension(0, 1));
-        line.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-        line.setAlignmentX(Component.LEFT_ALIGNMENT);
-        return line;
-    }
-
-    private static JComponent infoRow(String text) {
-        JPanel row = new JPanel();
-        row.setOpaque(false);
-        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
-        JLabel dot = Ui.label("•", Theme.TINY, Theme.ACCENT);
-        row.add(dot);
-        row.add(Ui.hgap(7));
-        row.add(Ui.label(text, Theme.TINY, Theme.DIM));
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 18));
-        return row;
     }
 
     private void fetchLatestLoaderVersion(String type) {
@@ -5243,12 +5179,11 @@ public final class LauncherFrame extends JFrame {
         if (config.integrityCheck()) {
             java.util.List<String> missing = Integrity.missing(config, launchMeta, entry.id());
             if (!missing.isEmpty()) {
-                Object[] options = {"补齐并启动", "仍要启动", "取消"};
-                int choice = JOptionPane.showOptionDialog(this,
+                String[] options = {"补齐并启动", "仍要启动", "取消"};
+                int choice = ModernDialogs.option(this, "游戏文件不完整",
                         "检测到游戏文件不完整：\n\n" + Integrity.summary(missing)
                                 + "\n\n补齐会重新下载缺失文件。",
-                        "游戏文件不完整", JOptionPane.DEFAULT_OPTION,
-                        JOptionPane.WARNING_MESSAGE, null, options, options[0]);
+                        options, 0);
                 if (choice == 0) {
                     startInstall(true);
                     return;
@@ -5347,6 +5282,14 @@ public final class LauncherFrame extends JFrame {
         new SwingWorker<GameLauncher.LaunchResult, Void>() {
             @Override
             protected GameLauncher.LaunchResult doInBackground() throws Exception {
+                try {
+                    int synced = GlobalDatapacks.sync(config.effectiveGameDir(entry.id()));
+                    if (synced > 0) {
+                        Log.info("已同步全局数据包到 " + synced + " 个存档");
+                    }
+                } catch (IOException ex) {
+                    Log.warn("同步全局数据包失败: " + ex.getMessage());
+                }
                 SwingUtilities.invokeLater(() -> launchProgress.stage("构建启动命令…"));
                 GameLauncher.LaunchResult result = GameLauncher.launch(config, launchMeta, entry, java);
                 return result;
@@ -5795,16 +5738,22 @@ public final class LauncherFrame extends JFrame {
                     + "也可以点「选择」直接选择 HMCL 使用的 .minecraft 文件夹。");
             return;
         }
-        Object selected;
+        HmclImporter.Entry entry;
         if (entries.size() == 1) {
-            selected = entries.get(0);
+            entry = entries.get(0);
         } else {
-            selected = JOptionPane.showInputDialog(this,
-                    "选择要使用的 HMCL 游戏目录：", "读取 HMCL 目录",
-                    JOptionPane.PLAIN_MESSAGE, null, entries.toArray(), entries.get(0));
-        }
-        if (!(selected instanceof HmclImporter.Entry entry)) {
-            return;
+            String[] names = entries.stream().map(HmclImporter.Entry::toString)
+                    .toArray(String[]::new);
+            String selected = ModernDialogs.choice(this, "读取 HMCL 目录",
+                    "选择要使用的 HMCL 游戏目录：", names, names[0]);
+            if (selected == null) {
+                return;
+            }
+            int index = java.util.Arrays.asList(names).indexOf(selected);
+            if (index < 0) {
+                return;
+            }
+            entry = entries.get(index);
         }
         if (!Files.isDirectory(entry.path().resolve("versions"))) {
             showError("目录不可用", "这个 HMCL 游戏目录里没有 versions 文件夹：\n" + entry.path());

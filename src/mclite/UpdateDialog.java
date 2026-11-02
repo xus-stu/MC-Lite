@@ -104,25 +104,8 @@ public final class UpdateDialog extends JDialog {
     }
 
     public static void showNotes(Component parent, String version, String notes) {
-        JTextArea area = new JTextArea(notesText(notes));
-        area.setEditable(false);
-        area.setLineWrap(true);
-        area.setWrapStyleWord(true);
-        area.setFont(Theme.MONO);
-        area.setForeground(Theme.MUTED);
-        area.setBackground(Theme.CARD_ALT);
-        area.setBorder(new EmptyBorder(8, 10, 8, 10));
-        area.setCaretPosition(0);
-        JScrollPane scroll = new JScrollPane(area);
-        scroll.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
-        scroll.setPreferredSize(new Dimension(560, 260));
-        JPanel content = new JPanel(new BorderLayout(0, 8));
-        content.setOpaque(false);
-        content.add(scroll, BorderLayout.CENTER);
-        content.add(Ui.label("说明来自 GitHub Release，不包含在游戏包内",
-                Theme.TINY, Theme.DIM), BorderLayout.SOUTH);
-        JOptionPane.showMessageDialog(parent, content,
-                "已下载 V" + version + " · 更新内容", JOptionPane.INFORMATION_MESSAGE);
+        ModernDialogs.message(parent, "已下载 V" + version + " · 更新内容",
+                notesText(notes) + "\n\n说明来自 GitHub Release，不包含在游戏包内。");
     }
 
     private static String notesText(String notes) {

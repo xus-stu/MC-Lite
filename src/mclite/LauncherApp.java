@@ -62,10 +62,9 @@ public final class LauncherApp {
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
             Log.error("未捕获异常（" + thread.getName() + "）", error);
             if (!GraphicsEnvironment.isHeadless()) {
-                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(null,
+                SwingUtilities.invokeLater(() -> ModernDialogs.message(null, "MC Lite 错误",
                         "发生未预期的错误：\n" + error.getMessage()
-                                + "\n\n日志：" + Log.file(),
-                        "MC Lite 错误", JOptionPane.ERROR_MESSAGE));
+                                + "\n\n日志：" + Log.file()));
             }
         });
 
@@ -124,8 +123,8 @@ public final class LauncherApp {
                 }
             } catch (Throwable error) {
                 Log.error("启动界面失败", error);
-                JOptionPane.showMessageDialog(null, "无法启动界面：" + error.getMessage(),
-                        "MC Lite", JOptionPane.ERROR_MESSAGE);
+                ModernDialogs.message(null, "MC Lite",
+                        "无法启动界面：" + error.getMessage());
                 System.exit(3);
             }
         });

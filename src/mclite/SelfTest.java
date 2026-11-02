@@ -296,6 +296,22 @@ public final class SelfTest {
                     "实例重命名服务");
             InstanceService.deleteTree(instanceNew);
             check(!Files.exists(instanceNew), "实例删除服务");
+            Path globalGame = work.resolve("global-game");
+            Path globalWorld = globalGame.resolve("saves/world");
+            Files.createDirectories(globalWorld);
+            Files.writeString(globalWorld.resolve("level.dat"), "level", StandardCharsets.UTF_8);
+            Path globalZip = work.resolve("global-pack.zip");
+            try (java.util.zip.ZipOutputStream out = new java.util.zip.ZipOutputStream(
+                    Files.newOutputStream(globalZip))) {
+                out.putNextEntry(new java.util.zip.ZipEntry("pack.mcmeta"));
+                out.write("{\"pack\":{\"pack_format\":1}}".getBytes(StandardCharsets.UTF_8));
+                out.closeEntry();
+            }
+            Path globalTarget = GlobalDatapacks.install(globalGame, globalZip);
+            check(Files.isRegularFile(globalTarget)
+                            && Files.isRegularFile(globalWorld.resolve("datapacks/global-pack.zip")),
+                    "全局数据包同步到存档");
+            check(GlobalDatapacks.sync(globalGame) == 1, "全局数据包统计存档");
             check(JvmTuner.isLegacyGame("1.12.2") && !JvmTuner.isLegacyGame("1.21.1"),
                     "低版本 JVM 参数识别");
             check(JvmTuner.java8Args(4096).contains("-XX:+UseParallelGC")
@@ -308,7 +324,7 @@ public final class SelfTest {
                             && JvmTuner.legacyTier("MITE-R196",
                             "2013-09-19T15:52:37+00:00") == 2,
                     "低版本内存分级");
-            passed += 7;
+            passed += 9;
 
         check(UpdateInstaller.versionedName("MCLite_v1.1.33.jar", "1.1.34", false)
                         .equals("MCLite_v1.1.34.jar"),

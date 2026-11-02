@@ -17,7 +17,7 @@
 
 ## 后续页面拆分
 
-目标：`LauncherFrame` 降到 1000 行以内。
+当前：`LauncherFrame` 约 6350 行（初始 6584 行）。目标：降到 1000 行以内。
 
 1. `LauncherContext`：持有 Config、GamePaths、TaskCenter、导航回调。
 2. `VersionPage`：版本列表、筛选、版本详情。
