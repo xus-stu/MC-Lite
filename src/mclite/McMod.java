@@ -71,18 +71,43 @@ public final class McMod {
     }
 
     private static String strip(String html) {
-        return html
+        return cleanText(html);
+    }
+
+    /** Strip HTML and MC百科 BBCode (for example [h1=简介]) from a summary. */
+    public static String cleanText(String html) {
+        if (html == null) {
+            return "";
+        }
+        String text = html
                 .replaceAll("(?s)<script.*?</script>", " ")
                 .replaceAll("(?s)<style.*?</style>", " ")
-                .replaceAll("<[^>]+>", "")
+                .replaceAll("<[^>]+>", " ")
                 .replace("&nbsp;", " ")
                 .replace("&amp;", "&")
                 .replace("&lt;", "<")
                 .replace("&gt;", ">")
                 .replace("&quot;", "\"")
                 .replace("&#39;", "'")
-                .replaceAll("\\[(?:h[1-6]|ban|mark|b]?[^]]*)]", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
+                .replaceAll("\\[/?[a-zA-Z][^\\]]*]", " ")
+                .replaceAll("\\[/?\\*]", " · ");
+        text = decodeNumericEntities(text);
+        return text.replaceAll("\\s+", " ").trim();
+    }
+
+    private static String decodeNumericEntities(String text) {
+        java.util.regex.Matcher matcher = Pattern.compile("&#(\\d+);").matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (matcher.find()) {
+            try {
+                int codePoint = Integer.parseInt(matcher.group(1));
+                matcher.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(
+                        new String(Character.toChars(codePoint))));
+            } catch (RuntimeException ex) {
+                matcher.appendReplacement(out, matcher.group());
+            }
+        }
+        matcher.appendTail(out);
+        return out.toString();
     }
 }

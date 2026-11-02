@@ -88,6 +88,9 @@ public final class SelfTest {
             check(special.contains("%C2%A7") && special.contains("%5B"),
                     "Modrinth 特殊字符 URL 编码");
             passed++;
+            check(McMod.cleanText("[h1=简介]这是简介[/h1]").equals("这是简介"),
+                    "MC百科简介 BBCode 清理");
+            passed++;
             try {
                 Net.normalizeAndValidate("https://example.com/evil.jar");
                 check(false, "非官方域名必须被拒绝");
