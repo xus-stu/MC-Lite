@@ -26,6 +26,19 @@ jobs:
           VERSION="$(cat VERSION)"
           java -jar "dist/MCLite_v${VERSION}.jar" --self-test
           java -jar "dist/MCLite_v${VERSION}-region.jar" --self-test
+      - name: Prepare release notes
+        run: |
+          VERSION="$(cat VERSION)"
+          awk -v ver="v${VERSION}" '
+            index($0, "## " ver) == 1 { show = 1; next }
+            show && index($0, "## ") == 1 { exit }
+            show { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "本次更新：${VERSION}" > release-notes.md
+          fi
+          echo "----- release notes -----"
+          cat release-notes.md
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -34,4 +47,4 @@ jobs:
             dist/MC-Lite_v*_region_Windows.zip
             dist/MCLiteBenchmark.jar
             dist/SHA256SUMS.txt
-          generate_release_notes: true
+          body_path: release-notes.md

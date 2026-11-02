@@ -731,7 +731,7 @@ public final class LauncherFrame extends JFrame {
         versionList.setSelectionForeground(Theme.TEXT);
         versionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         versionList.setCellRenderer(new VersionRenderer());
-        versionList.setBorder(new EmptyBorder(4, 8, 8, 8));
+        versionList.setBorder(new EmptyBorder(4, 8, 24, 8));
         versionList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && !refreshingList) {
                 onVersionSelected();
@@ -3506,7 +3506,7 @@ public final class LauncherFrame extends JFrame {
                 for (int i = 0; i < listModel.size(); i++) {
                     if (listModel.get(i).id().equals(result.versionId())) {
                         versionList.setSelectedIndex(i);
-                        versionList.ensureIndexIsVisible(i);
+                        revealVersion(i);
                         break;
                     }
                 }
@@ -3655,7 +3655,7 @@ public final class LauncherFrame extends JFrame {
             for (int i = 0; i < listModel.size(); i++) {
                 if (listModel.get(i).id().equals(result.versionId())) {
                     versionList.setSelectedIndex(i);
-                    versionList.ensureIndexIsVisible(i);
+                    revealVersion(i);
                     break;
                 }
             }
@@ -3720,11 +3720,7 @@ public final class LauncherFrame extends JFrame {
             SwingUtilities.invokeLater(() -> {
                 int index = versionList.getSelectedIndex();
                 if (index >= 0) {
-                    versionList.ensureIndexIsVisible(index);
-                    java.awt.Rectangle bounds = versionList.getCellBounds(index, index);
-                    if (bounds != null) {
-                        versionList.scrollRectToVisible(bounds);
-                    }
+                    revealVersion(index);
                 }
             });
             return;
@@ -4905,7 +4901,7 @@ public final class LauncherFrame extends JFrame {
                 target = 0;
             }
             versionList.setSelectedIndex(target);
-            versionList.ensureIndexIsVisible(target);
+            revealVersion(target);
         } finally {
             refreshingList = false;
         }
@@ -4913,13 +4909,22 @@ public final class LauncherFrame extends JFrame {
         final int targetIndex = versionList.getSelectedIndex();
         SwingUtilities.invokeLater(() -> {
             if (targetIndex >= 0) {
-                versionList.ensureIndexIsVisible(targetIndex);
-                java.awt.Rectangle bounds = versionList.getCellBounds(targetIndex, targetIndex);
-                if (bounds != null) {
-                    versionList.scrollRectToVisible(bounds);
-                }
+                revealVersion(targetIndex);
             }
         });
+    }
+
+    private void revealVersion(int index) {
+        if (index < 0) {
+            return;
+        }
+        versionList.ensureIndexIsVisible(index);
+        java.awt.Rectangle bounds = versionList.getCellBounds(index, index);
+        if (bounds != null) {
+            bounds.y = Math.max(0, bounds.y - 2);
+            bounds.height += 20;
+            versionList.scrollRectToVisible(bounds);
+        }
     }
 
     private void onVersionSelected() {

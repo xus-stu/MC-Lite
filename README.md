@@ -54,12 +54,13 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 - 数据包/存档选择、重命名、HMCL 目录选择、账户错误、Java 下载选择和更新说明全部改用自定义圆角弹窗，不再出现系统 JOptionPane。
 - 数据包安装支持「全局数据包」：保存到实例的 `datapacks` 文件夹，启动前自动同步到所有存档；新存档下次启动时同步。
 - 页面区域增加绘制裁剪，状态栏强制置顶，避免下载列表/图标越过边界盖到状态栏。
+- 版本列表底部增加滚动留白，选中行滚动时额外留 20px，避免最后一行图标贴着状态栏被截断。
 - 继续拆分布局工具到 `LauncherLayout`，`LauncherFrame` 从 6584 行降到 6322 行。
 - 下载任务、进度、速度、剩余时间，以及异常退出后的崩溃报告。
 
 ## 运行
 
-当前版本：V1.1.80
+当前版本：V1.1.81
 
 需要 Java 21 或更高版本。
 
@@ -67,7 +68,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.80.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.81.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -78,7 +79,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.80-region.jar
+java -jar dist/MCLite_v1.1.81-region.jar
 ```
 
 ## 地区限制
@@ -122,18 +123,18 @@ java -jar dist/MCLite_v1.1.80-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.80.jar
-dist/MCLite_v1.1.80-region.jar
+dist/MCLite_v1.1.81.jar
+dist/MCLite_v1.1.81-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.80.app
-dist/MC Lite Region v1.1.80.app
-dist/MC-Lite_v1.1.80_macOS.zip
-dist/MC-Lite_v1.1.80_region_macOS.zip
-dist/MC-Lite_v1.1.80_region_Windows.zip
+dist/MC Lite v1.1.81.app
+dist/MC Lite Region v1.1.81.app
+dist/MC-Lite_v1.1.81_macOS.zip
+dist/MC-Lite_v1.1.81_region_macOS.zip
+dist/MC-Lite_v1.1.81_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.80_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.81_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -184,7 +185,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.80_Setup.exe
+dist/MC-Lite_v1.1.81_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -202,7 +203,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.80.jar --software-render
+java -jar dist/MCLite_v1.1.81.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
