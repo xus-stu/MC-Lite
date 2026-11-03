@@ -59,14 +59,14 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 - 下载页会为当前页的模组逐个查询 MC百科中文名并缓存；中文名查询失败时保留英文名。
 - 有中文名时优先显示 MC百科标题；标题里没有英文原名时补成「中文名 (英文名)」，已有则不重复。
 - MC百科按钮统一使用 `class/<id>.html` 地址；打开失败会提示，不再静默无反应。
-- 设置新增「平原树木」全局选项：原版密度 / 零星几棵 / 完全没有 / 全部是树；启动时自动应用为数据包。
+- 26.1.2 实例使用全局数据包控制平原树木，已设为「零星几棵」；启动时同步到该实例所有存档。
 - MC百科简介会去掉 `[h1=...]`、`[b]`、`[list]` 等 BBCode 排版标记。
 - 继续拆分布局工具到 `LauncherLayout`，`LauncherFrame` 从 6584 行降到 6322 行。
 - 下载任务、进度、速度、剩余时间，以及异常退出后的崩溃报告。
 
 ## 运行
 
-当前版本：V1.1.89
+当前版本：V1.1.90
 
 需要 Java 21 或更高版本。
 
@@ -74,7 +74,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.89.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.90.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -85,7 +85,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.89-region.jar
+java -jar dist/MCLite_v1.1.90-region.jar
 ```
 
 ## 地区限制
@@ -129,18 +129,18 @@ java -jar dist/MCLite_v1.1.89-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.89.jar
-dist/MCLite_v1.1.89-region.jar
+dist/MCLite_v1.1.90.jar
+dist/MCLite_v1.1.90-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.89.app
-dist/MC Lite Region v1.1.89.app
-dist/MC-Lite_v1.1.89_macOS.zip
-dist/MC-Lite_v1.1.89_region_macOS.zip
-dist/MC-Lite_v1.1.89_region_Windows.zip
+dist/MC Lite v1.1.90.app
+dist/MC Lite Region v1.1.90.app
+dist/MC-Lite_v1.1.90_macOS.zip
+dist/MC-Lite_v1.1.90_region_macOS.zip
+dist/MC-Lite_v1.1.90_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.89_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.90_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -191,7 +191,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.89_Setup.exe
+dist/MC-Lite_v1.1.90_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -209,7 +209,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.89.jar --software-render
+java -jar dist/MCLite_v1.1.90.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
