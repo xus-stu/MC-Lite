@@ -91,10 +91,13 @@ class MainWindow(QtWidgets.QMainWindow if QtWidgets else object):
         bar = QtWidgets.QHBoxLayout()
         refresh = QtWidgets.QPushButton("刷新")
         cancel = QtWidgets.QPushButton("取消选中任务")
+        clear = QtWidgets.QPushButton("清除已完成")
         refresh.clicked.connect(self.refresh_tasks)
         cancel.clicked.connect(self.cancel_task)
+        clear.clicked.connect(self.clear_tasks)
         bar.addWidget(refresh)
         bar.addWidget(cancel)
+        bar.addWidget(clear)
         bar.addStretch(1)
         layout.addLayout(bar)
         self.tasks = QtWidgets.QListWidget()
@@ -109,11 +112,17 @@ class MainWindow(QtWidgets.QMainWindow if QtWidgets else object):
         self.instance.setPlaceholderText("实例 ID，例如 26.1.2；留空用默认目录")
         refresh = QtWidgets.QPushButton("刷新数据包")
         sync = QtWidgets.QPushButton("同步到所有存档")
+        install = QtWidgets.QPushButton("安装 ZIP")
+        remove = QtWidgets.QPushButton("移除选中")
         refresh.clicked.connect(self.refresh_datapacks)
         sync.clicked.connect(self.sync_datapacks)
+        install.clicked.connect(self.install_datapack)
+        remove.clicked.connect(self.remove_datapack)
         bar.addWidget(self.instance, 1)
         bar.addWidget(refresh)
         bar.addWidget(sync)
+        bar.addWidget(install)
+        bar.addWidget(remove)
         layout.addLayout(bar)
         self.datapacks = QtWidgets.QListWidget()
         layout.addWidget(self.datapacks)
@@ -226,6 +235,35 @@ class MainWindow(QtWidgets.QMainWindow if QtWidgets else object):
             result = self.client.sync_datapacks(self.instance.text())
             QtWidgets.QMessageBox.information(self, "已同步", f"同步到 {result['worlds']} 个存档。")
             self.refresh_datapacks()
+        except BridgeError as exc:
+            self.fail(exc)
+
+    def install_datapack(self) -> None:
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "选择数据包", "", "ZIP (*.zip)")
+        if not path:
+            return
+        try:
+            result = self.client.install_datapack(path, self.instance.text())
+            QtWidgets.QMessageBox.information(self, "已安装",
+                                              f"{result['name']}，同步到 {result['worlds']} 个存档。")
+            self.refresh_datapacks()
+        except BridgeError as exc:
+            self.fail(exc)
+
+    def remove_datapack(self) -> None:
+        row = self.datapacks.currentItem()
+        if row is None or "存档数量" in row.text():
+            return
+        try:
+            self.client.remove_datapack(row.text(), self.instance.text())
+            self.refresh_datapacks()
+        except BridgeError as exc:
+            self.fail(exc)
+
+    def clear_tasks(self) -> None:
+        try:
+            self.client.clear_tasks()
+            self.refresh_tasks()
         except BridgeError as exc:
             self.fail(exc)
 
