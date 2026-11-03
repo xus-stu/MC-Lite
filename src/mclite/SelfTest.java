@@ -91,6 +91,15 @@ public final class SelfTest {
             check(McMod.cleanText("[h1=简介]这是简介[/h1]").equals("这是简介"),
                     "MC百科简介 BBCode 清理");
             passed++;
+            String installError = new ContentInstallException(new Modrinth.Project(
+                    "abc", "sodium", "Sodium", "", "作者", 0, "",
+                    "mod", null, null, "modrinth"),
+                    "1.21.1", "fabric", "1.21, 1.21.1", new IOException("network down"))
+                    .getMessage();
+            check(installError.contains("Sodium") && installError.contains("1.21.1")
+                            && installError.contains("支持版本") && installError.contains("network down"),
+                    "安装错误包含项目与版本范围");
+            passed++;
             try {
                 Net.normalizeAndValidate("https://example.com/evil.jar");
                 check(false, "非官方域名必须被拒绝");
