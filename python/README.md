@@ -13,7 +13,7 @@ python3 -m pip install -r requirements-ui.txt
 ## 启动 Java Bridge
 
 ```bash
-java -jar MCLite_v1.1.93.jar --py-bridge
+java -jar MCLite_v1.1.94.jar --py-bridge
 ```
 
 启动后会生成：
@@ -42,7 +42,7 @@ print(client.search("Sodium", "mod", "26.1.2", "fabric"))
 ## PySide6 前端
 
 ```bash
-python -m mclite_bridge.ui_pyside6 --jar /path/to/MCLite_v1.1.93.jar
+python -m mclite_bridge.ui_pyside6 --jar /path/to/MCLite_v1.1.94.jar
 ```
 
 或连接已经运行的 Bridge：
