@@ -23,6 +23,8 @@ public final class LauncherApp {
         String screenshotPage = null;
         boolean selfTest = false;
         boolean crashDemo = false;
+        boolean pyBridge = false;
+        int bridgePort = 0;
         for (String arg : args) {
             if (arg.startsWith("--screenshot=")) {
                 screenshot = Path.of(arg.substring("--screenshot=".length())).toAbsolutePath();
@@ -33,6 +35,13 @@ public final class LauncherApp {
                 selfTest = true;
             } else if (arg.equals("--crash-demo")) {
                 crashDemo = true;
+            } else if (arg.equals("--py-bridge")) {
+                pyBridge = true;
+            } else if (arg.startsWith("--bridge-port=")) {
+                try {
+                    bridgePort = Integer.parseInt(arg.substring("--bridge-port=".length()));
+                } catch (NumberFormatException ignored) {
+                }
             }
         }
 
@@ -71,6 +80,17 @@ public final class LauncherApp {
         if (selfTest) {
             int code = SelfTest.run(config);
             System.exit(code);
+        }
+
+        if (pyBridge) {
+            try {
+                BridgeServer.startAndBlock(config, bridgePort);
+            } catch (Exception ex) {
+                Log.error("启动 Python Bridge 失败", ex);
+                System.err.println("无法启动 Python Bridge: " + ex.getMessage());
+                System.exit(4);
+            }
+            return;
         }
 
         if (GraphicsEnvironment.isHeadless()) {

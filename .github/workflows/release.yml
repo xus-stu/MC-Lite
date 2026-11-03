@@ -50,5 +50,6 @@ jobs:
             dist/MCLite_v*-region.jar
             dist/MC-Lite_v*_region_Windows.zip
             dist/MCLiteBenchmark.jar
+            dist/MCLitePyBridge_v*.zip
             dist/SHA256SUMS.txt
           body_path: release-notes.md
