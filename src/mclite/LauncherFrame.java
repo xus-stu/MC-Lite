@@ -70,10 +70,10 @@ public final class LauncherFrame extends JFrame {
     private static final DateTimeFormatter CACHE_TIME =
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
-    private final Config config;
-    private GamePaths gamePaths;
+    final Config config;
+    GamePaths gamePaths;
     private VersionManifest manifest;
-    private List<VersionManifest.VersionEntry> allVersions = List.of();
+    List<VersionManifest.VersionEntry> allVersions = List.of();
     private DefaultListModel<VersionManifest.VersionEntry> listModel = new DefaultListModel<>();
     private final JList<VersionManifest.VersionEntry> versionList = new JList<>(listModel);
     private final Map<String, VersionMeta> metaCache = Collections.synchronizedMap(
@@ -83,7 +83,7 @@ public final class LauncherFrame extends JFrame {
                     return size() > 24;
                 }
             });
-    private final Set<String> installedCache = new HashSet<>();
+    final Set<String> installedCache = new HashSet<>();
     private final List<JavaManager.JavaInfo> javaInfos = new ArrayList<>();
     private final Ui.DarkCombo<JavaChoice> javaCombo = new Ui.DarkCombo<>();
 
@@ -130,17 +130,9 @@ public final class LauncherFrame extends JFrame {
     private Ui.AccentButton versionPickerButton;
     private Ui.AccentButton instanceButton;
     private Ui.AccentButton sidebarSwitchButton;
-    private Ui.AccentButton instanceLaunchButton;
     private boolean pendingLaunch;
-    private JList<VersionManifest.VersionEntry> instancesList;
-    private DefaultListModel<VersionManifest.VersionEntry> instancesListModel;
-    private JLabel instancesDetailTitle;
-    private JLabel instancesDetailMeta;
-    private JLabel instanceModsHeader;
-    private JLabel instancePacksHeader;
-    private DefaultListModel<String> instanceModsModel;
-    private DefaultListModel<String> instancePacksModel;
-    private final Map<String, int[]> instanceCounts = new HashMap<>();
+    private InstancesPage instancesPage;
+
     private final java.util.ArrayDeque<Runnable> installQueue = new java.util.ArrayDeque<>();
     private Ui.AccentButton headerBackButton;
     private String currentTop = "download";
@@ -548,7 +540,8 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel.setOpaque(false);
         contentCardsPanel.add(buildDownloadPage(), "download");
         contentCardsPanel.add(buildLaunchPage(), "launch");
-        contentCardsPanel.add(buildInstancesPage(), "instances");
+        instancesPage = new InstancesPage(this);
+        contentCardsPanel.add(instancesPage.build(), "instances");
         contentCardsPanel.add(buildConfigPage(), "config");
         contentCardsPanel.add(buildSettingsPage(), "settings");
 
@@ -1403,155 +1396,13 @@ public final class LauncherFrame extends JFrame {
         return page;
     }
 
-    private JPanel buildInstancesPage() {
-        JPanel page = new JPanel(new BorderLayout());
-        page.setOpaque(true);
-        page.setBackground(Theme.BG);
-        Ui.AccentButton refresh = Ui.smallButton("刷新", Ui.AccentButton.Style.SECONDARY);
-        refresh.addActionListener(e -> {
-            refreshAllVersions();
-            refreshInstalledCache();
-            refreshInstancesPage();
-        });
-        JPanel headerActions = new JPanel();
-        headerActions.setOpaque(false);
-        headerActions.setLayout(new BoxLayout(headerActions, BoxLayout.X_AXIS));
-        instanceLaunchButton = Ui.smallButton("启动所选实例", Ui.AccentButton.Style.PRIMARY);
-        instanceLaunchButton.addActionListener(e -> {
-            VersionManifest.VersionEntry entry = instancesList == null
-                    ? null : instancesList.getSelectedValue();
-            if (entry != null) {
-                useVersion(entry, true);
-            }
-        });
-        Ui.AccentButton deleteInstance = Ui.smallButton("删除实例", Ui.AccentButton.Style.DANGER);
-        deleteInstance.setToolTipText("永久删除所选实例的版本文件夹");
-        deleteInstance.addActionListener(e -> deleteSelectedInstance());
-        Ui.AccentButton updateMods = Ui.smallButton("更新模组", Ui.AccentButton.Style.GHOST);
-        updateMods.setToolTipText("把推荐优化模组更新到当前版本");
-        updateMods.addActionListener(e -> updateRecommendedMods());
-        Ui.AccentButton renameInstance = Ui.smallButton("重命名", Ui.AccentButton.Style.GHOST);
-        renameInstance.setToolTipText("修改实例名称和版本文件夹");
-        renameInstance.addActionListener(e -> renameSelectedInstance());
-        Ui.AccentButton zipInstall = Ui.smallButton("ZIP 安装", Ui.AccentButton.Style.GHOST);
-        zipInstall.setToolTipText("从本地 .mrpack 或 CurseForge 整合包 ZIP 安装一个新实例");
-        zipInstall.addActionListener(e -> importLocalModpack());
-        Ui.AccentButton datapackInstall = Ui.smallButton("数据包", Ui.AccentButton.Style.GHOST);
-        datapackInstall.setToolTipText("把数据包 ZIP 安装到所选实例的某个存档");
-        datapackInstall.addActionListener(e -> installDatapack());
-        headerActions.add(instanceLaunchButton);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(updateMods);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(renameInstance);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(deleteInstance);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(zipInstall);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(datapackInstall);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(refresh);
-        page.add(LauncherLayout.pageHeader("版本列表", "查看并启动游戏文件夹中的版本、模组和资源包", headerActions),
-                BorderLayout.NORTH);
-
-        JPanel body = new JPanel(new BorderLayout(14, 0));
-        body.setOpaque(false);
-        body.setBorder(new EmptyBorder(16, 16, 16, 16));
-
-        instancesListModel = new DefaultListModel<>();
-        instancesList = new JList<>(instancesListModel);
-        instancesList.setBackground(Theme.BG);
-        instancesList.setSelectionBackground(Theme.BG);
-        instancesList.setFixedCellHeight(62);
-        instancesList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        instancesList.setCellRenderer(new InstanceRenderer());
-        instancesList.setBorder(new EmptyBorder(2, 2, 2, 2));
-        instancesList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                updateInstanceDetail(instancesList.getSelectedValue());
-            }
-        });
-        instancesList.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-            @Override
-            public void mouseMoved(java.awt.event.MouseEvent e) {
-                instancesList.putClientProperty("hoverIndex",
-                        instancesList.locationToIndex(e.getPoint()));
-                instancesList.repaint();
-            }
-        });
-        instancesList.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseExited(java.awt.event.MouseEvent e) {
-                instancesList.putClientProperty("hoverIndex", -1);
-                instancesList.repaint();
-            }
-        });
-        JPanel left = new JPanel(new BorderLayout());
-        left.setOpaque(false);
-        left.setPreferredSize(new Dimension(342, 0));
-        left.setMinimumSize(new Dimension(300, 0));
-        left.add(Ui.scrollDark(instancesList), BorderLayout.CENTER);
-        body.add(left, BorderLayout.WEST);
-
-        JPanel detail = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER, 16);
-        detail.setLayout(new BorderLayout(0, 10));
-        detail.setBorder(new EmptyBorder(16, 18, 16, 18));
-        JPanel detailHead = new JPanel();
-        detailHead.setOpaque(false);
-        detailHead.setLayout(new BoxLayout(detailHead, BoxLayout.Y_AXIS));
-        instancesDetailTitle = Ui.label("选择一个版本", Theme.H2, Theme.TEXT);
-        instancesDetailMeta = Ui.label("左侧列表只读查看", Theme.MONO, Theme.DIM);
-        instancesDetailTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        instancesDetailMeta.setAlignmentX(Component.LEFT_ALIGNMENT);
-        detailHead.add(instancesDetailTitle);
-        detailHead.add(Ui.vgap(3));
-        detailHead.add(instancesDetailMeta);
-        detail.add(detailHead, BorderLayout.NORTH);
-
-        JPanel lists = new JPanel(new java.awt.GridLayout(2, 1, 0, 10));
-        lists.setOpaque(false);
-        lists.add(buildInstanceFileSection(true));
-        lists.add(buildInstanceFileSection(false));
-        detail.add(lists, BorderLayout.CENTER);
-        body.add(detail, BorderLayout.CENTER);
-        page.add(body, BorderLayout.CENTER);
-        return page;
-    }
-
-    private JPanel buildInstanceFileSection(boolean mods) {
-        JPanel box = new Ui.RoundedPanel(Theme.BG, Theme.BORDER, 12);
-        box.setLayout(new BorderLayout(0, 4));
-        box.setBorder(new EmptyBorder(8, 10, 8, 10));
-        JLabel header = Ui.label(mods ? "模组 · 0" : "资源包 · 0", Theme.TINY, Theme.DIM);
-        DefaultListModel<String> model = new DefaultListModel<>();
-        if (mods) {
-            instanceModsHeader = header;
-            instanceModsModel = model;
-        } else {
-            instancePacksHeader = header;
-            instancePacksModel = model;
-        }
-        JList<String> list = new JList<>(model);
-        list.setBackground(Theme.BG);
-        list.setForeground(Theme.MUTED);
-        list.setFont(Theme.MONO);
-        list.setFixedCellHeight(25);
-        list.setSelectionBackground(Theme.SEL);
-        list.setSelectionForeground(Theme.TEXT);
-        list.setBorder(new EmptyBorder(2, 8, 2, 8));
-        box.add(header, BorderLayout.NORTH);
-        box.add(Ui.scrollDark(list), BorderLayout.CENTER);
-        return box;
-    }
-
-    private void installDatapack() {
+    void installDatapack() {
         if (busy) {
             showError("暂时不能安装", "下载或安装任务正在进行，请稍后再试。");
             return;
         }
-        VersionManifest.VersionEntry entry = instancesList == null
-                ? null : instancesList.getSelectedValue();
+        VersionManifest.VersionEntry entry = instancesPage == null
+                ? null : instancesPage.selected();
         if (entry == null) {
             showError("安装数据包", "请先在左侧选择一个实例。");
             return;
@@ -1638,13 +1489,13 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private void updateRecommendedMods() {
+    void updateRecommendedMods() {
         if (busy) {
             showError("暂时不能更新", "下载或安装任务正在进行，请稍后再试。");
             return;
         }
-        VersionManifest.VersionEntry entry = instancesList == null
-                ? null : instancesList.getSelectedValue();
+        VersionManifest.VersionEntry entry = instancesPage == null
+                ? null : instancesPage.selected();
         if (entry == null) {
             showError("更新推荐模组", "请先在左侧选择一个实例。");
             return;
@@ -1685,13 +1536,13 @@ public final class LauncherFrame extends JFrame {
         startRecommendations(items, entry.id(), loader, gameVersion);
     }
 
-    private void renameSelectedInstance() {
+    void renameSelectedInstance() {
         if (busy || launching) {
             showError("暂时不能重命名", "下载、安装或启动任务正在进行，请稍后再试。");
             return;
         }
-        VersionManifest.VersionEntry entry = instancesList == null
-                ? null : instancesList.getSelectedValue();
+        VersionManifest.VersionEntry entry = instancesPage == null
+                ? null : instancesPage.selected();
         if (entry == null) {
             showError("重命名实例", "请先在左侧选择一个实例。");
             return;
@@ -1745,12 +1596,7 @@ public final class LauncherFrame extends JFrame {
             refreshAllVersions();
             refreshInstalledCache();
             refreshInstancesPage();
-            for (int i = 0; i < instancesListModel.size(); i++) {
-                if (instancesListModel.get(i).id().equals(newId)) {
-                    instancesList.setSelectedIndex(i);
-                    break;
-                }
-            }
+            instancesPage.selectId(newId);
             updateDetailForSelection();
             statusLabel.setText("实例已重命名 · " + newId);
             statusLabel.setForeground(Theme.ACCENT);
@@ -1760,13 +1606,13 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private void deleteSelectedInstance() {
+    void deleteSelectedInstance() {
         if (busy || launching) {
             showError("暂时不能删除", "下载、安装或启动任务正在进行，请稍后再试。");
             return;
         }
-        VersionManifest.VersionEntry entry = instancesList == null
-                ? null : instancesList.getSelectedValue();
+        VersionManifest.VersionEntry entry = instancesPage == null
+                ? null : instancesPage.selected();
         if (entry == null) {
             showError("删除实例", "请先在左侧选择一个实例。");
             return;
@@ -1793,7 +1639,6 @@ public final class LauncherFrame extends JFrame {
         try {
             InstanceService.deleteTree(dir);
             metaCache.remove(entry.id());
-            instanceCounts.remove(entry.id());
             installedCache.remove(entry.id());
             if (entry.id().equals(config.lastVersion())) {
                 config.lastVersion("");
@@ -1806,8 +1651,8 @@ public final class LauncherFrame extends JFrame {
             refreshAllVersions();
             refreshInstalledCache();
             refreshInstancesPage();
-            if (selectedEntry == null && !instancesListModel.isEmpty()) {
-                selectedEntry = instancesListModel.get(0);
+            if (selectedEntry == null && !instancesPage.isEmpty()) {
+                selectedEntry = instancesPage.first();
                 selectedMeta = null;
             }
             updateDetailForSelection();
@@ -1820,151 +1665,8 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void refreshInstancesPage() {
-        if (instancesListModel == null) {
-            return;
-        }
-        instanceCounts.clear();
-        List<VersionManifest.VersionEntry> entries = new ArrayList<>(allVersions);
-        if (entries.isEmpty()) {
-            entries.addAll(LocalVersions.scan(gamePaths));
-        }
-        entries.removeIf(entry -> !entry.local() && !installedCache.contains(entry.id()));
-        entries.sort((a, b) -> Boolean.compare(b.local(), a.local()));
-        VersionManifest.VersionEntry previous = instancesList.getSelectedValue();
-        DefaultListModel<VersionManifest.VersionEntry> nextModel = new DefaultListModel<>();
-        for (VersionManifest.VersionEntry entry : entries) {
-            nextModel.addElement(entry);
-        }
-        instancesListModel = nextModel;
-        instancesList.setModel(nextModel);
-        if (!instancesListModel.isEmpty()) {
-            int target = 0;
-            if (previous != null) {
-                for (int i = 0; i < instancesListModel.size(); i++) {
-                    if (instancesListModel.get(i).id().equals(previous.id())) {
-                        target = i;
-                        break;
-                    }
-                }
-            }
-            instancesList.setSelectedIndex(target);
-            updateInstanceDetail(instancesListModel.get(target));
-        } else {
-            instancesDetailTitle.setText("没有已安装的实例");
-            instancesDetailMeta.setText("未安装的版本不会显示在这里");
-            instanceModsHeader.setText("模组 · 0");
-            instancePacksHeader.setText("资源包 · 0");
-        }
-    }
-
-    private void updateInstanceDetail(VersionManifest.VersionEntry entry) {
-        if (instanceModsModel == null || instancePacksModel == null) {
-            return;
-        }
-        instanceModsModel.clear();
-        instancePacksModel.clear();
-        if (entry == null) {
-            instancesDetailTitle.setText("选择一个版本");
-            instancesDetailMeta.setText("左侧列表只读查看");
-            instanceModsHeader.setText("模组 · 0");
-            instancePacksHeader.setText("资源包 · 0");
-            return;
-        }
-        instancesDetailTitle.setText(entry.id());
-        boolean installed = Files.isRegularFile(gamePaths.versionJson(entry.id()));
-        instancesDetailMeta.setText(entry.displayType() + "  ·  "
-                + Formatting.date(entry.releaseTime())
-                + (entry.local() ? "  ·  本地实例" : installed ? "  ·  已安装" : "  ·  未安装"));
-        Path content = config.isolateVersions()
-                ? config.effectiveGameDir(entry.id()) : config.gameDir();
-        List<Path> mods = listFiles(content.resolve("mods"));
-        List<Path> packs = listFiles(content.resolve("resourcepacks"));
-        for (Path file : mods) {
-            instanceModsModel.addElement(file.getFileName().toString());
-        }
-        for (Path file : packs) {
-            instancePacksModel.addElement(file.getFileName().toString());
-        }
-        instanceModsHeader.setText("模组 · " + mods.size());
-        instancePacksHeader.setText("资源包 · " + packs.size());
-    }
-
-    private int[] instanceCounts(VersionManifest.VersionEntry entry) {
-        return instanceCounts.computeIfAbsent(entry.id(), key -> {
-            Path content = config.isolateVersions()
-                    ? config.effectiveGameDir(entry.id()) : config.gameDir();
-            return new int[]{listFiles(content.resolve("mods")).size(),
-                    listFiles(content.resolve("resourcepacks")).size()};
-        });
-    }
-
-    private final class InstanceRenderer extends JPanel
-            implements ListCellRenderer<VersionManifest.VersionEntry> {
-        private final JLabel id = new JLabel();
-        private final JLabel meta = new JLabel();
-        private final JLabel content = new JLabel();
-        private final InstanceIcon icon = new InstanceIcon(34);
-        private final JLabel local = new JLabel("本地");
-
-        private InstanceRenderer() {
-            setOpaque(false);
-            setLayout(new BorderLayout(9, 0));
-            setBorder(new EmptyBorder(7, 9, 7, 9));
-            add(icon, BorderLayout.WEST);
-            JPanel text = new JPanel();
-            text.setOpaque(false);
-            text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
-            id.setFont(Theme.BODY_BOLD);
-            id.setForeground(Theme.TEXT);
-            meta.setFont(Theme.MONO);
-            meta.setForeground(Theme.DIM);
-            content.setFont(Theme.TINY);
-            content.setForeground(Theme.MUTED);
-            text.add(id);
-            text.add(meta);
-            text.add(content);
-            add(text, BorderLayout.CENTER);
-            local.setFont(Theme.MONO);
-            local.setForeground(Theme.ACCENT);
-            add(local, BorderLayout.EAST);
-        }
-
-        @Override
-        public Component getListCellRendererComponent(
-                JList<? extends VersionManifest.VersionEntry> list,
-                VersionManifest.VersionEntry entry, int index, boolean selected, boolean focus) {
-            id.setText(entry.id());
-            meta.setText(entry.displayType() + "  ·  " + Formatting.date(entry.releaseTime()));
-            int[] counts = instanceCounts(entry);
-            content.setText(counts[0] + " 个模组  ·  " + counts[1] + " 个资源包");
-            local.setVisible(entry.local());
-            Path content = config.isolateVersions()
-                    ? config.effectiveGameDir(entry.id()) : config.gameDir();
-            icon.setInstance(entry.id(), gamePaths.versionJson(entry.id()), content);
-            putClientProperty("selected", selected);
-            Integer hover = (Integer) list.getClientProperty("hoverIndex");
-            putClientProperty("hover", hover != null && hover == index);
-            return this;
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = Ui.prepare(g);
-            boolean selected = Boolean.TRUE.equals(getClientProperty("selected"));
-            if (selected) {
-                g2.setColor(Theme.SEL);
-                g2.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 14, 14);
-                g2.setColor(Theme.ACCENT);
-                g2.fillRoundRect(2, 9, 3, getHeight() - 18, 3, 3);
-            } else if (Boolean.TRUE.equals(getClientProperty("hover"))) {
-                g2.setColor(Theme.HOVER);
-                g2.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 14, 14);
-            } else {
-                g2.setColor(Theme.CARD);
-                g2.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 14, 14);
-            }
-            g2.dispose();
-            super.paintComponent(g);
+        if (instancesPage != null) {
+            instancesPage.refresh();
         }
     }
 
@@ -3000,7 +2702,6 @@ public final class LauncherFrame extends JFrame {
                 try {
                     get();
                     finishTask();
-                    instanceCounts.clear();
                     refreshInstancesPage();
                     statusLabel.setText("推荐模组安装完成 · " + items.size() + " 个");
                     statusLabel.setForeground(Theme.ACCENT);
@@ -3514,7 +3215,7 @@ public final class LauncherFrame extends JFrame {
         updateContentSelection();
     }
 
-    private void importLocalModpack() {
+    void importLocalModpack() {
         if (busy) {
             return;
         }
@@ -3659,13 +3360,7 @@ public final class LauncherFrame extends JFrame {
         }
         refreshInstancesPage();
         if (result.versionId() != null) {
-            for (int i = 0; i < instancesListModel.size(); i++) {
-                if (instancesListModel.get(i).id().equals(result.versionId())) {
-                    instancesList.setSelectedIndex(i);
-                    instancesList.ensureIndexIsVisible(i);
-                    break;
-                }
-            }
+            instancesPage.selectId(result.versionId());
         }
         updateContentSelection();
         updateLaunchInfo();
@@ -5673,11 +5368,11 @@ public final class LauncherFrame extends JFrame {
                 this::useVersion).setVisible(true);
     }
 
-    private void useVersion(VersionManifest.VersionEntry entry) {
+    void useVersion(VersionManifest.VersionEntry entry) {
         useVersion(entry, false);
     }
 
-    private void useVersion(VersionManifest.VersionEntry entry, boolean launch) {
+    void useVersion(VersionManifest.VersionEntry entry, boolean launch) {
         if (entry == null) {
             return;
         }
@@ -6027,7 +5722,7 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private void refreshAllVersions() {
+    void refreshAllVersions() {
         if (manifest == null) {
             return;
         }
@@ -6058,7 +5753,7 @@ public final class LauncherFrame extends JFrame {
         return gamePaths.isInstalled(entry.id());
     }
 
-    private void refreshInstalledCache() {
+    void refreshInstalledCache() {
         installedCache.clear();
         for (VersionManifest.VersionEntry entry : allVersions) {
             if (isInstalled(entry)) {

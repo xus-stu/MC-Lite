@@ -13,7 +13,7 @@ python3 -m pip install -r requirements-ui.txt
 ## 启动 Java Bridge
 
 ```bash
-java -jar MCLite_v1.1.94.jar --py-bridge
+java -jar MCLite_v1.1.95.jar --py-bridge
 ```
 
 启动后会生成：
@@ -42,8 +42,10 @@ print(client.search("Sodium", "mod", "26.1.2", "fabric"))
 ## PySide6 前端
 
 ```bash
-python -m mclite_bridge.ui_pyside6 --jar /path/to/MCLite_v1.1.94.jar
+python3 run_ui.py --jar /path/to/MCLite_v1.1.95.jar
 ```
+
+`run_ui.py` 会自动寻找安装了 PySide6 的 Python（优先 `python3.14` / `python3.13`）。
 
 或连接已经运行的 Bridge：
 

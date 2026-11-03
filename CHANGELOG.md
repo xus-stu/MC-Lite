@@ -1,5 +1,12 @@
 # MC Lite 更新记录
 
+## v1.1.95
+
+- 抽出 `InstancesPage`，`LauncherFrame` 从 6472 行降到约 6173 行。
+- 版本列表页的布局和行为不变，截图检查通过。
+- Python 模块新增 `run_ui.py`，会自动寻找装了 PySide6 的 Python 版本。
+
+
 ## v1.1.94
 
 - 清理 Python 模块打包时误带的 `__pycache__`，发布包只包含源码。
