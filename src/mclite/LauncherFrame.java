@@ -192,6 +192,7 @@ public final class LauncherFrame extends JFrame {
     private final java.util.Map<String, java.util.Optional<McMod.Entry>> mcmodLookupCache =
             new java.util.concurrent.ConcurrentHashMap<>();
     private Ui.ToggleChip forceTranslationToggle;
+    private Ui.DarkCombo<String> plainsTreeCombo;
     private JLabel versionDetailTitle;
     private JTextArea versionDetailMeta;
     private String versionLoaderType = "vanilla";
@@ -2401,6 +2402,34 @@ public final class LauncherFrame extends JFrame {
         });
         download.add(forceTranslationToggle);
         download.add(Ui.vgap(8));
+        JPanel treeRow = new JPanel();
+        treeRow.setOpaque(false);
+        treeRow.setLayout(new BoxLayout(treeRow, BoxLayout.X_AXIS));
+        treeRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        treeRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        treeRow.add(Ui.label("平原树木", Theme.BODY, Theme.MUTED));
+        treeRow.add(Ui.hgap(12));
+        plainsTreeCombo = new Ui.DarkCombo<>();
+        plainsTreeCombo.addItem("原版密度");
+        plainsTreeCombo.addItem("零星几棵");
+        plainsTreeCombo.addItem("完全没有");
+        plainsTreeCombo.addItem("全部是树");
+        plainsTreeCombo.setSelectedItem(treeModeLabel(config.plainsTreeMode()));
+        plainsTreeCombo.setPreferredSize(new Dimension(150, 30));
+        plainsTreeCombo.setMaximumSize(new Dimension(150, 30));
+        plainsTreeCombo.setToolTipText("通过全局数据包控制平原树木；只影响新生成区块，每次启动自动应用。");
+        plainsTreeCombo.addActionListener(e -> {
+            String mode = treeModeValue((String) plainsTreeCombo.getSelectedItem());
+            if (mode.equals(config.plainsTreeMode())) {
+                return;
+            }
+            config.plainsTreeMode(mode);
+            config.save();
+            applyPlainsTreeMode();
+        });
+        treeRow.add(plainsTreeCombo);
+        download.add(treeRow);
+        download.add(Ui.vgap(8));
         autoUpdateToggle = new Ui.ToggleChip("自动检查启动器更新（后台下载，下次启动生效）");
         autoUpdateToggle.setSelected(config.autoUpdate());
         autoUpdateToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
@@ -3898,6 +3927,42 @@ public final class LauncherFrame extends JFrame {
         });
     }
 
+    private static String treeModeLabel(String mode) {
+        return switch (mode == null ? "" : mode) {
+            case PlainsTrees.MODE_VANILLA -> "原版密度";
+            case PlainsTrees.MODE_NONE -> "完全没有";
+            case PlainsTrees.MODE_DENSE -> "全部是树";
+            default -> "零星几棵";
+        };
+    }
+
+    private static String treeModeValue(String label) {
+        return switch (label == null ? "" : label) {
+            case "原版密度" -> PlainsTrees.MODE_VANILLA;
+            case "完全没有" -> PlainsTrees.MODE_NONE;
+            case "全部是树" -> PlainsTrees.MODE_DENSE;
+            default -> PlainsTrees.MODE_SPARSE;
+        };
+    }
+
+    private void applyPlainsTreeMode() {
+        VersionManifest.VersionEntry target = selectedEntry != null ? selectedEntry
+                : (instancesList == null ? null : instancesList.getSelectedValue());
+        if (target == null) {
+            statusLabel.setText("平原树木设置已保存，将在启动实例时应用");
+            statusLabel.setForeground(Theme.DIM);
+            return;
+        }
+        try {
+            PlainsTrees.apply(config.effectiveGameDir(target.id()), config.plainsTreeMode());
+            statusLabel.setText("平原树木设置已应用 · " + treeModeLabel(config.plainsTreeMode())
+                    + " · " + target.id());
+            statusLabel.setForeground(Theme.ACCENT);
+        } catch (IOException ex) {
+            showError("应用平原树木设置失败", ex.getMessage());
+        }
+    }
+
     private String contentDisplayTitle(Modrinth.Project project) {
         String english = project.title();
         if (!config.forceModTranslation()) {
@@ -5383,7 +5448,9 @@ public final class LauncherFrame extends JFrame {
             @Override
             protected GameLauncher.LaunchResult doInBackground() throws Exception {
                 try {
-                    int synced = GlobalDatapacks.sync(config.effectiveGameDir(entry.id()));
+                    Path launchGameDir = config.effectiveGameDir(entry.id());
+                    PlainsTrees.apply(launchGameDir, config.plainsTreeMode());
+                    int synced = GlobalDatapacks.sync(launchGameDir);
                     if (synced > 0) {
                         Log.info("已同步全局数据包到 " + synced + " 个存档");
                     }
@@ -5756,6 +5823,9 @@ public final class LauncherFrame extends JFrame {
         mirrorToggle.setEnabled(enabled);
         jvmArgsField.setEnabled(enabled);
         curseForgeKeyField.setEnabled(enabled);
+        if (plainsTreeCombo != null) {
+            plainsTreeCombo.setEnabled(enabled);
+        }
         if (autoJvmToggle != null) {
             autoJvmToggle.setEnabled(enabled);
         }
