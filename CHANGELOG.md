@@ -1,5 +1,12 @@
 # MC Lite 更新记录
 
+## v1.1.96
+
+- 抽出 `SettingsPage`，`LauncherFrame` 从 6167 行降到约 5622 行。
+- 设置页的布局和控件行为不变，截图检查通过。
+- Python 模块继续使用 `run_ui.py` 自动寻找 PySide6 解释器。
+
+
 ## v1.1.95
 
 - 抽出 `InstancesPage`，`LauncherFrame` 从 6472 行降到约 6173 行。
