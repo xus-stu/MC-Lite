@@ -7,13 +7,14 @@ REGION_JAR="MCLite_v${VERSION}-region.jar"
 MAC_ZIP="MC-Lite_v${VERSION}_macOS.zip"
 REGION_MAC_ZIP="MC-Lite_v${VERSION}_region_macOS.zip"
 WIN_ZIP="MC-Lite_v${VERSION}_region_Windows.zip"
+PY_ZIP="MCLitePyBridge_v${VERSION}.zip"
 APP="dist/MC Lite v${VERSION}.app"
 REGION_APP="dist/MC Lite Region v${VERSION}.app"
 
 # 删除 dist 里不属于当前版本的旧构建产物，构建目录只保留当前版本。
 for f in dist/MCLite_v*.jar dist/MCLite_v*.exe dist/MC-Lite_v*_Setup.exe \
          dist/MC-Lite_v*_macOS.zip dist/MC-Lite_v*_region_macOS.zip \
-         dist/MC-Lite_v*_region_Windows.zip; do
+         dist/MC-Lite_v*_region_Windows.zip dist/MCLitePyBridge_v*.zip; do
   [ -e "$f" ] || continue
   case "$f" in
     *"${VERSION}"*) ;;
@@ -59,6 +60,11 @@ for built in "dist/${NORMAL_JAR}" "dist/${REGION_JAR}"; do
   fi
   echo "  $(basename "$built") 大小: ${built_size} 字节"
 done
+
+echo "[2/4] 打包可选 Python Bridge…"
+rm -f "dist/${PY_ZIP}"
+(cd python && zip -qr "../dist/${PY_ZIP}" mclite_bridge README.md requirements-ui.txt)
+echo "  ${PY_ZIP}"
 
 echo "[2/4] 打包可选跑分模块…"
 rm -rf build/benchmark-classes
