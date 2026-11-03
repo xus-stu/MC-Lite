@@ -48,3 +48,7 @@ backup/
 
 # isolated Windows VM
 .windows-sandbox/
+
+### Python ###
+__pycache__/
+*.py[cod]

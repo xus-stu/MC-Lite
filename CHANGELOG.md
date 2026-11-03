@@ -1,5 +1,11 @@
 # MC Lite 更新记录
 
+## v1.1.94
+
+- 清理 Python 模块打包时误带的 `__pycache__`，发布包只包含源码。
+- Python Bridge 用法不变。
+
+
 ## v1.1.93
 
 - 新增可选 Python Bridge 模块，不打包进主 JAR，按需下载。

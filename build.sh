@@ -63,7 +63,7 @@ done
 
 echo "[2/4] 打包可选 Python Bridge…"
 rm -f "dist/${PY_ZIP}"
-(cd python && zip -qr "../dist/${PY_ZIP}" mclite_bridge README.md requirements-ui.txt)
+(cd python && zip -qr "../dist/${PY_ZIP}" mclite_bridge README.md requirements-ui.txt -x "*/__pycache__/*" "*.pyc")
 echo "  ${PY_ZIP}"
 
 echo "[2/4] 打包可选跑分模块…"
