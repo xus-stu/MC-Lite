@@ -24,7 +24,6 @@ public final class Config {
     private String uiFontFamily = "";
     private final java.util.List<String> javaPaths = new java.util.ArrayList<>();
     private boolean forceModTranslation = true;
-    private String plainsTreeMode = PlainsTrees.MODE_SPARSE;
     private int windowWidth = 854;
     private int windowHeight = 480;
     private boolean downloadAssets = true;
@@ -108,10 +107,6 @@ public final class Config {
             config.autoMirror = Boolean.parseBoolean(properties.getProperty("autoMirror", "true"));
             config.forceModTranslation = Boolean.parseBoolean(
                     properties.getProperty("forceModTranslation", "true"));
-            String savedTreeMode = properties.getProperty("plainsTreeMode",
-                    PlainsTrees.MODE_SPARSE);
-            config.plainsTreeMode = PlainsTrees.valid(savedTreeMode)
-                    ? savedTreeMode : PlainsTrees.MODE_SPARSE;
             config.isolateVersions = Boolean.parseBoolean(
                     properties.getProperty("isolateVersions", "true"));
             config.autoMemory = Boolean.parseBoolean(properties.getProperty("autoMemory", "false"));
@@ -159,7 +154,6 @@ public final class Config {
         copy.uiFontFamily = uiFontFamily;
         copy.javaPaths.addAll(javaPaths);
         copy.forceModTranslation = forceModTranslation;
-        copy.plainsTreeMode = plainsTreeMode;
         copy.windowWidth = windowWidth;
         copy.windowHeight = windowHeight;
         copy.downloadAssets = downloadAssets;
@@ -338,14 +332,6 @@ public final class Config {
 
     public void forceModTranslation(boolean value) {
         this.forceModTranslation = value;
-    }
-
-    public String plainsTreeMode() {
-        return plainsTreeMode;
-    }
-
-    public void plainsTreeMode(String value) {
-        this.plainsTreeMode = PlainsTrees.valid(value) ? value : PlainsTrees.MODE_SPARSE;
     }
 
     public boolean integrityCheck() {
@@ -574,7 +560,6 @@ public final class Config {
             properties.setProperty("javaPaths", String.join("\n", javaPaths));
             properties.setProperty("forceModTranslation",
                     Boolean.toString(forceModTranslation));
-            properties.setProperty("plainsTreeMode", plainsTreeMode);
             properties.setProperty("windowWidth", Integer.toString(windowWidth));
             properties.setProperty("windowHeight", Integer.toString(windowHeight));
             properties.setProperty("downloadAssets", Boolean.toString(downloadAssets));
