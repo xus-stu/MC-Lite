@@ -36,6 +36,17 @@ public final class ContentInstaller {
 
     public Result install(Modrinth.Project project, String gameVersion, String loader)
             throws IOException {
+        try {
+            return doInstall(project, gameVersion, loader);
+        } catch (ContentInstallException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ContentInstallException(project, gameVersion, loader, "", ex);
+        }
+    }
+
+    private Result doInstall(Modrinth.Project project, String gameVersion, String loader)
+            throws IOException {
         if (project.curseForge()) {
             return new CurseForgeInstaller(config, progress, token)
                     .install(project, gameVersion, loader);
@@ -58,6 +69,18 @@ public final class ContentInstaller {
 
     public Result installVersion(Modrinth.Project project, Modrinth.Version chosen,
                                  String gameVersion, String loader) throws IOException {
+        try {
+            return doInstallVersion(project, chosen, gameVersion, loader);
+        } catch (ContentInstallException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ContentInstallException(project, gameVersion, loader,
+                    chosen == null ? "" : String.join(", ", chosen.gameVersions()), ex);
+        }
+    }
+
+    private Result doInstallVersion(Modrinth.Project project, Modrinth.Version chosen,
+                                    String gameVersion, String loader) throws IOException {
         if (project.curseForge()) {
             return new CurseForgeInstaller(config, progress, token)
                     .installVersion(project, chosen, gameVersion, loader);
