@@ -1,5 +1,14 @@
 # MC Lite 更新记录
 
+## v1.2.0
+
+- `SettingsPage` 完成所有权拆分：控件移入页面，构造时只传 Config、TaskCenter 和回调；`owner.` 调用 199→10，控件访问 0。
+- 新增页面所有权 CI 门槛；Launch/Config 暂按当前基线锁定，只允许下降。
+- 新增 [docs/page-ownership.md](docs/page-ownership.md) 和 [docs/bridge-contract.md](docs/bridge-contract.md)。
+- Bridge API 继续使用 `/api` + `/api/v1`，旧 Python 函数保持兼容。
+- 1.2.0 作为页面拆分阶段收尾，后续先冻结并修整，不继续堆功能。
+
+
 ## v1.1.98
 
 - Bridge API 增加版本化前缀 `/api/v1`，旧 `/api` 路径继续保留。
