@@ -8,4 +8,5 @@ public class ConfigCssTest { public static void main(String[] a) throws Exceptio
  Files.writeString(f,"background: #010203\ncolor: #AABBCC\nfont-size: 15\n");
  Theme.applyCss(f);
  System.out.println("bg="+Integer.toHexString(Theme.BG.getRGB())+" text="+Integer.toHexString(Theme.TEXT.getRGB())+" font="+Theme.BODY.getSize());
+  if (Theme.BODY.getSize() <= 0) throw new AssertionError("font not rebuilt");
  } }
