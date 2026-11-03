@@ -57,11 +57,26 @@ class BridgeClient:
     def info(self) -> dict[str, Any]:
         return self._request("GET", "/api/info")
 
+    def capabilities(self) -> dict[str, Any]:
+        return self._request("GET", "/api/capabilities")
+
+    def api_version(self) -> str:
+        return str(self.health().get("apiVersion", "1.0"))
+
     def versions(self, local_only: bool = False) -> list[dict[str, Any]]:
         return self._request("GET", "/api/versions" + ("?local=1" if local_only else ""))
 
     def version(self, version_id: str) -> dict[str, Any]:
         return self._request("GET", "/api/versions/" + urllib.parse.quote(version_id, safe=""))
+
+    def latest_version(self) -> dict[str, Any]:
+        return self._request("GET", "/api/versions/latest")
+
+    def instances(self) -> list[dict[str, Any]]:
+        return self._request("GET", "/api/instances")
+
+    def instance(self, instance_id: str) -> dict[str, Any]:
+        return self._request("GET", "/api/instances/" + urllib.parse.quote(instance_id, safe=""))
 
     def install_version(self, version_id: str) -> dict[str, Any]:
         return self._request(
@@ -93,6 +108,12 @@ class BridgeClient:
     def tasks(self) -> list[dict[str, Any]]:
         return self._request("GET", "/api/tasks")
 
+    def task(self, task_id: str) -> dict[str, Any]:
+        return self._request("GET", "/api/tasks/" + urllib.parse.quote(task_id, safe=""))
+
+    def clear_tasks(self) -> dict[str, Any]:
+        return self._request("POST", "/api/tasks/clear")
+
     def cancel_task(self, task_id: str) -> dict[str, Any]:
         return self._request("POST", "/api/tasks/" + urllib.parse.quote(task_id, safe="") + "/cancel")
 
@@ -107,6 +128,20 @@ class BridgeClient:
 
     def sync_datapacks(self, instance: str = "") -> dict[str, Any]:
         return self._request("POST", "/api/datapacks/sync?" + urllib.parse.urlencode({"instance": instance}))
+
+    def install_datapack(self, path: str, instance: str = "") -> dict[str, Any]:
+        return self._request("POST", "/api/datapacks/install",
+                             {"path": path, "instance": instance})
+
+    def remove_datapack(self, name: str, instance: str = "") -> dict[str, Any]:
+        return self._request("POST", "/api/datapacks/remove",
+                             {"name": name, "instance": instance})
+
+    def java(self) -> list[dict[str, Any]]:
+        return self._request("GET", "/api/java")
+
+    def content_sources(self) -> list[dict[str, Any]]:
+        return self._request("GET", "/api/content/sources")
 
     def logs(self, tail: int = 200) -> str:
         return self._request("GET", "/api/logs?tail=" + str(tail)).get("text", "")

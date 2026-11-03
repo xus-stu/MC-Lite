@@ -64,13 +64,14 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 - 安装失败信息补上项目名、来源、选择版本、支持版本范围和具体原因。
 - 可选 `MCLitePyBridge` 模块：提供本机 Python JSON API 和 PySide6 独立前端，不增加主 JAR 体积。
 - `InstancesPage`、`SettingsPage`、`LaunchPage`、`ConfigPage` 已抽出，`LauncherFrame` 从 6472 行降到约 5342 行。
+- Python Bridge 进入 API 1.0：`/api/v1` 版本化别名，旧 `/api` 保持兼容，并新增实例、Java、任务、数据包等接口。
 - MC百科简介会去掉 `[h1=...]`、`[b]`、`[list]` 等 BBCode 排版标记。
 - 继续拆分布局工具到 `LauncherLayout`，`LauncherFrame` 从 6584 行降到 6322 行。
 - 下载任务、进度、速度、剩余时间，以及异常退出后的崩溃报告。
 
 ## 运行
 
-当前版本：V1.1.97
+当前版本：V1.1.98
 
 需要 Java 21 或更高版本。
 
@@ -78,7 +79,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.1.97.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.1.98.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -89,7 +90,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.1.97-region.jar
+java -jar dist/MCLite_v1.1.98-region.jar
 ```
 
 ## 地区限制
@@ -133,18 +134,18 @@ java -jar dist/MCLite_v1.1.97-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.1.97.jar
-dist/MCLite_v1.1.97-region.jar
+dist/MCLite_v1.1.98.jar
+dist/MCLite_v1.1.98-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.1.97.app
-dist/MC Lite Region v1.1.97.app
-dist/MC-Lite_v1.1.97_macOS.zip
-dist/MC-Lite_v1.1.97_region_macOS.zip
-dist/MC-Lite_v1.1.97_region_Windows.zip
+dist/MC Lite v1.1.98.app
+dist/MC Lite Region v1.1.98.app
+dist/MC-Lite_v1.1.98_macOS.zip
+dist/MC-Lite_v1.1.98_region_macOS.zip
+dist/MC-Lite_v1.1.98_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.1.97_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.1.98_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -195,7 +196,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.1.97_Setup.exe
+dist/MC-Lite_v1.1.98_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -213,7 +214,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.1.97.jar --software-render
+java -jar dist/MCLite_v1.1.98.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：

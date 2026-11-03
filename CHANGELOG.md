@@ -1,5 +1,13 @@
 # MC Lite 更新记录
 
+## v1.1.98
+
+- Bridge API 增加版本化前缀 `/api/v1`，旧 `/api` 路径继续保留。
+- 新增能力查询、最新版本、实例、内容源、Java、任务详情/清理、数据包安装/移除等接口。
+- Python 客户端新增对应函数，旧函数名和参数保持不变。
+- CI 增加 Bridge 冒烟测试，同时验证旧路径和 `/api/v1`。
+
+
 ## v1.1.97
 
 - 抽出 `LaunchPage` 和 `ConfigPage`，`LauncherFrame` 从 6472 行降到约 5342 行。

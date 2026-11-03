@@ -25,6 +25,12 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Optional loopback JSON API used by the Python companion module. */
 public final class BridgeServer {
     private static final int MAX_BODY = 1024 * 1024;
+    private static final String API_VERSION = "1.0";
+    private static final List<String> CAPABILITIES = List.of(
+            "health", "info", "capabilities", "versions", "instances", "content.search",
+            "content.project", "content.install", "tasks", "tasks.cancel", "tasks.clear",
+            "config", "datapacks", "datapacks.install", "datapacks.sync",
+            "logs", "launch", "java");
     private final Config config;
     private final String token;
     private final HttpServer server;
@@ -75,8 +81,15 @@ public final class BridgeServer {
     private void handle(HttpExchange exchange) throws IOException {
         try {
             String path = exchange.getRequestURI().getPath();
+            if (path.startsWith("/api/v1/")) {
+                path = "/api/" + path.substring("/api/v1/".length());
+            }
             if ("/api/health".equals(path)) {
-                send(exchange, 200, Map.of("ok", true, "version", GameLauncher.LAUNCHER_VERSION));
+                send(exchange, 200, Map.of(
+                        "ok", true,
+                        "version", GameLauncher.LAUNCHER_VERSION,
+                        "apiVersion", API_VERSION,
+                        "apiPrefix", "/api/v1"));
                 return;
             }
             String supplied = exchange.getRequestHeaders().getFirst("X-MCLite-Token");
@@ -103,12 +116,29 @@ public final class BridgeServer {
         if ("/api/info".equals(path)) {
             send(exchange, 200, Map.of(
                     "version", GameLauncher.LAUNCHER_VERSION,
+                    "apiVersion", API_VERSION,
+                    "apiPrefix", "/api/v1",
+                    "capabilities", CAPABILITIES,
                     "gameDir", config.gameDir().toString(),
                     "username", config.username()));
             return;
         }
-        if ("/api/versions".equals(path)) {
-            send(exchange, 200, versions("1".equals(query.get("local"))));
+        if ("/api/capabilities".equals(path)) {
+            send(exchange, 200, Map.of("apiVersion", API_VERSION,
+                    "prefix", "/api/v1", "methods", CAPABILITIES));
+            return;
+        }
+        if ("/api/versions/latest".equals(path)) {
+            VersionManifest manifest = Versions.fetch(config, ProgressSink.NOOP,
+                    new CancellationToken()).manifest();
+            VersionManifest.VersionEntry latest = manifest.find(manifest.latestRelease());
+            send(exchange, 200, latest == null ? Map.of("id", "") : versionEntry(latest,
+                    installedIds().contains(latest.id())));
+            return;
+        }
+        if ("/api/versions".equals(path) || "/api/instances".equals(path)) {
+            send(exchange, 200, versions("1".equals(query.get("local"))
+                    || "/api/instances".equals(path)));
             return;
         }
         if (path.startsWith("/api/versions/") && path.endsWith("/install") && "POST".equals(method)) {
@@ -117,8 +147,19 @@ public final class BridgeServer {
             send(exchange, 200, Map.of("accepted", true, "tasks", true));
             return;
         }
+        if (path.startsWith("/api/instances/")) {
+            send(exchange, 200, localVersion(path.substring("/api/instances/".length())));
+            return;
+        }
         if (path.startsWith("/api/versions/")) {
             send(exchange, 200, localVersion(path.substring("/api/versions/".length())));
+            return;
+        }
+        if ("/api/content/sources".equals(path)) {
+            send(exchange, 200, List.of(
+                    Map.of("id", "modrinth", "available", true),
+                    Map.of("id", "curseforge", "available",
+                            !config.curseForgeApiKey().isBlank())));
             return;
         }
         if ("/api/content/search".equals(path)) {
@@ -143,6 +184,23 @@ public final class BridgeServer {
         }
         if ("/api/tasks".equals(path)) {
             send(exchange, 200, tasks());
+            return;
+        }
+        if ("/api/tasks/clear".equals(path) && "POST".equals(method)) {
+            int removed = (int) jobs.values().stream()
+                    .filter(job -> !"running".equals(job.state) && !"queued".equals(job.state))
+                    .map(job -> job.id).filter(id -> jobs.remove(id) != null).count();
+            send(exchange, 200, Map.of("removed", removed));
+            return;
+        }
+        if (path.startsWith("/api/tasks/") && "GET".equals(method)) {
+            String id = path.substring("/api/tasks/".length());
+            Job job = jobs.get(id);
+            if (job == null) {
+                send(exchange, 404, Map.of("error", "task not found"));
+            } else {
+                send(exchange, 200, job.json());
+            }
             return;
         }
         if (path.startsWith("/api/tasks/") && path.endsWith("/cancel") && "POST".equals(method)) {
@@ -172,8 +230,20 @@ public final class BridgeServer {
             send(exchange, 200, Map.of("worlds", GlobalDatapacks.sync(gameDir)));
             return;
         }
+        if ("/api/datapacks/install".equals(path) && "POST".equals(method)) {
+            send(exchange, 200, installDatapack(readJson(exchange)));
+            return;
+        }
+        if ("/api/datapacks/remove".equals(path) && "POST".equals(method)) {
+            send(exchange, 200, removeDatapack(readJson(exchange)));
+            return;
+        }
         if ("/api/logs".equals(path)) {
             send(exchange, 200, Map.of("text", tailLog(query.getOrDefault("tail", "200"))));
+            return;
+        }
+        if ("/api/java".equals(path)) {
+            send(exchange, 200, javaList());
             return;
         }
         if ("/api/launch".equals(path) && "POST".equals(method)) {
@@ -181,6 +251,59 @@ public final class BridgeServer {
             return;
         }
         send(exchange, 404, Map.of("error", "not found"));
+    }
+
+    private java.util.Set<String> installedIds() {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (VersionManifest.VersionEntry entry : LocalVersions.scan(
+                new GamePaths(config.gameDir()))) {
+            ids.add(entry.id());
+        }
+        return ids;
+    }
+
+    private List<Object> javaList() {
+        List<Object> result = new ArrayList<>();
+        for (JavaManager.JavaInfo info : new JavaManager(config, ProgressSink.NOOP,
+                new CancellationToken()).detectAll()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("path", info.path().toString());
+            map.put("major", info.major());
+            map.put("label", info.label());
+            map.put("component", info.component());
+            map.put("official", info.official());
+            result.add(map);
+        }
+        return result;
+    }
+
+    private Map<String, Object> installDatapack(Map<String, Object> body) throws IOException {
+        String instance = Json.str(body, "instance", "");
+        Path archive = Path.of(Json.str(body, "path", ""));
+        GlobalDatapacks.validate(archive);
+        Path gameDir = gameDir(instance);
+        Path folder = GlobalDatapacks.folder(gameDir);
+        Files.createDirectories(folder);
+        Path target = folder.resolve(archive.getFileName().toString());
+        Files.copy(archive, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        int worlds = GlobalDatapacks.sync(gameDir);
+        return Map.of("name", target.getFileName().toString(), "worlds", worlds,
+                "instance", instance);
+    }
+
+    private Map<String, Object> removeDatapack(Map<String, Object> body) throws IOException {
+        String instance = Json.str(body, "instance", "");
+        String name = Json.str(body, "name", "");
+        if (name.isBlank() || name.contains("/") || name.contains("\\")) {
+            throw new IOException("数据包名称无效");
+        }
+        Path gameDir = gameDir(instance);
+        Path target = GlobalDatapacks.folder(gameDir).resolve(name);
+        boolean removed = Files.deleteIfExists(target);
+        for (Path world : GlobalDatapacks.worlds(gameDir)) {
+            Files.deleteIfExists(world.resolve("datapacks").resolve(name));
+        }
+        return Map.of("removed", removed, "name", name);
     }
 
     private List<Object> versions(boolean localOnly) throws IOException {
@@ -368,6 +491,9 @@ public final class BridgeServer {
         map.put("jvmArgs", config.jvmArgs());
         map.put("windowWidth", config.windowWidth());
         map.put("windowHeight", config.windowHeight());
+        map.put("downloadAssets", config.downloadAssets());
+        map.put("forceModTranslation", config.forceModTranslation());
+        map.put("autoUpdate", config.autoUpdate());
         return map;
     }
 
@@ -380,6 +506,28 @@ public final class BridgeServer {
         }
         if (Json.has(body, "jvmArgs")) {
             config.jvmArgs(Json.str(body, "jvmArgs", ""));
+        }
+        if (Json.has(body, "autoJvmTuning")) {
+            config.autoJvmTuning(Json.bool(body, "autoJvmTuning", config.autoJvmTuning()));
+        }
+        if (Json.has(body, "isolateVersions")) {
+            config.isolateVersions(Json.bool(body, "isolateVersions", config.isolateVersions()));
+        }
+        if (Json.has(body, "downloadAssets")) {
+            config.downloadAssets(Json.bool(body, "downloadAssets", config.downloadAssets()));
+        }
+        if (Json.has(body, "forceModTranslation")) {
+            config.forceModTranslation(Json.bool(body, "forceModTranslation",
+                    config.forceModTranslation()));
+        }
+        if (Json.has(body, "autoUpdate")) {
+            config.autoUpdate(Json.bool(body, "autoUpdate", config.autoUpdate()));
+        }
+        if (Json.has(body, "windowWidth")) {
+            config.windowWidth(Json.integer(body, "windowWidth", config.windowWidth()));
+        }
+        if (Json.has(body, "windowHeight")) {
+            config.windowHeight(Json.integer(body, "windowHeight", config.windowHeight()));
         }
         if (Json.has(body, "username")) {
             String username = Json.str(body, "username", "").trim();

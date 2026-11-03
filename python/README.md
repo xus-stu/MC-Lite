@@ -13,7 +13,7 @@ python3 -m pip install -r requirements-ui.txt
 ## 启动 Java Bridge
 
 ```bash
-java -jar MCLite_v1.1.97.jar --py-bridge
+java -jar MCLite_v1.1.98.jar --py-bridge
 ```
 
 启动后会生成：
@@ -42,7 +42,7 @@ print(client.search("Sodium", "mod", "26.1.2", "fabric"))
 ## PySide6 前端
 
 ```bash
-python3 run_ui.py --jar /path/to/MCLite_v1.1.97.jar
+python3 run_ui.py --jar /path/to/MCLite_v1.1.98.jar
 ```
 
 `run_ui.py` 会自动寻找安装了 PySide6 的 Python（优先 `python3.14` / `python3.13`）。
@@ -61,20 +61,38 @@ PySide6 是一个独立前端，不会注入或修改 Swing 窗口；它通过 B
 |---|---|
 | GET | `/api/health` |
 | GET | `/api/info` |
+| GET | `/api/capabilities` |
 | GET | `/api/versions?local=1` |
+| GET | `/api/versions/latest` |
 | GET | `/api/versions/{id}` |
 | POST | `/api/versions/{id}/install` |
+| GET | `/api/instances` |
+| GET | `/api/content/sources` |
 | GET | `/api/content/search` |
 | GET | `/api/content/project/{id}` |
 | GET | `/api/content/project/{id}/versions` |
 | POST | `/api/content/install` |
 | GET | `/api/tasks` |
+| GET | `/api/tasks/{id}` |
 | POST | `/api/tasks/{id}/cancel` |
+| POST | `/api/tasks/clear` |
 | GET/PUT | `/api/config` |
+| GET | `/api/java` |
 | GET | `/api/datapacks?instance=ID` |
 | POST | `/api/datapacks/sync?instance=ID` |
+| POST | `/api/datapacks/install` |
+| POST | `/api/datapacks/remove` |
 | GET | `/api/logs?tail=200` |
 | POST | `/api/launch` |
+
+`/api/v1/...` 是同一组接口的版本化别名，`/api/...` 继续保留。
+
+## 兼容规则
+
+- 旧路径不删除，只新增可选字段和接口。
+- Python 客户端已有函数保留原名和参数。
+- 新功能只增加方法；需要破坏性变更时发布新的 `/api/v2`。
+- `GET /api/health` 的 `apiVersion` 用来判断服务端能力。
 
 ## 限制
 
