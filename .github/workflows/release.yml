@@ -26,6 +26,10 @@ jobs:
           VERSION="$(cat VERSION)"
           java -jar "dist/MCLite_v${VERSION}.jar" --self-test
           java -jar "dist/MCLite_v${VERSION}-region.jar" --self-test
+      - name: Headless regression tests
+        run: |
+          chmod +x test/run-ci.sh
+          ./test/run-ci.sh
       - name: Prepare release notes
         run: |
           VERSION="$(cat VERSION)"
