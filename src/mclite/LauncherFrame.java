@@ -132,6 +132,7 @@ public final class LauncherFrame extends JFrame {
     private Ui.AccentButton sidebarSwitchButton;
     private boolean pendingLaunch;
     private InstancesPage instancesPage;
+    private SettingsPage settingsPage;
 
     private final java.util.ArrayDeque<Runnable> installQueue = new java.util.ArrayDeque<>();
     private Ui.AccentButton headerBackButton;
@@ -226,8 +227,8 @@ public final class LauncherFrame extends JFrame {
     Ui.SkinHead launchSkin;
     Ui.SkinHead configSkin;
 
-    private VersionManifest.VersionEntry selectedEntry;
-    private VersionMeta selectedMeta;
+    VersionManifest.VersionEntry selectedEntry;
+    VersionMeta selectedMeta;
     private int selectionGeneration;
     private boolean refreshingList;
     boolean refreshingJavaCombo;
@@ -543,7 +544,8 @@ public final class LauncherFrame extends JFrame {
         instancesPage = new InstancesPage(this);
         contentCardsPanel.add(instancesPage.build(), "instances");
         contentCardsPanel.add(new ConfigPage(this).build(), "config");
-        contentCardsPanel.add(new SettingsPage(this).build(), "settings");
+        settingsPage = new SettingsPage(this, config, taskCenter, this::updateLaunchInfo);
+        contentCardsPanel.add(settingsPage.build(), "settings");
 
         JPanel content = new JPanel(new BorderLayout());
         content.setOpaque(true);
@@ -1023,6 +1025,22 @@ public final class LauncherFrame extends JFrame {
         page.add(bottom, BorderLayout.SOUTH);
         page.setComponentZOrder(bottom, 0);
         return page;
+    }
+
+    int selectedMemoryMb() {
+        return selectedMeta != null ? config.effectiveMemoryMb(selectedMeta)
+                : config.effectiveMemoryMb(selectedEntry == null ? null : selectedEntry.id());
+    }
+
+    void refreshContentVisuals() {
+        if (contentList != null) {
+            contentList.repaint();
+        }
+    }
+
+    void refreshSelectionUi() {
+        updateDetailForSelection();
+        updateRecommendations(versionLoaderType);
     }
 
     void updateAutoMemoryControls() {

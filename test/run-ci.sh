@@ -24,6 +24,26 @@ run JvmTunerTest
 run ConfigCssTest
 run CrashTest
 
+# Page ownership gate. Baselines are ceilings, not permission to grow.
+check_page() {
+  local file="src/mclite/$1.java"
+  local max_total="$2"
+  local max_controls="$3"
+  local total controls
+  total=$(grep -c 'owner\.' "$file" || true)
+  controls=$(grep -Ec 'owner\.[A-Za-z0-9_]*(Toggle|Slider|Combo|Field|Area|List|Panel|Button|Label|Skin)\b' "$file" || true)
+  echo "  $1 owner=$total controls=$controls (limit $max_total/$max_controls)"
+  if [ "$total" -gt "$max_total" ] || [ "$controls" -gt "$max_controls" ]; then
+    echo "页面所有权退化：$file" >&2
+    exit 1
+  fi
+}
+echo "== page ownership gate"
+check_page InstancesPage 20 0
+check_page SettingsPage 10 0
+check_page LaunchPage 45 17
+check_page ConfigPage 56 29
+
 # Bridge API smoke test: old /api and versioned /api/v1 must both answer.
 BRIDGE_HOME="$PWD/build/bridge-test-home"
 BRIDGE_GAME="$PWD/build/bridge-test-game"

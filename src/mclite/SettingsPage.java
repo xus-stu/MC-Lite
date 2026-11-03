@@ -25,9 +25,107 @@ import java.nio.file.Path;
 /** Settings page, extracted from LauncherFrame. */
 final class SettingsPage {
     private final LauncherFrame owner;
+    private final Config config;
+    private final TaskCenter taskCenter;
+    private final Runnable updateLaunchInfo;
+    private javax.swing.JTextField jvmArgsField;
+    private Ui.ValueSlider memorySlider;
+    private Ui.ToggleChip autoMemoryToggle;
+    private Ui.ToggleChip autoJvmToggle;
+    private Ui.ToggleChip metalToggle;
+    private Ui.ToggleChip autoUpdateToggle;
+    private Ui.ToggleChip removeRegionLimitsToggle;
+    private Ui.ValueSlider widthSlider;
+    private Ui.ValueSlider heightSlider;
+    private javax.swing.JToggleButton assetsToggle;
+    private javax.swing.JToggleButton mirrorToggle;
+    private Ui.ToggleChip forceTranslationToggle;
+    private javax.swing.JTextField curseForgeKeyField;
+    private javax.swing.JTextArea uiCssArea;
+    private Ui.DarkCombo<FontCatalog.Choice> fontCombo;
+    private javax.swing.JLabel accountsDirLabel;
+    private Ui.ToggleChip recommendToggle;
 
-    SettingsPage(LauncherFrame owner) {
+    SettingsPage(LauncherFrame owner, Config config, TaskCenter taskCenter,
+                 Runnable updateLaunchInfo) {
         this.owner = owner;
+        this.config = config;
+        this.taskCenter = taskCenter;
+        this.updateLaunchInfo = updateLaunchInfo;
+    }
+
+    void updateAutoMemoryControls() {
+        int memory = owner.selectedMemoryMb();
+        if (autoMemoryToggle != null) {
+            autoMemoryToggle.setText("自动分配内存（推荐 " + memory + " MB）");
+        }
+        if (memorySlider != null) {
+            memorySlider.setEnabled(!config.autoMemory());
+            if (config.autoMemory()) {
+                memorySlider.setValue(memory);
+            }
+        }
+    }
+
+    void saveCurseForgeKey() {
+        if (curseForgeKeyField != null) {
+            config.curseForgeApiKey(curseForgeKeyField.getText());
+            config.save();
+        }
+    }
+
+    void saveJvmArgs() {
+        if (jvmArgsField != null) {
+            config.jvmArgs(jvmArgsField.getText());
+            config.save();
+            updateLaunchInfo.run();
+        }
+    }
+
+    void persistControls() {
+        if (memorySlider != null) {
+            config.memoryMb(memorySlider.getValue());
+        }
+        if (assetsToggle != null) {
+            config.downloadAssets(assetsToggle.isSelected());
+        }
+        if (mirrorToggle != null) {
+            config.autoMirror(mirrorToggle.isSelected());
+        }
+        if (jvmArgsField != null) {
+            config.jvmArgs(jvmArgsField.getText());
+        }
+        if (curseForgeKeyField != null) {
+            config.curseForgeApiKey(curseForgeKeyField.getText());
+        }
+        if (widthSlider != null) {
+            config.windowWidth(widthSlider.getValue());
+        }
+        if (heightSlider != null) {
+            config.windowHeight(heightSlider.getValue());
+        }
+    }
+
+    void updateAccountsLabel() {
+        if (accountsDirLabel != null) {
+            accountsDirLabel.setText(config.accountsDir().toString());
+            accountsDirLabel.setToolTipText(config.accountsDir().toString());
+        }
+    }
+
+    void setControlsEnabled(boolean enabled) {
+        for (javax.swing.JComponent component : new javax.swing.JComponent[]{
+                jvmArgsField, memorySlider, autoMemoryToggle, autoJvmToggle, metalToggle,
+                autoUpdateToggle, removeRegionLimitsToggle, widthSlider, heightSlider,
+                assetsToggle, mirrorToggle, forceTranslationToggle, curseForgeKeyField,
+                uiCssArea, fontCombo, recommendToggle}) {
+            if (component != null) {
+                component.setEnabled(enabled);
+            }
+        }
+        if (memorySlider != null) {
+            memorySlider.setEnabled(enabled && !config.autoMemory());
+        }
     }
 
     JPanel build() {
@@ -44,8 +142,8 @@ final class SettingsPage {
         settingsActions.add(openLogs);
         settingsActions.add(Ui.hgap(6));
         Ui.AccentButton checkUpdate = Ui.smallButton("检查更新", Ui.AccentButton.Style.GHOST);
-        checkUpdate.addActionListener(e -> Updater.checkNow(owner.config, owner,
-                owner.taskCenter, owner::refreshTasksUi));
+        checkUpdate.addActionListener(e -> Updater.checkNow(config, owner,
+                taskCenter, owner::refreshTasksUi));
         settingsActions.add(checkUpdate);
         settingsActions.add(Ui.hgap(6));
         settingsActions.add(openData);
@@ -76,58 +174,58 @@ final class SettingsPage {
         memoryRow.setLayout(new BoxLayout(memoryRow, BoxLayout.X_AXIS));
         memoryRow.add(Ui.label("内存分配", Theme.TINY, Theme.DIM));
         memoryRow.add(Ui.hgap(12));
-        owner.memorySlider = new Ui.ValueSlider(512, 32768, 512, owner.config.memoryMb(), " MB");
-        owner.memorySlider.addChangeListener(value -> {
-            owner.config.memoryMb(value);
-            owner.config.save();
-            owner.updateLaunchInfo();
+        memorySlider = new Ui.ValueSlider(512, 32768, 512, config.memoryMb(), " MB");
+        memorySlider.addChangeListener(value -> {
+            config.memoryMb(value);
+            config.save();
+            updateLaunchInfo.run();
         });
-        memoryRow.add(owner.memorySlider);
+        memoryRow.add(memorySlider);
         memoryRow.add(Box.createHorizontalGlue());
         memoryRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         memoryRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         performance.add(memoryRow);
         performance.add(Ui.vgap(8));
-        owner.autoMemoryToggle = new Ui.ToggleChip("自动分配内存（推荐 "
-                + owner.config.effectiveMemoryMb() + " MB）");
-        owner.autoMemoryToggle.setSelected(owner.config.autoMemory());
-        owner.autoMemoryToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.autoMemoryToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.autoMemoryToggle.addActionListener(e -> {
-            owner.config.autoMemory(owner.autoMemoryToggle.isSelected());
-            owner.config.save();
-            owner.updateAutoMemoryControls();
-            owner.updateLaunchInfo();
+        autoMemoryToggle = new Ui.ToggleChip("自动分配内存（推荐 "
+                + config.effectiveMemoryMb() + " MB）");
+        autoMemoryToggle.setSelected(config.autoMemory());
+        autoMemoryToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        autoMemoryToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        autoMemoryToggle.addActionListener(e -> {
+            config.autoMemory(autoMemoryToggle.isSelected());
+            config.save();
+            updateAutoMemoryControls();
+            updateLaunchInfo.run();
         });
-        performance.add(owner.autoMemoryToggle);
-        owner.updateAutoMemoryControls();
+        performance.add(autoMemoryToggle);
+        updateAutoMemoryControls();
         performance.add(Ui.vgap(8));
-        owner.autoJvmToggle = new Ui.ToggleChip("自动 JVM 优化参数（按 Java/版本选择 GC）");
-        owner.autoJvmToggle.setSelected(owner.config.autoJvmTuning());
-        owner.autoJvmToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.autoJvmToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.autoJvmToggle.addActionListener(e -> {
-            owner.config.autoJvmTuning(owner.autoJvmToggle.isSelected());
-            owner.config.save();
-            owner.updateLaunchInfo();
+        autoJvmToggle = new Ui.ToggleChip("自动 JVM 优化参数（按 Java/版本选择 GC）");
+        autoJvmToggle.setSelected(config.autoJvmTuning());
+        autoJvmToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        autoJvmToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        autoJvmToggle.addActionListener(e -> {
+            config.autoJvmTuning(autoJvmToggle.isSelected());
+            config.save();
+            updateLaunchInfo.run();
         });
-        performance.add(owner.autoJvmToggle);
+        performance.add(autoJvmToggle);
         if (LauncherFrame.isMac()) {
             performance.add(Ui.vgap(8));
-            owner.metalToggle = new Ui.ToggleChip("强制使用 Metal 渲染（实验性，重启生效）");
-            owner.metalToggle.setSelected(owner.config.metalRendering());
-            owner.metalToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-            owner.metalToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-            owner.metalToggle.setToolTipText("启用后使用 Metal 绘制界面；如果出现黑屏或花屏，关闭此选项并重启");
-            owner.metalToggle.addActionListener(e -> {
-                owner.config.metalRendering(owner.metalToggle.isSelected());
-                owner.config.save();
+            metalToggle = new Ui.ToggleChip("强制使用 Metal 渲染（实验性，重启生效）");
+            metalToggle.setSelected(config.metalRendering());
+            metalToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+            metalToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+            metalToggle.setToolTipText("启用后使用 Metal 绘制界面；如果出现黑屏或花屏，关闭此选项并重启");
+            metalToggle.addActionListener(e -> {
+                config.metalRendering(metalToggle.isSelected());
+                config.save();
                 ModernDialogs.message(owner, "渲染设置",
-                        owner.metalToggle.isSelected()
+                        metalToggle.isSelected()
                                 ? "已启用 Metal 渲染，重启启动器后生效。\n如果界面黑屏，请编辑配置关闭 metalRendering。"
                                 : "已恢复软件渲染，重启启动器后生效。");
             });
-            performance.add(owner.metalToggle);
+            performance.add(metalToggle);
         }
         performance.add(Ui.vgap(10));
 
@@ -135,18 +233,18 @@ final class SettingsPage {
         jvmLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         performance.add(jvmLabel);
         performance.add(Ui.vgap(4));
-        owner.jvmArgsField = Ui.field(owner.config.jvmArgs(), "例如 -XX:+UseG1GC -Dfile.encoding=UTF-8");
-        owner.jvmArgsField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.jvmArgsField.setPreferredSize(new Dimension(720, 32));
-        owner.jvmArgsField.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.jvmArgsField.addActionListener(e -> owner.saveJvmArgs());
-        owner.jvmArgsField.addFocusListener(new java.awt.event.FocusAdapter() {
+        jvmArgsField = Ui.field(config.jvmArgs(), "例如 -XX:+UseG1GC -Dfile.encoding=UTF-8");
+        jvmArgsField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        jvmArgsField.setPreferredSize(new Dimension(720, 32));
+        jvmArgsField.setAlignmentX(Component.LEFT_ALIGNMENT);
+        jvmArgsField.addActionListener(e -> saveJvmArgs());
+        jvmArgsField.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
             public void focusLost(java.awt.event.FocusEvent e) {
-                owner.saveJvmArgs();
+                saveJvmArgs();
             }
         });
-        performance.add(owner.jvmArgsField);
+        performance.add(jvmArgsField);
         performance.add(Ui.vgap(6));
         performance.add(LauncherLayout.sidebarNote("按空格分隔；引号可用于包含空格的参数。不要把 access token 等敏感信息写在这里。"));
         form.add(LauncherLayout.lockedHeight(performance));
@@ -160,25 +258,25 @@ final class SettingsPage {
         windowRow.setLayout(new BoxLayout(windowRow, BoxLayout.X_AXIS));
         windowRow.add(Ui.label("窗口尺寸", Theme.TINY, Theme.DIM));
         windowRow.add(Ui.hgap(12));
-        owner.widthSlider = new Ui.ValueSlider(320, 3840, 10, owner.config.windowWidth(), " px");
-        owner.widthSlider.setPreferredSize(new Dimension(205, 30));
-        owner.widthSlider.setMaximumSize(new Dimension(205, 30));
-        owner.heightSlider = new Ui.ValueSlider(240, 2160, 10, owner.config.windowHeight(), " px");
-        owner.heightSlider.setPreferredSize(new Dimension(205, 30));
-        owner.heightSlider.setMaximumSize(new Dimension(205, 30));
-        owner.widthSlider.addChangeListener(value -> {
-            owner.config.windowWidth(value);
-            owner.config.save();
+        widthSlider = new Ui.ValueSlider(320, 3840, 10, config.windowWidth(), " px");
+        widthSlider.setPreferredSize(new Dimension(205, 30));
+        widthSlider.setMaximumSize(new Dimension(205, 30));
+        heightSlider = new Ui.ValueSlider(240, 2160, 10, config.windowHeight(), " px");
+        heightSlider.setPreferredSize(new Dimension(205, 30));
+        heightSlider.setMaximumSize(new Dimension(205, 30));
+        widthSlider.addChangeListener(value -> {
+            config.windowWidth(value);
+            config.save();
         });
-        owner.heightSlider.addChangeListener(value -> {
-            owner.config.windowHeight(value);
-            owner.config.save();
+        heightSlider.addChangeListener(value -> {
+            config.windowHeight(value);
+            config.save();
         });
-        windowRow.add(owner.widthSlider);
+        windowRow.add(widthSlider);
         windowRow.add(Ui.hgap(10));
         windowRow.add(Ui.label("×", Theme.BODY, Theme.DIM));
         windowRow.add(Ui.hgap(10));
-        windowRow.add(owner.heightSlider);
+        windowRow.add(heightSlider);
         windowRow.add(Box.createHorizontalGlue());
         windowRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         windowRow.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -189,103 +287,101 @@ final class SettingsPage {
         form.add(Ui.vgap(30));
 
         JPanel download = LauncherLayout.section("下载", "完整资源包含声音、语言和图标");
-        owner.assetsToggle = new Ui.ToggleChip("下载完整资源");
-        owner.assetsToggle.setSelected(owner.config.downloadAssets());
-        owner.assetsToggle.setToolTipText("首次下载约 300–500 MB；关闭后现代版本可能无法启动。");
-        owner.assetsToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.assetsToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.assetsToggle.addActionListener(e -> {
-            owner.config.downloadAssets(owner.assetsToggle.isSelected());
-            owner.config.save();
-            owner.updateDetailForSelection();
-            owner.updateLaunchInfo();
+        assetsToggle = new Ui.ToggleChip("下载完整资源");
+        assetsToggle.setSelected(config.downloadAssets());
+        assetsToggle.setToolTipText("首次下载约 300–500 MB；关闭后现代版本可能无法启动。");
+        assetsToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        assetsToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        assetsToggle.addActionListener(e -> {
+            config.downloadAssets(assetsToggle.isSelected());
+            config.save();
+            owner.refreshSelectionUi();
+            updateLaunchInfo.run();
         });
-        download.add(owner.assetsToggle);
+        download.add(assetsToggle);
         download.add(Ui.vgap(10));
-        owner.mirrorToggle = new Ui.ToggleChip("自动测试官方源 / 镜像源");
-        owner.mirrorToggle.setSelected(owner.config.autoMirror());
-        owner.mirrorToggle.setToolTipText("同时探测 Mojang 官方源和 BMCLAPI 镜像，选择更快的那个。");
-        owner.mirrorToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.mirrorToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.mirrorToggle.addActionListener(e -> {
-            owner.config.autoMirror(owner.mirrorToggle.isSelected());
-            owner.config.save();
+        mirrorToggle = new Ui.ToggleChip("自动测试官方源 / 镜像源");
+        mirrorToggle.setSelected(config.autoMirror());
+        mirrorToggle.setToolTipText("同时探测 Mojang 官方源和 BMCLAPI 镜像，选择更快的那个。");
+        mirrorToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        mirrorToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        mirrorToggle.addActionListener(e -> {
+            config.autoMirror(mirrorToggle.isSelected());
+            config.save();
         });
-        download.add(owner.mirrorToggle);
+        download.add(mirrorToggle);
         download.add(Ui.vgap(8));
-        owner.forceTranslationToggle = new Ui.ToggleChip("强制显示中文模组 / 整合包名称（MC百科）");
-        owner.forceTranslationToggle.setSelected(owner.config.forceModTranslation());
-        owner.forceTranslationToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.forceTranslationToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.forceTranslationToggle.addActionListener(e -> {
-            owner.config.forceModTranslation(owner.forceTranslationToggle.isSelected());
-            owner.config.save();
-            if (owner.contentList != null) {
-                owner.contentList.repaint();
-            }
+        forceTranslationToggle = new Ui.ToggleChip("强制显示中文模组 / 整合包名称（MC百科）");
+        forceTranslationToggle.setSelected(config.forceModTranslation());
+        forceTranslationToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        forceTranslationToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        forceTranslationToggle.addActionListener(e -> {
+            config.forceModTranslation(forceTranslationToggle.isSelected());
+            config.save();
+            owner.refreshContentVisuals();
         });
-        download.add(owner.forceTranslationToggle);
+        download.add(forceTranslationToggle);
         download.add(Ui.vgap(8));
-        owner.autoUpdateToggle = new Ui.ToggleChip("自动检查启动器更新（后台下载，下次启动生效）");
-        owner.autoUpdateToggle.setSelected(owner.config.autoUpdate());
-        owner.autoUpdateToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.autoUpdateToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.autoUpdateToggle.addActionListener(e -> {
-            owner.config.autoUpdate(owner.autoUpdateToggle.isSelected());
-            owner.config.save();
+        autoUpdateToggle = new Ui.ToggleChip("自动检查启动器更新（后台下载，下次启动生效）");
+        autoUpdateToggle.setSelected(config.autoUpdate());
+        autoUpdateToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        autoUpdateToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        autoUpdateToggle.addActionListener(e -> {
+            config.autoUpdate(autoUpdateToggle.isSelected());
+            config.save();
         });
-        download.add(owner.autoUpdateToggle);
+        download.add(autoUpdateToggle);
         download.add(Ui.vgap(8));
-        owner.recommendToggle = new Ui.ToggleChip("安装加载器后显示推荐模组");
-        owner.recommendToggle.setSelected(owner.config.recommendMods());
-        owner.recommendToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.recommendToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.recommendToggle.addActionListener(e -> {
-            owner.config.recommendMods(owner.recommendToggle.isSelected());
-            owner.config.save();
-            owner.updateRecommendations(owner.versionLoaderType);
+        recommendToggle = new Ui.ToggleChip("安装加载器后显示推荐模组");
+        recommendToggle.setSelected(config.recommendMods());
+        recommendToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        recommendToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        recommendToggle.addActionListener(e -> {
+            config.recommendMods(recommendToggle.isSelected());
+            config.save();
+            owner.refreshSelectionUi();
         });
-        download.add(owner.recommendToggle);
+        download.add(recommendToggle);
         download.add(Ui.vgap(8));
         Ui.ToggleChip integrityToggle = new Ui.ToggleChip("启动前检查游戏文件完整性");
-        integrityToggle.setSelected(owner.config.integrityCheck());
+        integrityToggle.setSelected(config.integrityCheck());
         integrityToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
         integrityToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
         integrityToggle.addActionListener(e -> {
-            owner.config.integrityCheck(integrityToggle.isSelected());
-            owner.config.save();
+            config.integrityCheck(integrityToggle.isSelected());
+            config.save();
         });
         download.add(integrityToggle);
         if (!RegionGate.locked()) {
             download.add(Ui.vgap(8));
-            owner.removeRegionLimitsToggle = new Ui.ToggleChip("更新时移除地区限制（仅普通版）");
-            owner.removeRegionLimitsToggle.setSelected(owner.config.removeRegionLimits());
-            owner.removeRegionLimitsToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-            owner.removeRegionLimitsToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-            owner.removeRegionLimitsToggle.addActionListener(e -> {
-                owner.config.removeRegionLimits(owner.removeRegionLimitsToggle.isSelected());
-                owner.config.save();
+            removeRegionLimitsToggle = new Ui.ToggleChip("更新时移除地区限制（仅普通版）");
+            removeRegionLimitsToggle.setSelected(config.removeRegionLimits());
+            removeRegionLimitsToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+            removeRegionLimitsToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+            removeRegionLimitsToggle.addActionListener(e -> {
+                config.removeRegionLimits(removeRegionLimitsToggle.isSelected());
+                config.save();
             });
-            download.add(owner.removeRegionLimitsToggle);
+            download.add(removeRegionLimitsToggle);
         }
         download.add(Ui.vgap(12));
         JLabel keyLabel = Ui.label("CurseForge API Key", Theme.TINY, Theme.DIM);
         keyLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         download.add(keyLabel);
         download.add(Ui.vgap(4));
-        owner.curseForgeKeyField = Ui.field(owner.config.curseForgeApiKey(),
+        curseForgeKeyField = Ui.field(config.curseForgeApiKey(),
                 "在 CurseForge 控制台申请的个人 API Key");
-        owner.curseForgeKeyField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.curseForgeKeyField.setPreferredSize(new Dimension(720, 32));
-        owner.curseForgeKeyField.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.curseForgeKeyField.addActionListener(e -> owner.saveCurseForgeKey());
-        owner.curseForgeKeyField.addFocusListener(new java.awt.event.FocusAdapter() {
+        curseForgeKeyField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        curseForgeKeyField.setPreferredSize(new Dimension(720, 32));
+        curseForgeKeyField.setAlignmentX(Component.LEFT_ALIGNMENT);
+        curseForgeKeyField.addActionListener(e -> saveCurseForgeKey());
+        curseForgeKeyField.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
             public void focusLost(java.awt.event.FocusEvent e) {
-                owner.saveCurseForgeKey();
+                saveCurseForgeKey();
             }
         });
-        download.add(owner.curseForgeKeyField);
+        download.add(curseForgeKeyField);
         download.add(Ui.vgap(6));
         download.add(LauncherLayout.sidebarNote("CurseForge 官方 API 需要个人 Key；Modrinth 不需要 Key。"
                 + "HMCL 内置了它自己申请的 Key，本项目不能复用。"
@@ -296,7 +392,7 @@ final class SettingsPage {
         form.add(Ui.vgap(30));
 
         JPanel benchmark = LauncherLayout.section("跑分模块", "可选下载，不随启动器捆绑，不强制安装");
-        JLabel benchmarkStatus = Ui.label(BenchmarkManager.installed(owner.config)
+        JLabel benchmarkStatus = Ui.label(BenchmarkManager.installed(config)
                 ? "已安装" : "未下载", Theme.TINY, Theme.DIM);
         benchmarkStatus.setAlignmentX(Component.LEFT_ALIGNMENT);
         benchmark.add(benchmarkStatus);
@@ -308,12 +404,12 @@ final class SettingsPage {
                 Ui.AccentButton.Style.SECONDARY);
         benchmarkDownload.addActionListener(e -> {
             benchmarkStatus.setText("下载中…");
-            BenchmarkManager.download(owner.config, owner.taskCenter, owner::refreshTasksUi,
+            BenchmarkManager.download(config, taskCenter, owner::refreshTasksUi,
                     benchmarkStatus::setText);
         });
         Ui.AccentButton benchmarkRun = Ui.smallButton("运行跑分",
                 Ui.AccentButton.Style.GHOST);
-        benchmarkRun.addActionListener(e -> BenchmarkManager.run(owner.config, benchmarkStatus::setText));
+        benchmarkRun.addActionListener(e -> BenchmarkManager.run(config, benchmarkStatus::setText));
         Ui.AccentButton benchmarkGame = Ui.smallButton("用当前实例跑分",
                 Ui.AccentButton.Style.SECONDARY);
         benchmarkGame.addActionListener(e -> owner.runGameBenchmark(benchmarkStatus));
@@ -346,20 +442,20 @@ final class SettingsPage {
         fontRow.setLayout(new BoxLayout(fontRow, BoxLayout.X_AXIS));
         fontRow.add(Ui.label("字体", Theme.TINY, Theme.DIM));
         fontRow.add(Ui.hgap(8));
-        owner.fontCombo = new Ui.DarkCombo<>();
+        fontCombo = new Ui.DarkCombo<>();
         java.util.List<FontCatalog.Choice> fontChoices = FontCatalog.choices();
         FontCatalog.Choice selectedFont = fontChoices.get(0);
         for (FontCatalog.Choice choice : fontChoices) {
-            owner.fontCombo.addItem(choice);
-            if (!owner.config.uiFontFamily().isBlank()
-                    && owner.config.uiFontFamily().equals(choice.family())) {
+            fontCombo.addItem(choice);
+            if (!config.uiFontFamily().isBlank()
+                    && config.uiFontFamily().equals(choice.family())) {
                 selectedFont = choice;
             }
         }
-        owner.fontCombo.setSelectedItem(selectedFont);
-        owner.fontCombo.setPreferredSize(new Dimension(280, 32));
-        owner.fontCombo.setMaximumSize(new Dimension(280, 32));
-        fontRow.add(owner.fontCombo);
+        fontCombo.setSelectedItem(selectedFont);
+        fontCombo.setPreferredSize(new Dimension(280, 32));
+        fontCombo.setMaximumSize(new Dimension(280, 32));
+        fontRow.add(fontCombo);
         fontRow.add(Ui.hgap(8));
         Ui.AccentButton applyFont = Ui.smallButton("应用字体", Ui.AccentButton.Style.SECONDARY);
         applyFont.addActionListener(e -> applyUiFont());
@@ -374,15 +470,15 @@ final class SettingsPage {
         cssHint.setAlignmentX(Component.LEFT_ALIGNMENT);
         style.add(cssHint);
         style.add(Ui.vgap(6));
-        owner.uiCssArea = new JTextArea(loadUiCssText());
-        owner.uiCssArea.setFont(Theme.MONO);
-        owner.uiCssArea.setBackground(Theme.FIELD);
-        owner.uiCssArea.setForeground(Theme.TEXT);
-        owner.uiCssArea.setCaretColor(Theme.ACCENT);
-        owner.uiCssArea.setBorder(new EmptyBorder(8, 10, 8, 10));
-        owner.uiCssArea.setLineWrap(true);
-        owner.uiCssArea.setWrapStyleWord(true);
-        JScrollPane cssScroll = Ui.scrollDark(owner.uiCssArea);
+        uiCssArea = new JTextArea(loadUiCssText());
+        uiCssArea.setFont(Theme.MONO);
+        uiCssArea.setBackground(Theme.FIELD);
+        uiCssArea.setForeground(Theme.TEXT);
+        uiCssArea.setCaretColor(Theme.ACCENT);
+        uiCssArea.setBorder(new EmptyBorder(8, 10, 8, 10));
+        uiCssArea.setLineWrap(true);
+        uiCssArea.setWrapStyleWord(true);
+        JScrollPane cssScroll = Ui.scrollDark(uiCssArea);
         cssScroll.setPreferredSize(new Dimension(720, 170));
         cssScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
         cssScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -395,7 +491,7 @@ final class SettingsPage {
         applyCss.addActionListener(e -> applyUiCss());
         Ui.AccentButton resetCss = Ui.smallButton("恢复默认样式", Ui.AccentButton.Style.GHOST);
         resetCss.addActionListener(e -> {
-            owner.uiCssArea.setText(Theme.defaultCss());
+            uiCssArea.setText(Theme.defaultCss());
             applyUiCss();
         });
         cssActions.add(applyCss);
@@ -410,15 +506,15 @@ final class SettingsPage {
         form.add(Ui.vgap(30));
 
         JPanel data = LauncherLayout.section("数据目录", "启动器配置、缓存、账户和官方 Java 运行时");
-        JLabel dataPath = Ui.label(owner.config.appHome().toString(), Theme.MONO, Theme.MUTED);
+        JLabel dataPath = Ui.label(config.appHome().toString(), Theme.MONO, Theme.MUTED);
         dataPath.setAlignmentX(Component.LEFT_ALIGNMENT);
         data.add(dataPath);
         data.add(Ui.vgap(12));
         JPanel accountsRow = new JPanel(new BorderLayout(8, 0));
         accountsRow.setOpaque(false);
-        owner.accountsDirLabel = Ui.label(owner.config.accountsDir().toString(), Theme.MONO, Theme.MUTED);
-        owner.accountsDirLabel.setToolTipText(owner.config.accountsDir().toString());
-        accountsRow.add(owner.accountsDirLabel, BorderLayout.CENTER);
+        accountsDirLabel = Ui.label(config.accountsDir().toString(), Theme.MONO, Theme.MUTED);
+        accountsDirLabel.setToolTipText(config.accountsDir().toString());
+        accountsRow.add(accountsDirLabel, BorderLayout.CENTER);
         Ui.AccentButton changeAccounts = Ui.smallButton("修改账户目录",
                 Ui.AccentButton.Style.GHOST);
         changeAccounts.addActionListener(e -> owner.chooseAccountsDirectory());
@@ -468,8 +564,8 @@ final class SettingsPage {
             java.awt.event.MouseAdapter click = new java.awt.event.MouseAdapter() {
                 @Override
                 public void mouseClicked(java.awt.event.MouseEvent e) {
-                    if (owner.uiCssArea != null) {
-                        owner.uiCssArea.setText(preset.css());
+                    if (uiCssArea != null) {
+                        uiCssArea.setText(preset.css());
                         applyUiCss();
                     }
                 }
@@ -530,7 +626,7 @@ final class SettingsPage {
 
     private String loadUiCssText() {
         try {
-            Path file = owner.config.uiCssFile();
+            Path file = config.uiCssFile();
             if (Files.isRegularFile(file)) {
                 return Files.readString(file);
             }
@@ -541,10 +637,10 @@ final class SettingsPage {
     }
 
     private void applyUiFont() {
-        Object selected = owner.fontCombo == null ? null : owner.fontCombo.getSelectedItem();
+        Object selected = fontCombo == null ? null : fontCombo.getSelectedItem();
         String family = selected instanceof FontCatalog.Choice choice ? choice.family() : "";
-        owner.config.uiFontFamily(family);
-        owner.config.save();
+        config.uiFontFamily(family);
+        config.save();
         Theme.setFontFamily(family);
         Theme.install();
         restartFrame();
@@ -553,7 +649,7 @@ final class SettingsPage {
     private void restartFrame() {
         owner.dispose();
         SwingUtilities.invokeLater(() -> {
-            LauncherFrame frame = new LauncherFrame(owner.config);
+            LauncherFrame frame = new LauncherFrame(config);
             frame.setVisible(true);
             frame.selectPage("settings");
         });
@@ -561,12 +657,12 @@ final class SettingsPage {
 
     private void applyUiCss() {
         try {
-            Path file = owner.config.uiCssFile();
+            Path file = config.uiCssFile();
             Files.createDirectories(file.getParent());
-            Files.writeString(file, owner.uiCssArea.getText());
+            Files.writeString(file, uiCssArea.getText());
             Theme.applyCss(file);
-            if (!owner.config.uiFontFamily().isBlank()) {
-                Theme.setFontFamily(owner.config.uiFontFamily());
+            if (!config.uiFontFamily().isBlank()) {
+                Theme.setFontFamily(config.uiFontFamily());
             }
             Theme.install();
             restartFrame();
