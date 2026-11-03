@@ -1,5 +1,12 @@
 # MC Lite 更新记录
 
+## v1.1.97
+
+- 抽出 `LaunchPage` 和 `ConfigPage`，`LauncherFrame` 从 6472 行降到约 5342 行。
+- 启动页、启动器配置页的布局和行为不变，截图检查通过。
+- 四轮页面拆分完成：Instances、Settings、Launch、Config。
+
+
 ## v1.1.96
 
 - 抽出 `SettingsPage`，`LauncherFrame` 从 6167 行降到约 5622 行。

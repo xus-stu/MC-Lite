@@ -85,7 +85,7 @@ public final class LauncherFrame extends JFrame {
             });
     final Set<String> installedCache = new HashSet<>();
     private final List<JavaManager.JavaInfo> javaInfos = new ArrayList<>();
-    private final Ui.DarkCombo<JavaChoice> javaCombo = new Ui.DarkCombo<>();
+    final Ui.DarkCombo<JavaChoice> javaCombo = new Ui.DarkCombo<>();
 
     private JTextField searchField;
     JTextField gameDirField;
@@ -105,12 +105,12 @@ public final class LauncherFrame extends JFrame {
     private Ui.SegmentButton snapshotFilter;
     private Ui.SegmentButton allFilter;
     private Ui.AccentButton refreshButton;
-    private Ui.AccentButton installButton;
-    private Ui.AccentButton launchButton;
-    private Ui.AccentButton cancelButton;
-    private Ui.AccentButton logButton;
+    Ui.AccentButton installButton;
+    Ui.AccentButton launchButton;
+    Ui.AccentButton cancelButton;
+    Ui.AccentButton logButton;
     private Ui.AccentButton tasksButton;
-    private Ui.AccentButton openDirButton;
+    Ui.AccentButton openDirButton;
     private JLabel detailTitle;
     private JTextArea detailMeta;
     private JLabel statusLabel;
@@ -213,24 +213,24 @@ public final class LauncherFrame extends JFrame {
     private record DependencyLink(String projectId, String source, String title) {
     }
     private JLabel sidebarAccount;
-    private JLabel launchAccount;
-    private JLabel launchVersion;
-    private JTextArea launchMeta;
-    private JLabel launchJava;
-    private JLabel launchMemory;
-    private JLabel launchJvm;
-    private JLabel launchAssets;
+    JLabel launchAccount;
+    JLabel launchVersion;
+    JTextArea launchMeta;
+    JLabel launchJava;
+    JLabel launchMemory;
+    JLabel launchJvm;
+    JLabel launchAssets;
     JLabel accountsDirLabel;
-    private JLabel configAccountLabel;
+    JLabel configAccountLabel;
     private Ui.SkinHead sidebarSkin;
-    private Ui.SkinHead launchSkin;
-    private Ui.SkinHead configSkin;
+    Ui.SkinHead launchSkin;
+    Ui.SkinHead configSkin;
 
     private VersionManifest.VersionEntry selectedEntry;
     private VersionMeta selectedMeta;
     private int selectionGeneration;
     private boolean refreshingList;
-    private boolean refreshingJavaCombo;
+    boolean refreshingJavaCombo;
     private boolean busy;
     private boolean manifestLoading;
     private CancellationToken taskToken;
@@ -539,10 +539,10 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel = new Ui.FadePanel(contentCards);
         contentCardsPanel.setOpaque(false);
         contentCardsPanel.add(buildDownloadPage(), "download");
-        contentCardsPanel.add(buildLaunchPage(), "launch");
+        contentCardsPanel.add(new LaunchPage(this).build(), "launch");
         instancesPage = new InstancesPage(this);
         contentCardsPanel.add(instancesPage.build(), "instances");
-        contentCardsPanel.add(buildConfigPage(), "config");
+        contentCardsPanel.add(new ConfigPage(this).build(), "config");
         contentCardsPanel.add(new SettingsPage(this).build(), "settings");
 
         JPanel content = new JPanel(new BorderLayout());
@@ -1023,120 +1023,6 @@ public final class LauncherFrame extends JFrame {
         page.add(bottom, BorderLayout.SOUTH);
         page.setComponentZOrder(bottom, 0);
         return page;
-    }
-
-    private JPanel buildLaunchPage() {
-        JPanel page = new JPanel(new BorderLayout());
-        page.setOpaque(true);
-        page.setBackground(Theme.BG);
-        page.add(LauncherLayout.pageHeader("启动游戏", "确认账户、版本和 Java 后启动", null), BorderLayout.NORTH);
-
-        JPanel form = new JPanel();
-        form.setOpaque(false);
-        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(new EmptyBorder(30, 30, 30, 30));
-
-        JPanel account = LauncherLayout.section("账户", "离线账户，仅用于单机 / 局域网");
-        JPanel accountRow = new JPanel(new BorderLayout(10, 0));
-        accountRow.setOpaque(false);
-        launchSkin = new Ui.SkinHead(34);
-        accountRow.add(launchSkin, BorderLayout.WEST);
-        launchAccount = Ui.label(config.username() + "  ·  离线账户", Theme.BODY_BOLD, Theme.TEXT);
-        accountRow.add(launchAccount, BorderLayout.CENTER);
-        Ui.AccentButton switchAccount = Ui.smallButton("切换账户", Ui.AccentButton.Style.SECONDARY);
-        switchAccount.addActionListener(e -> openAccountsDialog());
-        accountRow.add(switchAccount, BorderLayout.EAST);
-        accountRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        accountRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        account.add(accountRow);
-        form.add(LauncherLayout.lockedHeight(account));
-        form.add(Ui.vgap(30));
-        form.add(LauncherLayout.divider());
-        form.add(Ui.vgap(30));
-
-        JPanel version = LauncherLayout.section("版本", "下载或修复会先补全客户端、运行库和资源");
-        launchVersion = Ui.label("未选择版本", Theme.TITLE, Theme.TEXT);
-        launchVersion.setAlignmentX(Component.LEFT_ALIGNMENT);
-        version.add(launchVersion);
-        version.add(Ui.vgap(4));
-        launchMeta = new JTextArea(3, 50);
-        launchMeta.setEditable(false);
-        launchMeta.setFocusable(false);
-        launchMeta.setOpaque(false);
-        launchMeta.setLineWrap(true);
-        launchMeta.setWrapStyleWord(true);
-        launchMeta.setFont(Theme.MONO);
-        launchMeta.setForeground(Theme.DIM);
-        launchMeta.setBorder(new EmptyBorder(0, 0, 0, 0));
-        launchMeta.setText("请到「下载中心」选择一个版本");
-        launchMeta.setAlignmentX(Component.LEFT_ALIGNMENT);
-        launchMeta.setMaximumSize(new Dimension(Integer.MAX_VALUE, 52));
-        version.add(launchMeta);
-        form.add(LauncherLayout.lockedHeight(version));
-        form.add(Ui.vgap(30));
-        form.add(LauncherLayout.divider());
-        form.add(Ui.vgap(30));
-
-        JPanel details = LauncherLayout.section("启动参数", "这些值来自「启动器配置」和「设置」");
-        launchJava = Ui.label("检测中…", Theme.MONO, Theme.MUTED);
-        launchMemory = Ui.label(config.memoryMb() + " MB", Theme.MONO, Theme.MUTED);
-        launchJvm = Ui.label(config.jvmArgs().isBlank() ? "无额外参数" : config.jvmArgs(),
-                Theme.MONO, Theme.MUTED);
-        launchAssets = Ui.label(config.downloadAssets() ? "完整资源" : "仅核心文件",
-                Theme.MONO, Theme.MUTED);
-        details.add(infoLine("Java", launchJava));
-        details.add(Ui.vgap(8));
-        details.add(infoLine("内存", launchMemory));
-        details.add(Ui.vgap(8));
-        details.add(infoLine("资源", launchAssets));
-        details.add(Ui.vgap(8));
-        details.add(infoLine("JVM", launchJvm));
-        form.add(LauncherLayout.lockedHeight(details));
-        form.add(Ui.vgap(30));
-
-        JPanel actions = new JPanel();
-        actions.setOpaque(false);
-        actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
-        installButton = Ui.button("下载 / 修复", Ui.AccentButton.Style.SECONDARY);
-        installButton.addActionListener(e -> startInstall(false));
-        logButton = Ui.smallButton("日志", Ui.AccentButton.Style.GHOST);
-        logButton.addActionListener(e -> openRecentLog());
-        cancelButton = Ui.smallButton("取消", Ui.AccentButton.Style.DANGER);
-        cancelButton.setVisible(false);
-        cancelButton.addActionListener(e -> cancelTask());
-        launchButton = new Ui.AccentButton("启动游戏", Ui.AccentButton.Style.PRIMARY,
-                Theme.H2, new Insets(10, 24, 10, 24));
-        launchButton.setPreferredSize(new Dimension(180, 40));
-        launchButton.setMaximumSize(new Dimension(180, 40));
-        launchButton.addActionListener(e -> startLaunch());
-        actions.add(installButton);
-        actions.add(Ui.hgap(8));
-        actions.add(logButton);
-        actions.add(Ui.hgap(8));
-        actions.add(cancelButton);
-        actions.add(Box.createHorizontalGlue());
-        actions.add(launchButton);
-        actions.setAlignmentX(Component.LEFT_ALIGNMENT);
-        actions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        form.add(actions);
-        form.add(Ui.vgap(14));
-        form.add(LauncherLayout.sidebarNote("启动前会检查客户端、运行库和资源；缺失时会提示下载 / 修复。"));
-        form.add(Box.createVerticalGlue());
-        page.add(form, BorderLayout.CENTER);
-        updateButtons();
-        return page;
-    }
-
-    private JPanel infoLine(String key, JLabel value) {
-        JPanel row = new JPanel(new BorderLayout(16, 0));
-        row.setOpaque(false);
-        JLabel label = Ui.label(key, Theme.TINY, Theme.DIM);
-        label.setPreferredSize(new Dimension(52, 18));
-        row.add(label, BorderLayout.WEST);
-        row.add(value, BorderLayout.CENTER);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
-        return row;
     }
 
     void updateAutoMemoryControls() {
@@ -1739,172 +1625,6 @@ public final class LauncherFrame extends JFrame {
         } catch (IOException ex) {
             return List.of();
         }
-    }
-
-    private JPanel buildConfigPage() {
-        JPanel page = new JPanel(new BorderLayout());
-        page.setOpaque(true);
-        page.setBackground(Theme.BG);
-        page.add(LauncherLayout.pageHeader("启动器配置", "账户、游戏目录和 Java 运行时", null), BorderLayout.NORTH);
-        JScrollPane scroll = Ui.scroll(buildConfigForm());
-        page.add(scroll, BorderLayout.CENTER);
-        return page;
-    }
-
-    private JPanel buildConfigForm() {
-        JPanel form = new JPanel();
-        form.setOpaque(false);
-        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(new EmptyBorder(30, 30, 30, 30));
-
-        JPanel account = LauncherLayout.section("账户", "离线账户只用于单机 / 局域网，正版服务器仍需正版登录");
-        JPanel accountRow = new JPanel(new BorderLayout(10, 0));
-        accountRow.setOpaque(false);
-        configSkin = new Ui.SkinHead(36);
-        accountRow.add(configSkin, BorderLayout.WEST);
-        JPanel accountText = new JPanel();
-        accountText.setOpaque(false);
-        accountText.setLayout(new BoxLayout(accountText, BoxLayout.Y_AXIS));
-        configAccountLabel = Ui.label(config.username(), Theme.BODY_BOLD, Theme.TEXT);
-        JLabel accountType = Ui.label("离线账户", Theme.TINY, Theme.DIM);
-        accountText.add(configAccountLabel);
-        accountText.add(Ui.vgap(1));
-        accountText.add(accountType);
-        accountRow.add(accountText, BorderLayout.CENTER);
-        Ui.AccentButton manage = Ui.smallButton("登录 / 账户管理", Ui.AccentButton.Style.SECONDARY);
-        manage.addActionListener(e -> openAccountsDialog());
-        accountRow.add(manage, BorderLayout.EAST);
-        accountRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        accountRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
-        account.add(accountRow);
-        account.add(Ui.vgap(7));
-        account.add(LauncherLayout.sidebarNote("账户保存在 " + config.accountsDir()
-                + "，可在账户管理里修改保存目录；创建离线账户不需要密码。"));
-        form.add(LauncherLayout.lockedHeight(account));
-        form.add(Ui.vgap(30));
-        form.add(LauncherLayout.divider());
-        form.add(Ui.vgap(30));
-
-        JPanel directory = LauncherLayout.section("游戏目录", "版本、存档、资源和日志都会放在这个目录");
-        JPanel dirRow = new JPanel(new BorderLayout(6, 0));
-        dirRow.setOpaque(false);
-        gameDirField = Ui.field(config.gameDir().toString(), "游戏目录");
-        gameDirField.setCaretPosition(0);
-        gameDirField.setToolTipText("Minecraft 的 .minecraft 目录。");
-        gameDirField.addActionListener(e -> applyGameDirFromField());
-        gameDirField.addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override
-            public void focusLost(java.awt.event.FocusEvent e) {
-                applyGameDirFromField();
-            }
-        });
-        dirRow.add(gameDirField, BorderLayout.CENTER);
-        Ui.AccentButton browseDir = Ui.smallButton("选择", Ui.AccentButton.Style.SECONDARY);
-        browseDir.setPreferredSize(new Dimension(62, 32));
-        browseDir.setMaximumSize(new Dimension(62, 32));
-        browseDir.addActionListener(e -> chooseGameDirectory());
-        dirRow.add(browseDir, BorderLayout.EAST);
-        dirRow.setMaximumSize(new Dimension(720, 32));
-        dirRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        directory.add(dirRow);
-        directory.add(Ui.vgap(7));
-        JPanel dirLinks = new JPanel();
-        dirLinks.setOpaque(false);
-        dirLinks.setLayout(new BoxLayout(dirLinks, BoxLayout.X_AXIS));
-        openDirButton = Ui.smallButton("打开游戏目录", Ui.AccentButton.Style.LINK);
-        openDirButton.addActionListener(e -> openGameDirectory());
-        dirLinks.add(openDirButton);
-        dirLinks.add(Ui.hgap(16));
-        Ui.AccentButton importInstance = Ui.smallButton("导入已有实例", Ui.AccentButton.Style.LINK);
-        importInstance.addActionListener(e -> chooseInstanceFolder());
-        dirLinks.add(importInstance);
-        dirLinks.add(Ui.hgap(16));
-        Ui.AccentButton importHmcl = Ui.smallButton("读取 HMCL 目录", Ui.AccentButton.Style.LINK);
-        importHmcl.addActionListener(e -> importHmclDirectories());
-        dirLinks.add(importHmcl);
-        dirLinks.add(Box.createHorizontalGlue());
-        dirLinks.setAlignmentX(Component.LEFT_ALIGNMENT);
-        directory.add(dirLinks);
-        directory.add(Ui.vgap(10));
-        Ui.ToggleChip isolate = new Ui.ToggleChip("版本隔离（每个版本独立存档 / mods / 配置）");
-        isolate.setSelected(config.isolateVersions());
-        isolate.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        isolate.setAlignmentX(Component.LEFT_ALIGNMENT);
-        isolate.addActionListener(e -> {
-            config.isolateVersions(isolate.isSelected());
-            config.save();
-        });
-        directory.add(isolate);
-        directory.add(Ui.vgap(6));
-        directory.add(LauncherLayout.sidebarNote("开启后游戏目录使用 versions/<版本>/ 作为实例目录；"
-                + "关闭时所有版本共用同一个 .minecraft。"));
-        form.add(LauncherLayout.lockedHeight(directory));
-        form.add(Ui.vgap(30));
-        form.add(LauncherLayout.divider());
-        form.add(Ui.vgap(30));
-
-        JPanel java = LauncherLayout.section("Java 运行时", "自动选择会优先匹配该版本需要的 Java 大版本");
-        JPanel javaRow = new JPanel(new BorderLayout(6, 0));
-        javaRow.setOpaque(false);
-        javaCombo.setPreferredSize(new Dimension(100, 32));
-        javaCombo.setEnabled(true);
-        javaCombo.setOpaque(true);
-        javaCombo.setBackground(Theme.CARD_ALT);
-        javaCombo.addActionListener(e -> {
-            if (refreshingJavaCombo) {
-                return;
-            }
-            JavaChoice choice = (JavaChoice) javaCombo.getSelectedItem();
-            config.javaPath(choice == null || choice.path() == null ? "" : choice.path().toString());
-            config.save();
-            updateJavaHint();
-        });
-        javaRow.add(javaCombo, BorderLayout.CENTER);
-        JPanel javaButtons = new JPanel();
-        javaButtons.setOpaque(false);
-        javaButtons.setLayout(new BoxLayout(javaButtons, BoxLayout.X_AXIS));
-        Ui.AccentButton manageJava = Ui.smallButton("管理列表", Ui.AccentButton.Style.SECONDARY);
-        manageJava.setPreferredSize(new Dimension(78, 32));
-        manageJava.setMaximumSize(new Dimension(78, 32));
-        manageJava.addActionListener(e -> openJavaManager());
-        Ui.AccentButton browseJava = Ui.smallButton("选择", Ui.AccentButton.Style.SECONDARY);
-        browseJava.setPreferredSize(new Dimension(62, 32));
-        browseJava.setMaximumSize(new Dimension(62, 32));
-        browseJava.addActionListener(e -> chooseJava());
-        javaButtons.add(manageJava);
-        javaButtons.add(Ui.hgap(6));
-        javaButtons.add(browseJava);
-        javaRow.add(javaButtons, BorderLayout.EAST);
-        javaRow.setMaximumSize(new Dimension(720, 32));
-        javaRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        java.add(javaRow);
-        java.add(Ui.vgap(6));
-        javaHint = new JTextArea(2, 40);
-        javaHint.setEditable(false);
-        javaHint.setFocusable(false);
-        javaHint.setOpaque(false);
-        javaHint.setLineWrap(true);
-        javaHint.setWrapStyleWord(true);
-        javaHint.setFont(Theme.TINY);
-        javaHint.setForeground(Theme.DIM);
-        javaHint.setBorder(new EmptyBorder(0, 0, 0, 0));
-        javaHint.setText("正在检测 Java…");
-        javaHint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        javaHint.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        java.add(javaHint);
-        java.add(Ui.vgap(8));
-        autoJavaToggle = new Ui.ToggleChip("缺少 Java 时自动从 Mojang 下载");
-        autoJavaToggle.setSelected(config.autoDownloadJava());
-        autoJavaToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        autoJavaToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        autoJavaToggle.addActionListener(e -> {
-            config.autoDownloadJava(autoJavaToggle.isSelected());
-            config.save();
-        });
-        java.add(autoJavaToggle);
-        form.add(LauncherLayout.lockedHeight(java));
-        form.add(Box.createVerticalGlue());
-        return form;
     }
 
     private JPanel buildStatusbar() {
@@ -3773,7 +3493,7 @@ public final class LauncherFrame extends JFrame {
         updateLaunchInfo();
     }
 
-    private void openAccountsDialog() {
+    void openAccountsDialog() {
         new AccountsDialog(this, config).setVisible(true);
         reloadAccounts();
     }
@@ -3870,7 +3590,7 @@ public final class LauncherFrame extends JFrame {
         javaInfos.addAll(merged);
     }
 
-    private void openJavaManager() {
+    void openJavaManager() {
         new JavaDialog(this, config, javaInfos, (runtimes, selected) -> {
             javaInfos.clear();
             javaInfos.addAll(runtimes);
@@ -3920,7 +3640,7 @@ public final class LauncherFrame extends JFrame {
         updateJavaHint();
     }
 
-    private void updateJavaHint() {
+    void updateJavaHint() {
         if (javaHint == null || javaCombo == null) {
             return;
         }
@@ -4277,7 +3997,7 @@ public final class LauncherFrame extends JFrame {
         updateButtons();
     }
 
-    private void updateButtons() {
+    void updateButtons() {
         boolean hasSelection = selectedEntry != null;
         boolean installed = hasSelection && isInstalled(selectedEntry);
         boolean local = hasSelection && selectedEntry.local();
@@ -4309,7 +4029,7 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private void startInstall(boolean thenLaunch) {
+    void startInstall(boolean thenLaunch) {
         VersionManifest.VersionEntry entry = selectedEntry;
         if (entry == null) {
             return;
@@ -4317,7 +4037,7 @@ public final class LauncherFrame extends JFrame {
         startInstall(entry, thenLaunch);
     }
 
-    private void startInstall(VersionManifest.VersionEntry entry, boolean thenLaunch) {
+    void startInstall(VersionManifest.VersionEntry entry, boolean thenLaunch) {
         if (RegionGate.restricted()) {
             RegionGate.showGuide(this);
             return;
@@ -4376,7 +4096,7 @@ public final class LauncherFrame extends JFrame {
         }.execute();
     }
 
-    private void startLaunch() {
+    void startLaunch() {
         if (busy || selectedEntry == null) {
             return;
         }
@@ -4757,7 +4477,7 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private void cancelTask() {
+    void cancelTask() {
         if (taskToken != null) {
             taskToken.cancel();
             Updater.cancelActiveDownload();
@@ -4936,7 +4656,7 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private boolean applyGameDirFromField() {
+    boolean applyGameDirFromField() {
         if (gameDirField == null) {
             return false;
         }
@@ -5035,7 +4755,7 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private void chooseInstanceFolder() {
+    void chooseInstanceFolder() {
         Path chosen = Ui.chooseDirectory(this, "选择已有的 Minecraft 实例目录",
                 gamePaths.gameDir());
         if (chosen == null) {
@@ -5061,7 +4781,7 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private void chooseGameDirectory() {
+    void chooseGameDirectory() {
         Path selected = Ui.chooseDirectory(this, "选择 Minecraft 游戏目录", gamePaths.gameDir());
         if (selected != null) {
             gameDirField.setText(selected.toString());
@@ -5090,7 +4810,7 @@ public final class LauncherFrame extends JFrame {
         refreshJavaChoices(path);
     }
 
-    private void openGameDirectory() {
+    void openGameDirectory() {
         try {
             Files.createDirectories(gamePaths.gameDir());
             openPath(gamePaths.gameDir());
@@ -5099,7 +4819,7 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private void openRecentLog() {
+    void openRecentLog() {
         Path target = lastGameLog;
         if (target == null || !Files.isRegularFile(target)) {
             try (Stream<Path> stream = Files.list(gamePaths.gameLogsDir())) {
@@ -5305,7 +5025,7 @@ public final class LauncherFrame extends JFrame {
         return System.getProperty("os.name", "").toLowerCase().contains("win");
     }
 
-    private record JavaChoice(String label, Path path) {
+    record JavaChoice(String label, Path path) {
         @Override
         public String toString() {
             return label;
