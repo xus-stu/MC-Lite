@@ -107,7 +107,7 @@ public final class LauncherFrame extends JFrame {
     private Ui.AccentButton versionPickerButton;
     private Ui.AccentButton instanceButton;
     private Ui.AccentButton sidebarSwitchButton;
-    private boolean pendingLaunch;
+    private String pendingLaunchId = "";
     private InstancesPage instancesPage;
     private SettingsPage settingsPage;
 
@@ -135,6 +135,7 @@ public final class LauncherFrame extends JFrame {
     private Modrinth.Project detailProject;
     private ProjectDetailPage projectDetailPage;
     private int projectDependencyGeneration;
+    private int projectVersionGeneration;
     private final Map<String, DependencyLink> projectDependencyLinks = new HashMap<>();
 
     private record DependencyLink(String projectId, String source, String title) {
@@ -462,7 +463,7 @@ public final class LauncherFrame extends JFrame {
                 this::onVersionLoaderChosen, this::installFromVersionDetail);
         projectDetailPage = new ProjectDetailPage(this::backToContent, this::loadProjectVersions,
                 this::installProjectVersion, () -> openMcmod(detailProject),
-                this::openDependencyLink, this::updateProjectVersionDetails);
+                this::openDependencyLink, this::updateProjectVersionDetails, () -> busy);
         contentPage = new ContentPage(this::searchContent, this::refreshContent,
                 this::openProjectDetail, this::startContentInstall, this::importLocalModpack,
                 this::openMcmod, this::updateContentSelection, this::runContentSearch,
@@ -578,7 +579,7 @@ public final class LauncherFrame extends JFrame {
     }
 
     private boolean canRestartUi() {
-        return !busyOrLaunching();
+        return !busyOrLaunching() && (gameProcess == null || !gameProcess.isAlive());
     }
 
     void updateAutoMemoryControls() {
@@ -610,6 +611,10 @@ public final class LauncherFrame extends JFrame {
     }
 
     void installDatapack() {
+        if (busyOrLaunching()) {
+            showError("任务进行中", "请等当前下载、安装或启动结束后再安装数据包。");
+            return;
+        }
         if (busy) {
             showError("暂时不能安装", "下载或安装任务正在进行，请稍后再试。");
             return;
@@ -703,6 +708,10 @@ public final class LauncherFrame extends JFrame {
     }
 
     void updateRecommendedMods() {
+        if (busyOrLaunching()) {
+            showError("任务进行中", "请等当前下载、安装或启动结束后再更新模组。");
+            return;
+        }
         if (busy) {
             showError("暂时不能更新", "下载或安装任务正在进行，请稍后再试。");
             return;
@@ -1270,6 +1279,11 @@ public final class LauncherFrame extends JFrame {
         if (entry == null) {
             return;
         }
+        if (versionDetailId != null && !versionDetailId.equals(entry.id())) {
+            // 侧栏切换过版本，页面还是旧版本的加载器选择：刷新为当前选中版本再让用户确认。
+            openVersionDetail();
+            return;
+        }
         if (entry.local()) {
             showError("本地实例", "本地实例已经存在，不需要再安装版本。请直接到「启动游戏」启动。");
             return;
@@ -1454,6 +1468,8 @@ public final class LauncherFrame extends JFrame {
         if (detailProject == null) {
             return;
         }
+        int generation = ++projectVersionGeneration;
+        String projectId = detailProject.id();
         projectDetailPage.clearVersions();
         projectDetailPage.setInstallEnabled(false);
         statusLabel.setText("正在读取文件版本…");
@@ -1486,6 +1502,10 @@ public final class LauncherFrame extends JFrame {
             @Override
             protected void done() {
                 try {
+                    if (generation != projectVersionGeneration || detailProject == null
+                            || !detailProject.id().equals(projectId)) {
+                        return;
+                    }
                     List<Modrinth.Version> versions = get();
                     Log.info("项目文件版本数: " + versions.size());
                     for (Modrinth.Version version : versions) {
@@ -1722,6 +1742,8 @@ public final class LauncherFrame extends JFrame {
             configPage.setGameDirText(instance.toString());
             refreshAllVersions();
             refreshInstalledCache();
+            installedProjectCache.clear();
+            contentPage.reevaluateFilter();
             applyFilter();
             if (result.versionId() != null) {
                 for (int i = 0; i < listModel.size(); i++) {
@@ -1739,6 +1761,10 @@ public final class LauncherFrame extends JFrame {
     }
 
     void importLocalModpack() {
+        if (busyOrLaunching()) {
+            showError("任务进行中", "请等当前下载、安装或启动结束后再导入整合包。");
+            return;
+        }
         if (busy) {
             return;
         }
@@ -1871,6 +1897,8 @@ public final class LauncherFrame extends JFrame {
         configPage.setGameDirText(instance.toString());
         refreshAllVersions();
         refreshInstalledCache();
+        installedProjectCache.clear();
+        contentPage.reevaluateFilter();
         applyFilter();
         if (result.versionId() != null) {
             for (int i = 0; i < listModel.size(); i++) {
@@ -1936,7 +1964,7 @@ public final class LauncherFrame extends JFrame {
         String contentVersionBefore = contentPage.versionField().getText().trim();
         updateContentVersionIfNeeded();
         String contentVersionAfter = contentPage.versionField().getText().trim();
-        if ((contentChanged || contentPage.model().isEmpty()
+        if ((contentChanged || !contentPage.hasResults()
                 || !contentVersionBefore.equals(contentVersionAfter)
                 || !contentVersionAfter.equals(contentPage.lastSearchedVersion()))
                 && !contentSearching) {
@@ -2375,7 +2403,8 @@ public final class LauncherFrame extends JFrame {
                     if (!contentPage.pageLabelHasFocus()) {
                         contentPage.setPageLabel(pageNumber + 1);
                     }
-                    contentPage.setPageButtonsEnabled(pageNumber > 0, projects.size() >= 20);
+                    contentPage.setPageButtonsEnabled(pageNumber > 0,
+                            contentPage.resultCount() >= 20);
                     contentPage.selectFirst();
                 } catch (Exception ex) {
                     Throwable cause = unwrap(ex);
@@ -3144,7 +3173,7 @@ public final class LauncherFrame extends JFrame {
                                 + " · 无法读取版本信息");
                         statusLabel.setText("版本信息读取失败，可尝试下载");
                         statusLabel.setForeground(Theme.WARNING);
-                        pendingLaunch = false;
+                        pendingLaunchId = "";
                         updateButtons();
                     }
                 }
@@ -3162,8 +3191,8 @@ public final class LauncherFrame extends JFrame {
         updateDetailForSelection();
         updateJavaHint();
         updateButtons();
-        if (pendingLaunch) {
-            pendingLaunch = false;
+        if (!pendingLaunchId.isEmpty() && pendingLaunchId.equals(entry.id())) {
+            pendingLaunchId = "";
             SwingUtilities.invokeLater(this::startLaunch);
         }
     }
@@ -3583,6 +3612,7 @@ public final class LauncherFrame extends JFrame {
         progressTimer.start();
         setControlsEnabled(false);
         updateButtons();
+        projectDetailPage.refreshInstallState();
         launchPage.setCancelVisible(true);
         launchPage.setCancelEnabled(true);
     }
@@ -3739,7 +3769,11 @@ public final class LauncherFrame extends JFrame {
         if (entry == null) {
             return;
         }
-        pendingLaunch = launch;
+        pendingLaunchId = launch ? entry.id() : "";
+        installedProjectCache.clear();
+        if (contentPage != null) {
+            contentPage.reevaluateFilter();
+        }
         downloadPage.clearQuery();
         config.filter("all");
         config.save();

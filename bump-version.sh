@@ -9,8 +9,9 @@ case "${1:-patch}" in
     patch=0
     ;;
   major)
-    minor=$((minor + 1))
-    patch=$((patch + 5))
+    major=$((major + 1))
+    minor=0
+    patch=0
     ;;
   patch)
     patch=$((patch + 1))

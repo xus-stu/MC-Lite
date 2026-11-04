@@ -514,6 +514,7 @@ versions/26.1.2
 - `LauncherFrame` 仍有 **4477 行**，下载中心只剩版本列表卡片。
 - 1.2.3 审查遗留（P2，未修）：窗口最大化状态不持久化；manifest 为空时 `updateVersionPicker` 会在 EDT 扫 versions；busy 时从实例页点「启动所选实例」会静默丢弃 `pendingLaunch`。
 - `ContentPage` 仍向 `LauncherFrame` 暴露 `list()/model()/installButton()` 等访问器（所有权是名义上的），下一步改成 `appendResults/selectFirst/setStatusText` 这类窄方法。
+- 1.3.0 审查遗留（P2，未修）：整合包安装只写 `modpack.properties`，内容页「仅未安装」对整合包无效；筛选首次判定会逐项读 `content.properties`（慢盘可感知）；`TasksDialog` 取消后台更新/跑分任务不生效；`cancelTask` 不清 `installQueue`；启动进度期间关窗只检查 `busy`。
 - 四个页面控件访问都已归零，接下来是 `DownloadPage` 和 `InstancesPage` 的包级字段。
 - `InstancesPage` 通过包级字段访问 owner 的 `config/gamePaths/allVersions/installedCache/selectedEntry`。
 - 页面类仍依赖 owner 回调，不是完全独立。
