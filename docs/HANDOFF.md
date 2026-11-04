@@ -1,7 +1,7 @@
 # MC Lite 接手工作指南
 
-> 给下一个 AI / 开发者的交接文档。当前版本 **1.3.1**，最新发布：
-> https://github.com/xus-stu/MC-Lite/releases/tag/v1.3.1
+> 给下一个 AI / 开发者的交接文档。当前版本 **1.3.2**，最新发布：
+> https://github.com/xus-stu/MC-Lite/releases/tag/v1.3.2
 >
 > 仓库：`git@github.com:xus-stu/MC-Lite.git`
 > 本地目录：`/Users/xiaoxu/PycharmProjects/Java`
@@ -23,9 +23,9 @@ cat VERSION
 预期：
 
 ```text
-VERSION = 1.3.1
-SELF-TEST PASSED (70 checks)
-SELF-TEST PASSED (70 checks)
+VERSION = 1.3.2
+SELF-TEST PASSED (74 checks)
+SELF-TEST PASSED (74 checks)
 HEADLESS REGRESSION PASSED
 ```
 
@@ -85,6 +85,8 @@ src/mclite/ContentCache.java        内容搜索缓存（LRU + 5 分钟 TTL）
 src/mclite/VersionDetailPage.java    版本安装卡片（加载器/版本号/安装）
 src/mclite/VersionListCard.java     版本列表卡片（筛选结果/空状态/选中）
 src/mclite/InstanceMeta.java        实例分组/备注存储
+src/mclite/SkinEditorDialog.java    自绘皮肤编辑器
+src/mclite/LaunchDiagnostics.java   启动失败诊断
 src/mclite/ProjectDetailPage.java    项目详情卡片（文件版本/前置模组）
 src/mclite/BridgeServer.java        Python Bridge HTTP API
 src/mclite/Version.java             启动器版本常量
@@ -143,10 +145,10 @@ saves/<世界>/players/data/<uuid>.dat
 
 ```text
 dist/
-├── MCLite_v1.3.1.jar
-├── MCLite_v1.3.1-region.jar
-├── MCLitePyBridge_v1.3.1.zip
-├── MC-Lite_v1.3.1_region_Windows.zip
+├── MCLite_v1.3.2.jar
+├── MCLite_v1.3.2-region.jar
+├── MCLitePyBridge_v1.3.2.zip
+├── MC-Lite_v1.3.2_region_Windows.zip
 ├── MCLiteBenchmark.jar
 └── SHA256SUMS.txt
 ```
@@ -217,10 +219,10 @@ versions/26.1.2/config/tectonic.json.bak
 产物在 `dist/`：
 
 ```text
-MCLite_v1.3.1.jar
-MCLite_v1.3.1-region.jar
-MCLitePyBridge_v1.3.1.zip
-MC-Lite_v1.3.1_region_Windows.zip
+MCLite_v1.3.2.jar
+MCLite_v1.3.2-region.jar
+MCLitePyBridge_v1.3.2.zip
+MC-Lite_v1.3.2_region_Windows.zip
 MCLiteBenchmark.jar
 SHA256SUMS.txt
 ```
@@ -239,7 +241,7 @@ SHA256SUMS.txt
 ```
 
 - `test.sh`：构建 + 两个 JAR 自检 + `test/run-ci.sh`
-- `test-update.sh`：模拟 1.3.1 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
+- `test-update.sh`：模拟 1.3.2 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
 - `test/run-ci.sh` 包含：
   - LocalTest
   - JvmTunerTest
@@ -253,7 +255,7 @@ CI 只跑无网络、无 GUI 测试；不会真正启动 Minecraft。
 ### 截图检查
 
 ```bash
-java -jar dist/MCLite_v1.3.1.jar \
+java -jar dist/MCLite_v1.3.2.jar \
   --screenshot=/tmp/settings.png --page=settings
 ```
 
@@ -296,10 +298,10 @@ version-detail
 
 ```bash
 git add ...
-git commit -m "...; V1.3.1"
+git commit -m "...; V1.3.2"
 git push origin main
-git tag -a v1.3.1 -m "..."
-git push origin v1.3.1
+git tag -a v1.3.2 -m "..."
+git push origin v1.3.2
 ```
 
 CI 由 tag `v*` 触发；不要重写已经推送的 tag。
@@ -329,7 +331,7 @@ CI 由 tag `v*` 触发；不要重写已经推送的 tag。
 当前行数：
 
 ```text
-LauncherFrame   4555
+LauncherFrame   4560
 InstancesPage    371
 SettingsPage     674
 LaunchPage       242
@@ -426,13 +428,13 @@ frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 可选模块，**不在主 JAR 内**：
 
 ```text
-dist/MCLitePyBridge_v1.3.1.zip
+dist/MCLitePyBridge_v1.3.2.zip
 ```
 
 启动：
 
 ```bash
-java -jar dist/MCLite_v1.3.1.jar --py-bridge
+java -jar dist/MCLite_v1.3.2.jar --py-bridge
 ```
 
 生成：
@@ -450,7 +452,7 @@ X-MCLite-Token: <token>
 ### Python 客户端 / UI
 
 ```bash
-python3 run_ui.py --jar /path/to/MCLite_v1.3.1.jar
+python3 run_ui.py --jar /path/to/MCLite_v1.3.2.jar
 ```
 
 `run_ui.py` 会找已安装 PySide6 的解释器。
@@ -535,8 +537,8 @@ versions/26.1.2
 ## 9. 接手检查清单
 
 - [ ] `git status` 没有意外修改
-- [ ] `VERSION` = 1.3.1
-- [ ] `./test.sh` 通过（70 checks + headless + bridge）
+- [ ] `VERSION` = 1.3.2
+- [ ] `./test.sh` 通过（74 checks + headless + bridge）
 - [ ] `./test-update.sh` 通过
 - [ ] JAR < 800KB
 - [ ] 新 JAR 能打开设置页/版本页
