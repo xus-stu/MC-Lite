@@ -39,6 +39,15 @@ print(client.versions(local_only=True))
 print(client.search("Sodium", "mod", "26.1.2", "fabric"))
 ```
 
+## 逐行注释的 API 示例
+
+`python/examples/api_tour.py`：每一行都有中文注释，按顺序覆盖 health/info/capabilities/versions/instances/content/tasks/config/java/datapacks/logs，安装和启动调用默认注释掉。
+
+```bash
+java -jar MCLite_v1.3.1.jar --py-bridge
+python3 python/examples/api_tour.py
+```
+
 ## PySide6 前端
 
 ```bash
