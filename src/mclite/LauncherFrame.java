@@ -841,6 +841,10 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         String newId = value.trim();
+        if (isOfficialVersionId(newId)) {
+            showError("名称被占用", "这个名字和官方版本相同，请换一个实例名称。");
+            return;
+        }
         runInstanceJob("正在导入实例 " + archive.getFileName() + "…", () -> {
             InstanceService.ImportedInstance imported = InstanceService.importZipWithMeta(
                     gamePaths.versionsDir(), archive, newId);
@@ -872,14 +876,11 @@ public final class LauncherFrame extends JFrame {
         if (note == null) {
             return;
         }
-        InstanceMeta.put(config.gameDir(), entry.id(), group, note);
-        InstanceMeta.Entry saved = InstanceMeta.load(config.gameDir()).get(entry.id());
-        refreshInstancesPage();
-        if ((group.isBlank() && note.isBlank() && saved != null)
-                || (saved == null && (!group.isBlank() || !note.isBlank()))) {
+        if (!InstanceMeta.put(config.gameDir(), entry.id(), group, note)) {
             showError("备注未保存", "实例备注写入失败，请检查游戏目录是否可写。");
             return;
         }
+        refreshInstancesPage();
         statusLabel.setText("已更新实例备注 · " + entry.id());
         statusLabel.setForeground(Theme.ACCENT);
     }
@@ -915,6 +916,10 @@ public final class LauncherFrame extends JFrame {
         String newId = input.trim();
         if (!VersionIds.valid(newId) || newId.equals(entry.id())) {
             showError("名称无效", "实例名称不能为空、不能包含路径分隔符，也不能和原名相同。");
+            return;
+        }
+        if (isOfficialVersionId(newId)) {
+            showError("名称被占用", "这个名字和官方版本相同，请换一个实例名称。");
             return;
         }
         Path newDir = gamePaths.versionDir(newId).toAbsolutePath().normalize();
@@ -3620,7 +3625,20 @@ public final class LauncherFrame extends JFrame {
                             statusLabel.setText("游戏异常退出（代码 " + exited.exitValue() + "）· 正在分析崩溃");
                             statusLabel.setForeground(Theme.DANGER);
                             CrashAnalyzer.Result crash = CrashAnalyzer.analyze(crashLog, gameContentDir);
-                            new CrashDialog(LauncherFrame.this, crash, exited.exitValue()).setVisible(true);
+                            StringBuilder crashMessage = new StringBuilder(crash.summary());
+                            Path report = LaunchDiagnostics.latestCrashReport(
+                                    gamePaths.versionDir(entry == null ? "" : entry.id()));
+                            if (report != null) {
+                                for (LaunchDiagnostics.Finding finding
+                                        : LaunchDiagnostics.analyzeReport(report)) {
+                                    crashMessage.append("\n\n建议：").append(finding.action());
+                                }
+                            }
+                            CrashAnalyzer.Result enriched = new CrashAnalyzer.Result(
+                                    crashMessage.toString(), crash.suspectMods(), crash.tail(),
+                                    crash.source());
+                            new CrashDialog(LauncherFrame.this, enriched,
+                                    exited.exitValue()).setVisible(true);
                         }
                     }));
                 } catch (Exception ex) {

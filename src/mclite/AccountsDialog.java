@@ -201,6 +201,15 @@ public final class AccountsDialog extends JDialog {
         new SkinEditorDialog(this, config, account.id(), this::updateSkinPreview).setVisible(true);
     }
 
+    private boolean nameTaken(String name, String ignoreId) {
+        for (AccountStore.Account item : currentAccounts()) {
+            if (!item.id().equals(ignoreId) && item.name().equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void renameAccount() {
         AccountStore.Account account = selectedAccount();
         if (account == null) {
@@ -215,6 +224,10 @@ public final class AccountsDialog extends JDialog {
         name = name.trim();
         if (!Config.isValidUsername(name)) {
             JOptionPane.showMessageDialog(this, "用户名不合法：3-16 位字母、数字或下划线。");
+            return;
+        }
+        if (nameTaken(name, account.id())) {
+            JOptionPane.showMessageDialog(this, "已有同名账户，请换一个用户名。");
             return;
         }
         AccountStore.Account renamed = AccountStore.create(name);
@@ -245,13 +258,21 @@ public final class AccountsDialog extends JDialog {
             JOptionPane.showMessageDialog(this, "请先选择一个账户。");
             return;
         }
-        String name = ModernDialogs.input(this, "复制账户", "新用户名", account.name() + "2");
+        String candidate = account.name() + "2";
+        for (int i = 2; i < 20 && nameTaken(candidate, null); i++) {
+            candidate = account.name() + i;
+        }
+        String name = ModernDialogs.input(this, "复制账户", "新用户名", candidate);
         if (name == null) {
             return;
         }
         name = name.trim();
         if (!Config.isValidUsername(name)) {
             JOptionPane.showMessageDialog(this, "用户名不合法：3-16 位字母、数字或下划线。");
+            return;
+        }
+        if (nameTaken(name, null)) {
+            JOptionPane.showMessageDialog(this, "已有同名账户，请换一个用户名。");
             return;
         }
         AccountStore.Account copy = AccountStore.create(name);
