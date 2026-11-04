@@ -568,7 +568,9 @@ public final class Config {
         this.lastVersion = value == null ? "" : value.trim();
     }
 
-    public synchronized void save() {
+    /** Writes the whole config file. Returns false when the file could not be replaced. */
+    public synchronized boolean save() {
+        Path temp = null;
         try {
             Files.createDirectories(appHome);
             Properties properties = new Properties();
@@ -602,14 +604,27 @@ public final class Config {
             properties.setProperty("sidebarCollapsed", Boolean.toString(sidebarCollapsed));
             properties.setProperty("filter", filter);
             properties.setProperty("lastVersion", lastVersion);
-            Path temp = configFile().resolveSibling("config.properties.tmp");
+            temp = configFile().resolveSibling("config.properties.tmp");
             try (var out = Files.newOutputStream(temp, StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING)) {
                 properties.store(out, "MC Lite launcher settings");
             }
-            Files.move(temp, configFile(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException ex) {
+            try {
+                Files.move(temp, configFile(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+                Files.move(temp, configFile(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            return true;
+        } catch (IOException | RuntimeException ex) {
             Log.warn("保存配置失败: " + ex.getMessage());
+            if (temp != null) {
+                try {
+                    Files.deleteIfExists(temp);
+                } catch (IOException ignored) {
+                }
+            }
+            return false;
         }
     }
 

@@ -125,7 +125,6 @@ public final class LauncherFrame extends JFrame {
     private final java.util.Map<String, String> contentChineseTitles = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<String, java.util.Optional<McMod.Entry>> mcmodLookupCache =
             new java.util.concurrent.ConcurrentHashMap<>();
-    Ui.ToggleChip forceTranslationToggle;
     private JLabel versionDetailTitle;
     private JTextArea versionDetailMeta;
     String versionLoaderType = "vanilla";
@@ -154,7 +153,6 @@ public final class LauncherFrame extends JFrame {
     private record DependencyLink(String projectId, String source, String title) {
     }
     private JLabel sidebarAccount;
-    JLabel accountsDirLabel;
     private Ui.SkinHead sidebarSkin;
 
     VersionManifest.VersionEntry selectedEntry;
@@ -475,7 +473,7 @@ public final class LauncherFrame extends JFrame {
                 this::openVersionDetail, this::showDownloadTab, () -> RegionGate.showGuide(this));
         contentPage = new ContentPage(this::searchContent, this::openProjectDetail,
                 this::startContentInstall, this::importLocalModpack, this::openMcmod,
-                this::updateContentSelection);
+                this::updateContentSelection, this::runContentSearch);
         contentCardsPanel.add(downloadPage.build(buildVersionList(),
                 contentPage.build(new ContentRenderer()), buildVersionDetailPage(),
                 buildProjectDetailPage()), "download");
@@ -485,8 +483,10 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel.add(instancesPage.build(), "instances");
         configPage = new ConfigPage(this, config, this::applyGameDirFromField, this::updateJavaHint);
         contentCardsPanel.add(configPage.build(), "config");
-        settingsPage = new SettingsPage(this, config, taskCenter, this::updateLaunchInfo);
+        settingsPage = new SettingsPage(this, config, taskCenter, this::updateLaunchInfo,
+                this::canRestartUi);
         contentCardsPanel.add(settingsPage.build(), "settings");
+        updateButtons();
 
         JPanel content = new JPanel(new BorderLayout());
         content.setOpaque(true);
@@ -578,6 +578,14 @@ public final class LauncherFrame extends JFrame {
     void refreshSelectionUi() {
         updateDetailForSelection();
         updateRecommendations(versionLoaderType);
+    }
+
+    boolean busyOrLaunching() {
+        return busy || launching;
+    }
+
+    private boolean canRestartUi() {
+        return !busyOrLaunching();
     }
 
     void updateAutoMemoryControls() {
@@ -2920,9 +2928,8 @@ public final class LauncherFrame extends JFrame {
             configPage.setAccount(config.username(), skin);
         }
         SkinStore.copyForGame(config, config.accountId());
-        if (accountsDirLabel != null) {
-            accountsDirLabel.setText(config.accountsDir().toString());
-            accountsDirLabel.setToolTipText(config.accountsDir().toString());
+        if (settingsPage != null) {
+            settingsPage.updateAccountsLabel();
         }
         updateLaunchInfo();
     }
@@ -3377,6 +3384,9 @@ public final class LauncherFrame extends JFrame {
     }
 
     void updateButtons() {
+        if (launchPage == null || downloadPage == null || contentPage == null) {
+            return;
+        }
         boolean hasSelection = selectedEntry != null;
         boolean installed = hasSelection && isInstalled(selectedEntry);
         boolean local = hasSelection && selectedEntry.local();
@@ -4271,7 +4281,10 @@ public final class LauncherFrame extends JFrame {
             config.launcherWidth(getWidth());
             config.launcherHeight(getHeight());
         }
-        config.save();
+        if (!config.save()) {
+            ModernDialogs.message(this, "配置未保存",
+                    "写入 ~/.mclite/config.properties 失败，请检查磁盘空间和目录权限。");
+        }
         dispose();
         System.exit(0);
     }

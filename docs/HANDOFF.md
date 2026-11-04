@@ -355,7 +355,7 @@ owner.<控件>     0
 `LaunchPage` 和 `ConfigPage` 也已完成控件所有权拆分：
 
 ```text
-LaunchPage  owner.* 45 -> 6   控件 17 -> 0
+LaunchPage  owner.* 45 -> 5   控件 17 -> 0
 ConfigPage  owner.* 56 -> 7   控件 29 -> 0
 ```
 
@@ -366,7 +366,7 @@ ConfigPage  owner.* 56 -> 7   控件 29 -> 0
 ```text
 InstancesPage <=20 / 0
 SettingsPage  <=10 / 0
-LaunchPage    <=6 / 0
+LaunchPage    <=5 / 0
 ConfigPage    <=7 / 0
 frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 ```
@@ -506,6 +506,7 @@ versions/26.1.2
 ## 8. 已知风险
 
 - `LauncherFrame` 仍有 **4644 行**，下载中心还剩版本列表、版本详情、项目详情三张卡片。
+- 1.2.3 审查遗留（P2，未修）：窗口最大化状态不持久化；manifest 为空时 `updateVersionPicker` 会在 EDT 扫 versions；busy 时从实例页点「启动所选实例」会静默丢弃 `pendingLaunch`。
 - 四个页面控件访问都已归零，接下来是 `DownloadPage` 和 `InstancesPage` 的包级字段。
 - `InstancesPage` 通过包级字段访问 owner 的 `config/gamePaths/allVersions/installedCache/selectedEntry`。
 - 页面类仍依赖 owner 回调，不是完全独立。

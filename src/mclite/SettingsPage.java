@@ -28,6 +28,7 @@ final class SettingsPage {
     private final Config config;
     private final TaskCenter taskCenter;
     private final Runnable updateLaunchInfo;
+    private final java.util.function.BooleanSupplier canRestart;
     private javax.swing.JTextField jvmArgsField;
     private Ui.ValueSlider memorySlider;
     private Ui.ToggleChip autoMemoryToggle;
@@ -45,13 +46,17 @@ final class SettingsPage {
     private Ui.DarkCombo<FontCatalog.Choice> fontCombo;
     private javax.swing.JLabel accountsDirLabel;
     private Ui.ToggleChip recommendToggle;
+    private Ui.AccentButton applyFontButton;
+    private Ui.AccentButton applyCssButton;
+    private Ui.AccentButton resetCssButton;
 
     SettingsPage(LauncherFrame owner, Config config, TaskCenter taskCenter,
-                 Runnable updateLaunchInfo) {
+                 Runnable updateLaunchInfo, java.util.function.BooleanSupplier canRestart) {
         this.owner = owner;
         this.config = config;
         this.taskCenter = taskCenter;
         this.updateLaunchInfo = updateLaunchInfo;
+        this.canRestart = canRestart;
     }
 
     void updateAutoMemoryControls() {
@@ -118,7 +123,8 @@ final class SettingsPage {
                 jvmArgsField, memorySlider, autoMemoryToggle, autoJvmToggle, metalToggle,
                 autoUpdateToggle, removeRegionLimitsToggle, widthSlider, heightSlider,
                 assetsToggle, mirrorToggle, forceTranslationToggle, curseForgeKeyField,
-                uiCssArea, fontCombo, recommendToggle}) {
+                uiCssArea, fontCombo, recommendToggle, applyFontButton, applyCssButton,
+                resetCssButton}) {
             if (component != null) {
                 component.setEnabled(enabled);
             }
@@ -457,9 +463,9 @@ final class SettingsPage {
         fontCombo.setMaximumSize(new Dimension(280, 32));
         fontRow.add(fontCombo);
         fontRow.add(Ui.hgap(8));
-        Ui.AccentButton applyFont = Ui.smallButton("应用字体", Ui.AccentButton.Style.SECONDARY);
-        applyFont.addActionListener(e -> applyUiFont());
-        fontRow.add(applyFont);
+        applyFontButton = Ui.smallButton("应用字体", Ui.AccentButton.Style.SECONDARY);
+        applyFontButton.addActionListener(e -> applyUiFont());
+        fontRow.add(applyFontButton);
         fontRow.add(Box.createHorizontalGlue());
         fontRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         fontRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
@@ -487,16 +493,16 @@ final class SettingsPage {
         JPanel cssActions = new JPanel();
         cssActions.setOpaque(false);
         cssActions.setLayout(new BoxLayout(cssActions, BoxLayout.X_AXIS));
-        Ui.AccentButton applyCss = Ui.smallButton("应用界面样式", Ui.AccentButton.Style.SECONDARY);
-        applyCss.addActionListener(e -> applyUiCss());
-        Ui.AccentButton resetCss = Ui.smallButton("恢复默认样式", Ui.AccentButton.Style.GHOST);
-        resetCss.addActionListener(e -> {
+        applyCssButton = Ui.smallButton("应用界面样式", Ui.AccentButton.Style.SECONDARY);
+        applyCssButton.addActionListener(e -> applyUiCss());
+        resetCssButton = Ui.smallButton("恢复默认样式", Ui.AccentButton.Style.GHOST);
+        resetCssButton.addActionListener(e -> {
             uiCssArea.setText(Theme.defaultCss());
             applyUiCss();
         });
-        cssActions.add(applyCss);
+        cssActions.add(applyCssButton);
         cssActions.add(Ui.hgap(8));
-        cssActions.add(resetCss);
+        cssActions.add(resetCssButton);
         cssActions.setAlignmentX(Component.LEFT_ALIGNMENT);
         cssActions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         style.add(cssActions);
@@ -647,6 +653,11 @@ final class SettingsPage {
     }
 
     private void restartFrame() {
+        if (!canRestart.getAsBoolean()) {
+            ModernDialogs.message(owner, "暂时无法重建界面",
+                    "下载、安装或启动正在进行，请等任务结束后再应用界面样式。");
+            return;
+        }
         owner.dispose();
         SwingUtilities.invokeLater(() -> {
             LauncherFrame frame = new LauncherFrame(config);
