@@ -21,7 +21,9 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /** Content browser card: search bar, result list, selection footer and pagination. */
 final class ContentPage {
@@ -33,6 +35,7 @@ final class ContentPage {
     private final Consumer<Modrinth.Project> onMcmod;
     private final Runnable onSelectionChanged;
     private final Runnable onPageChanged;
+    private final Predicate<Modrinth.Project> installed;
     private JTextField searchField;
     private JTextField versionField;
     private Ui.DarkCombo<String> loaderCombo;
@@ -57,10 +60,12 @@ final class ContentPage {
     private boolean versionAuto = true;
     private boolean versionUpdating;
     private String lastSearchedVersion = "";
+    private Ui.ToggleChip installedOnlyFilter;
+    private List<Modrinth.Project> allResults = List.of();
 
     ContentPage(Runnable onSearch, Runnable onRefresh, Runnable onDetail, Runnable onInstall,
                 Runnable onImport, Consumer<Modrinth.Project> onMcmod, Runnable onSelectionChanged,
-                Runnable onPageChanged) {
+                Runnable onPageChanged, Predicate<Modrinth.Project> installed) {
         this.onSearch = onSearch;
         this.onRefresh = onRefresh;
         this.onDetail = onDetail;
@@ -69,6 +74,7 @@ final class ContentPage {
         this.onMcmod = onMcmod;
         this.onSelectionChanged = onSelectionChanged;
         this.onPageChanged = onPageChanged;
+        this.installed = installed;
     }
 
     JPanel build(ListCellRenderer<Modrinth.Project> renderer) {
@@ -177,6 +183,10 @@ final class ContentPage {
         optionsRow.add(Ui.label("排序", Theme.TINY, Theme.DIM));
         optionsRow.add(Ui.hgap(6));
         optionsRow.add(sortCombo);
+        optionsRow.add(Ui.hgap(10));
+        installedOnlyFilter = new Ui.ToggleChip("仅未安装");
+        installedOnlyFilter.addActionListener(e -> applyResultsFilter());
+        optionsRow.add(installedOnlyFilter);
         optionsRow.add(Ui.hgap(10));
         optionsRow.add(Ui.label("留空版本号时按默认值查询", Theme.MONO, Theme.DIM));
         optionsRow.add(Box.createHorizontalGlue());
@@ -494,14 +504,28 @@ final class ContentPage {
     }
 
     void clearResults() {
+        allResults = List.of();
         if (model != null) {
             model.clear();
         }
     }
 
-    void addResult(Modrinth.Project project) {
-        if (model != null) {
-            model.addElement(project);
+    /** Replaces the result set; the "only not installed" filter is applied here. */
+    void setResults(List<Modrinth.Project> projects) {
+        allResults = projects == null ? List.of() : List.copyOf(projects);
+        applyResultsFilter();
+    }
+
+    private void applyResultsFilter() {
+        if (model == null) {
+            return;
+        }
+        model.clear();
+        boolean onlyMissing = installedOnlyFilter != null && installedOnlyFilter.isSelected();
+        for (Modrinth.Project project : allResults) {
+            if (!onlyMissing || installed == null || !installed.test(project)) {
+                model.addElement(project);
+            }
         }
     }
 
@@ -524,6 +548,12 @@ final class ContentPage {
     void selectIndex(int index) {
         if (list != null) {
             list.setSelectedIndex(index);
+        }
+    }
+
+    void selectFirst() {
+        if (list != null && model != null && !model.isEmpty()) {
+            list.setSelectedIndex(0);
         }
     }
 

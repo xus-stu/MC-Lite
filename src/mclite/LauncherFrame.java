@@ -120,33 +120,20 @@ public final class LauncherFrame extends JFrame {
     private Ui.AccentButton sidebarToggle;
     private ContentPage contentPage;
     private final ContentCache contentCache = new ContentCache();
+    private final java.util.Map<String, Boolean> installedProjectCache = new java.util.HashMap<>();
     private boolean contentSearching;
     private int contentGeneration;
     private final java.util.Map<String, String> contentChineseTitles = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<String, java.util.Optional<McMod.Entry>> mcmodLookupCache =
             new java.util.concurrent.ConcurrentHashMap<>();
-    private JLabel versionDetailTitle;
-    private JTextArea versionDetailMeta;
-    String versionLoaderType = "vanilla";
-    private JTextField versionLoaderVersion;
     private String versionDetailId;
-    private Ui.AccentButton versionInstallButton;
-    private JPanel recommendationPanel;
+    private VersionDetailPage versionDetailPage;
     private final java.util.List<RecommendationRow> recommendationRows = new java.util.ArrayList<>();
 
     private record RecommendationRow(Recommendations.Item item, Ui.ToggleChip toggle) {
     }
     private Modrinth.Project detailProject;
-    private JLabel projectDetailTitle;
-    private Ui.AccentButton detailMcmodButton;
-    private JLabel projectDetailMeta;
-    private JLabel projectDetailSummary;
-    private Ui.ProjectIcon projectDetailIcon;
-    private DefaultListModel<Modrinth.Version> projectVersionModel;
-    private JList<Modrinth.Version> projectVersionList;
-    private Ui.AccentButton projectInstallButton;
-    private Ui.AccentButton projectRefreshButton;
-    private JEditorPane projectDependencyText;
+    private ProjectDetailPage projectDetailPage;
     private int projectDependencyGeneration;
     private final Map<String, DependencyLink> projectDependencyLinks = new HashMap<>();
 
@@ -471,12 +458,18 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel.setOpaque(false);
         downloadPage = new DownloadPage(this::scheduleSearch, this::setFilter, this::loadManifest,
                 this::openVersionDetail, this::showDownloadTab, () -> RegionGate.showGuide(this));
+        versionDetailPage = new VersionDetailPage(() -> showDownloadTab("versions"),
+                this::onVersionLoaderChosen, this::installFromVersionDetail);
+        projectDetailPage = new ProjectDetailPage(this::backToContent, this::loadProjectVersions,
+                this::installProjectVersion, () -> openMcmod(detailProject),
+                this::openDependencyLink, this::updateProjectVersionDetails);
         contentPage = new ContentPage(this::searchContent, this::refreshContent,
                 this::openProjectDetail, this::startContentInstall, this::importLocalModpack,
-                this::openMcmod, this::updateContentSelection, this::runContentSearch);
+                this::openMcmod, this::updateContentSelection, this::runContentSearch,
+                this::isProjectInstalled);
         contentCardsPanel.add(downloadPage.build(buildVersionList(),
-                contentPage.build(new ContentRenderer()), buildVersionDetailPage(),
-                buildProjectDetailPage()), "download");
+                contentPage.build(new ContentRenderer()), versionDetailPage.build(),
+                projectDetailPage.build(new ProjectVersionRenderer())), "download");
         launchPage = new LaunchPage(this, config);
         contentCardsPanel.add(launchPage.build(), "launch");
         instancesPage = new InstancesPage(this);
@@ -577,7 +570,7 @@ public final class LauncherFrame extends JFrame {
 
     void refreshSelectionUi() {
         updateDetailForSelection();
-        updateRecommendations(versionLoaderType);
+        updateRecommendations(versionDetailPage == null ? "vanilla" : versionDetailPage.loaderType());
     }
 
     boolean busyOrLaunching() {
@@ -614,225 +607,6 @@ public final class LauncherFrame extends JFrame {
         if (java == null || java.isBlank()) {
             launchPage.setJava("自动选择");
         }
-    }
-
-    private JPanel buildVersionDetailPage() {
-        JPanel page = new JPanel(new BorderLayout());
-        page.setOpaque(true);
-        page.setBackground(Theme.BG);
-        Ui.AccentButton back = Ui.smallButton("返回列表", Ui.AccentButton.Style.GHOST);
-        back.addActionListener(e -> showDownloadTab("versions"));
-        page.add(LauncherLayout.pageHeader("安装选项", "先选加载器，再下载原版与加载器", back), BorderLayout.NORTH);
-
-        JPanel form = new JPanel();
-        form.setOpaque(false);
-        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(new EmptyBorder(30, 30, 30, 30));
-
-        JPanel version = LauncherLayout.section("版本", "下载客户端、运行库和资源");
-        versionDetailTitle = Ui.label("未选择版本", Theme.TITLE, Theme.TEXT);
-        versionDetailTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        version.add(versionDetailTitle);
-        version.add(Ui.vgap(5));
-        versionDetailMeta = new JTextArea(3, 60);
-        versionDetailMeta.setEditable(false);
-        versionDetailMeta.setFocusable(false);
-        versionDetailMeta.setOpaque(false);
-        versionDetailMeta.setLineWrap(true);
-        versionDetailMeta.setWrapStyleWord(true);
-        versionDetailMeta.setFont(Theme.MONO);
-        versionDetailMeta.setForeground(Theme.DIM);
-        versionDetailMeta.setBorder(new EmptyBorder(0, 0, 0, 0));
-        versionDetailMeta.setAlignmentX(Component.LEFT_ALIGNMENT);
-        versionDetailMeta.setMaximumSize(new Dimension(Integer.MAX_VALUE, 52));
-        version.add(versionDetailMeta);
-        form.add(LauncherLayout.lockedHeight(version));
-        form.add(Ui.vgap(30));
-        form.add(LauncherLayout.divider());
-        form.add(Ui.vgap(30));
-
-        JPanel loader = LauncherLayout.section("模组启动器", "原版不需要加载器；版本留空时自动获取最新版");
-        JPanel loaderChoices = new JPanel();
-        loaderChoices.setOpaque(false);
-        loaderChoices.setLayout(new BoxLayout(loaderChoices, BoxLayout.X_AXIS));
-        ButtonGroup loaders = new ButtonGroup();
-        for (String[] choice : new String[][]{{"原版", "vanilla"}, {"Fabric", "fabric"},
-                {"Quilt", "quilt"}, {"Forge", "forge"}, {"NeoForge", "neoforge"}}) {
-            Ui.SegmentButton button = new Ui.SegmentButton(choice[0]);
-            button.setSelected("vanilla".equals(choice[1]));
-            button.addActionListener(e -> {
-                versionLoaderType = choice[1];
-                versionLoaderVersion.setText("");
-                updateRecommendations(choice[1]);
-                if (versionInstallButton != null) {
-                    versionInstallButton.setText("vanilla".equals(choice[1])
-                            ? "下载原版" : "安装 " + choice[0] + " 并启动");
-                }
-                fetchLatestLoaderVersion(choice[1]);
-            });
-            loaders.add(button);
-            loaderChoices.add(button);
-        }
-        loaderChoices.setAlignmentX(Component.LEFT_ALIGNMENT);
-        loaderChoices.setMaximumSize(new Dimension(720, 28));
-        loader.add(loaderChoices);
-        loader.add(Ui.vgap(10));
-        versionLoaderVersion = Ui.field("留空 = 自动获取最新版本");
-        versionLoaderVersion.setPreferredSize(new Dimension(300, 32));
-        versionLoaderVersion.setMaximumSize(new Dimension(300, 32));
-        versionLoaderVersion.setAlignmentX(Component.LEFT_ALIGNMENT);
-        loader.add(versionLoaderVersion);
-        loader.add(Ui.vgap(7));
-        loader.add(LauncherLayout.sidebarNote("Forge / NeoForge 会自动查询当前游戏版本对应的最新版本。"
-                + "也可以手动填写覆盖。"));
-        recommendationPanel = new Ui.RoundedPanel(Theme.CARD_ALT, Theme.BORDER, 14);
-        recommendationPanel.setLayout(new BoxLayout(recommendationPanel, BoxLayout.Y_AXIS));
-        recommendationPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        recommendationPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        recommendationPanel.setVisible(false);
-        loader.add(recommendationPanel);
-        loader.add(Ui.vgap(4));
-        form.add(loader);
-        form.add(Ui.vgap(30));
-
-        JPanel actions = new JPanel();
-        actions.setOpaque(false);
-        actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
-        versionInstallButton = Ui.button("下载原版", Ui.AccentButton.Style.PRIMARY);
-        versionInstallButton.addActionListener(e -> installFromVersionDetail());
-        actions.add(versionInstallButton);
-        actions.add(Box.createHorizontalGlue());
-        actions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
-        actions.setAlignmentX(Component.LEFT_ALIGNMENT);
-        form.add(actions);
-        form.add(Box.createVerticalGlue());
-        page.add(Ui.scroll(form), BorderLayout.CENTER);
-        return page;
-    }
-
-    private JPanel buildProjectDetailPage() {
-        JPanel page = new JPanel(new BorderLayout());
-        page.setOpaque(true);
-        page.setBackground(Theme.BG);
-        Ui.AccentButton back = Ui.smallButton("返回内容", Ui.AccentButton.Style.GHOST);
-        back.addActionListener(e -> {
-            currentDownloadCard = "content";
-            downloadPage.showCard("content");
-            updateBackButton();
-            downloadPage.setSubtabsVisible(true);
-            downloadPage.setTitle(switch (contentPage.type()) {
-                case "mod" -> "模组下载";
-                case "resourcepack" -> "资源包";
-                case "shader" -> "光影下载";
-                default -> "整合包";
-            });
-            downloadPage.setSubtitle("来自 Modrinth · 自动补齐必需前置 · SHA-1 校验");
-        });
-        page.add(LauncherLayout.pageHeader("文件版本", "选择具体文件版本后安装", back), BorderLayout.NORTH);
-
-        JPanel top = new JPanel(new BorderLayout(12, 0));
-        top.setBackground(Theme.CARD);
-        top.setBorder(new EmptyBorder(12, 14, 12, 14));
-        projectDetailIcon = new Ui.ProjectIcon(64);
-        top.add(projectDetailIcon, BorderLayout.WEST);
-        JPanel info = new JPanel();
-        info.setOpaque(false);
-        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
-        projectDetailTitle = Ui.label("", Theme.H1, Theme.TEXT);
-        projectDetailMeta = Ui.label("", Theme.MONO, Theme.DIM);
-        projectDetailSummary = new JLabel();
-        projectDetailSummary.setFont(Theme.TINY);
-        projectDetailSummary.setForeground(Theme.MUTED);
-        projectDetailTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        projectDetailMeta.setAlignmentX(Component.LEFT_ALIGNMENT);
-        projectDetailSummary.setAlignmentX(Component.LEFT_ALIGNMENT);
-        info.add(projectDetailTitle);
-        info.add(Ui.vgap(2));
-        info.add(projectDetailMeta);
-        info.add(Ui.vgap(3));
-        info.add(projectDetailSummary);
-        top.add(info, BorderLayout.CENTER);
-        detailMcmodButton = Ui.smallButton("MC百科", Ui.AccentButton.Style.LINK);
-        detailMcmodButton.addActionListener(e -> openMcmod(detailProject));
-        top.add(detailMcmodButton, BorderLayout.EAST);
-        page.add(top, BorderLayout.NORTH);
-
-        projectVersionModel = new DefaultListModel<>();
-        projectVersionList = new JList<>(projectVersionModel);
-        projectVersionList.setBackground(Theme.BG);
-        projectVersionList.setSelectionBackground(Theme.BG);
-        projectVersionList.setFixedCellHeight(50);
-        projectVersionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        projectVersionList.setCellRenderer(new ProjectVersionRenderer());
-        projectVersionList.setBorder(new EmptyBorder(4, 8, 8, 8));
-        projectVersionList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                Modrinth.Version selected = projectVersionList.getSelectedValue();
-                if (projectInstallButton != null) {
-                    projectInstallButton.setEnabled(selected != null && !busy);
-                }
-                updateProjectVersionDetails(selected);
-            }
-        });
-        projectVersionList.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-            @Override
-            public void mouseMoved(java.awt.event.MouseEvent e) {
-                projectVersionList.putClientProperty("hoverIndex",
-                        projectVersionList.locationToIndex(e.getPoint()));
-                projectVersionList.repaint();
-            }
-        });
-        projectVersionList.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseExited(java.awt.event.MouseEvent e) {
-                projectVersionList.putClientProperty("hoverIndex", -1);
-                projectVersionList.repaint();
-            }
-        });
-        JPanel versionArea = new JPanel(new BorderLayout(10, 0));
-        versionArea.setOpaque(false);
-        versionArea.add(Ui.scrollDark(projectVersionList), BorderLayout.CENTER);
-
-        JPanel dependencyPanel = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER, 14);
-        dependencyPanel.setLayout(new BorderLayout(0, 8));
-        dependencyPanel.setBorder(new EmptyBorder(12, 14, 12, 14));
-        dependencyPanel.setPreferredSize(new Dimension(310, 0));
-        dependencyPanel.add(Ui.label("版本详情 · 前置模组", Theme.TINY, Theme.DIM), BorderLayout.NORTH);
-        projectDependencyText = new JEditorPane();
-        projectDependencyText.setContentType("text/html");
-        projectDependencyText.setEditable(false);
-        projectDependencyText.setOpaque(false);
-        projectDependencyText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true);
-        projectDependencyText.setForeground(Theme.MUTED);
-        projectDependencyText.setFont(Theme.MONO);
-        projectDependencyText.setBorder(new EmptyBorder(2, 0, 2, 0));
-        projectDependencyText.addHyperlinkListener(this::openDependencyLink);
-        projectDependencyText.setText(dependencyHtml("选择一个文件版本<br>查看前置模组和内置模组"));
-        dependencyPanel.add(Ui.scrollDark(projectDependencyText), BorderLayout.CENTER);
-        versionArea.add(dependencyPanel, BorderLayout.EAST);
-        page.add(versionArea, BorderLayout.CENTER);
-
-        JPanel bottom = new JPanel(new BorderLayout(12, 0));
-        bottom.setBackground(Theme.CARD);
-        bottom.setBorder(BorderFactory.createCompoundBorder(
-                new MatteBorder(1, 0, 0, 0, Theme.BORDER),
-                new EmptyBorder(7, 14, 7, 14)));
-        JLabel hint = Ui.label("选择一个文件版本", Theme.MONO, Theme.DIM);
-        bottom.add(hint, BorderLayout.CENTER);
-        JPanel projectActions = new JPanel();
-        projectActions.setOpaque(false);
-        projectActions.setLayout(new BoxLayout(projectActions, BoxLayout.X_AXIS));
-        projectRefreshButton = Ui.smallButton("刷新版本", Ui.AccentButton.Style.GHOST);
-        projectRefreshButton.addActionListener(e -> loadProjectVersions());
-        projectInstallButton = Ui.smallButton("安装此版本", Ui.AccentButton.Style.PRIMARY);
-        projectInstallButton.setEnabled(false);
-        projectInstallButton.addActionListener(e -> installProjectVersion());
-        projectActions.add(projectRefreshButton);
-        projectActions.add(Ui.hgap(6));
-        projectActions.add(projectInstallButton);
-        bottom.add(projectActions, BorderLayout.EAST);
-        page.add(bottom, BorderLayout.SOUTH);
-        return page;
     }
 
     void installDatapack() {
@@ -1236,13 +1010,15 @@ public final class LauncherFrame extends JFrame {
             protected void done() {
                 try {
                     String version = get();
-                    if (versionLoaderType.equals(type) && versionLoaderVersion.getText().isBlank()) {
-                        versionLoaderVersion.setText(version);
+                    if (versionDetailPage != null && versionDetailPage.loaderType().equals(type)
+                            && versionDetailPage.loaderVersionText().isBlank()) {
+                        versionDetailPage.setLoaderVersionText(version);
                     }
                     statusLabel.setText("最新 " + type + " 版本：" + version);
                     statusLabel.setForeground(Theme.DIM);
                 } catch (Exception ex) {
-                    if (versionLoaderType.equals(type) && versionLoaderVersion.getText().isBlank()) {
+                    if (versionDetailPage != null && versionDetailPage.loaderType().equals(type)
+                            && versionDetailPage.loaderVersionText().isBlank()) {
                         statusLabel.setText("无法获取最新版本，可直接安装重试，或手动填写");
                         statusLabel.setForeground(Theme.WARNING);
                     }
@@ -1285,6 +1061,7 @@ public final class LauncherFrame extends JFrame {
     }
 
     void updateRecommendations(String loader) {
+        JPanel recommendationPanel = versionDetailPage == null ? null : versionDetailPage.recommendations();
         if (recommendationPanel == null) {
             return;
         }
@@ -1459,21 +1236,26 @@ public final class LauncherFrame extends JFrame {
         };
     }
 
+    private void onVersionLoaderChosen(String type) {
+        versionDetailPage.setInstallText("vanilla".equals(type)
+                ? "下载原版" : "安装 " + switch (type) {
+                    case "fabric" -> "Fabric";
+                    case "quilt" -> "Quilt";
+                    case "forge" -> "Forge";
+                    case "neoforge" -> "NeoForge";
+                    default -> "加载器";
+                } + " 并启动");
+        updateRecommendations(type);
+        fetchLatestLoaderVersion(type);
+    }
+
     private void openVersionDetail() {
         if (selectedEntry == null) {
             return;
         }
         versionDetailId = selectedEntry.id();
-        versionLoaderType = "vanilla";
-        if (versionInstallButton != null) {
-            versionInstallButton.setText("下载原版");
-        }
-        versionLoaderVersion.setText("");
-        versionLoaderVersion.setEnabled(true);
+        versionDetailPage.reset(selectedEntry.id(), detailMeta == null ? "" : detailMeta.getText());
         updateRecommendations("vanilla");
-        versionDetailTitle.setText(selectedEntry.id());
-        versionDetailMeta.setText(detailMeta == null ? ""
-                : detailMeta.getText());
         currentDownloadCard = "versionDetail";
         downloadPage.showCard("versionDetail");
         updateBackButton();
@@ -1496,13 +1278,13 @@ public final class LauncherFrame extends JFrame {
             RegionGate.showGuide(this);
             return;
         }
-        String loaderType = versionLoaderType;
+        String loaderType = versionDetailPage.loaderType();
         if ("vanilla".equals(loaderType)) {
             showDownloadTab("versions");
             startInstall(entry, false);
             return;
         }
-        String loaderVersion = versionLoaderVersion.getText().trim();
+        String loaderVersion = versionDetailPage.loaderVersionText();
         VersionMeta meta = selectedMeta;
         JavaManager.JavaInfo resolvedJava = resolveJava(meta);
         java.util.List<Recommendations.Item> recommended = selectedRecommendations();
@@ -1589,6 +1371,11 @@ public final class LauncherFrame extends JFrame {
         }.execute();
     }
 
+    private boolean isProjectInstalled(Modrinth.Project project) {
+        return installedProjectCache.computeIfAbsent(project.id(),
+                id -> installedContent(project) != null);
+    }
+
     private String installedContent(Modrinth.Project project) {
         if (project == null || selectedEntry == null) {
             return null;
@@ -1624,22 +1411,35 @@ public final class LauncherFrame extends JFrame {
         showProjectDetail(contentPage.list().getSelectedValue());
     }
 
+    private void backToContent() {
+        currentDownloadCard = "content";
+        downloadPage.showCard("content");
+        updateBackButton();
+        downloadPage.setSubtabsVisible(true);
+        downloadPage.setTitle(switch (contentPage.type()) {
+            case "mod" -> "模组下载";
+            case "resourcepack" -> "资源包";
+            case "shader" -> "光影下载";
+            default -> "整合包";
+        });
+        downloadPage.setSubtitle("来自 Modrinth · 自动补齐必需前置 · SHA-1 校验");
+    }
+
     private void showProjectDetail(Modrinth.Project project) {
         detailProject = project;
-        projectDetailTitle.setText(contentDisplayTitle(detailProject));
         boolean hasMcmod = detailProject.mcmodUrl() != null
                 && !detailProject.mcmodUrl().isBlank();
-        detailMcmodButton.setVisible(hasMcmod);
-        detailMcmodButton.setToolTipText(hasMcmod ? detailProject.mcmodUrl()
-                : "MC百科没有收录这个项目");
-        projectDetailMeta.setText(detailProject.author() + "  ·  "
-                + Formatting.bytes(detailProject.downloads()) + " 下载  ·  "
-                + detailProject.projectType());
         String summary = detailProject.summaryZh() != null
                 ? detailProject.summaryZh() : detailProject.description();
-        projectDetailSummary.setText("<html><body style='width:720px'>"
-                + Formatting.html(summary) + "</body></html>");
-        projectDetailIcon.setUrl(detailProject.iconUrl());
+        projectDetailPage.setProject(contentDisplayTitle(detailProject),
+                detailProject.author() + "  ·  "
+                        + Formatting.bytes(detailProject.downloads()) + " 下载  ·  "
+                        + detailProject.projectType(),
+                "<html><body style='width:720px'>" + Formatting.html(summary) + "</body></html>",
+                detailProject.iconUrl());
+        projectDetailPage.setMcmodVisible(hasMcmod);
+        projectDetailPage.setMcmodTooltip(hasMcmod ? detailProject.mcmodUrl()
+                : "MC百科没有收录这个项目");
         currentDownloadCard = "projectDetail";
         downloadPage.showCard("projectDetail");
         updateBackButton();
@@ -1654,8 +1454,8 @@ public final class LauncherFrame extends JFrame {
         if (detailProject == null) {
             return;
         }
-        projectVersionModel.clear();
-        projectInstallButton.setEnabled(false);
+        projectDetailPage.clearVersions();
+        projectDetailPage.setInstallEnabled(false);
         statusLabel.setText("正在读取文件版本…");
         statusLabel.setForeground(Theme.DIM);
         String gameVersion = contentPage.versionField().getText().trim();
@@ -1689,10 +1489,10 @@ public final class LauncherFrame extends JFrame {
                     List<Modrinth.Version> versions = get();
                     Log.info("项目文件版本数: " + versions.size());
                     for (Modrinth.Version version : versions) {
-                        projectVersionModel.addElement(version);
+                        projectDetailPage.addVersion(version);
                     }
                     if (!versions.isEmpty()) {
-                        projectVersionList.setSelectedIndex(0);
+                        projectDetailPage.selectFirstVersion();
                     }
                     statusLabel.setText(versions.isEmpty() ? "没有找到可用文件版本"
                             : "共 " + versions.size() + " 个文件版本");
@@ -1735,16 +1535,17 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void updateProjectVersionDetails(Modrinth.Version version) {
-        if (projectDependencyText == null) {
+        if (projectDetailPage == null) {
             return;
         }
         int generation = ++projectDependencyGeneration;
         if (version == null) {
-            projectDependencyText.setText(dependencyHtml("选择一个文件版本<br>查看前置模组和内置模组"));
+            projectDetailPage.setDependencyHtmlDocument(
+                    dependencyHtml("选择一个文件版本<br>查看前置模组和内置模组"));
             projectDependencyLinks.clear();
             return;
         }
-        projectDependencyText.setText(dependencyHtml("文件："
+        projectDetailPage.setDependencyHtmlDocument(dependencyHtml("文件："
                 + Formatting.html(version.primaryFile() == null
                 ? "无" : version.primaryFile().filename())
                 + "<br>游戏版本：" + Formatting.html(String.join(", ", version.gameVersions()))
@@ -1763,11 +1564,11 @@ public final class LauncherFrame extends JFrame {
                     return;
                 }
                 try {
-                    projectDependencyText.setText(get());
+                    projectDetailPage.setDependencyHtmlDocument(get());
                 } catch (Exception ex) {
-                    projectDependencyText.setText("读取前置失败：" + ex.getMessage());
+                    projectDetailPage.setDependencyHtmlDocument("读取前置失败：" + ex.getMessage());
                 }
-                projectDependencyText.setCaretPosition(0);
+                projectDetailPage.scrollDependencyToTop();
             }
         }.execute();
     }
@@ -1860,7 +1661,7 @@ public final class LauncherFrame extends JFrame {
         if (busy || detailProject == null) {
             return;
         }
-        Modrinth.Version version = projectVersionList.getSelectedValue();
+        Modrinth.Version version = projectDetailPage.selectedVersion();
         if (version == null) {
             return;
         }
@@ -2396,6 +2197,7 @@ public final class LauncherFrame extends JFrame {
         if (contentPage.model() == null) {
             return;
         }
+        installedProjectCache.clear();
         contentSearching = true;
         int generation = ++contentGeneration;
         final int pageNumber = contentPage.pageIndex();
@@ -2564,9 +2366,7 @@ public final class LauncherFrame extends JFrame {
                 contentSearching = false;
                 try {
                     List<Modrinth.Project> projects = get();
-                    for (Modrinth.Project project : projects) {
-                        contentPage.model().addElement(project);
-                    }
+                    contentPage.setResults(projects);
                     if (contentPage.listFade() != null) {
                         contentPage.listFade().fadeIn();
                     }
@@ -2576,9 +2376,7 @@ public final class LauncherFrame extends JFrame {
                         contentPage.setPageLabel(pageNumber + 1);
                     }
                     contentPage.setPageButtonsEnabled(pageNumber > 0, projects.size() >= 20);
-                    if (!projects.isEmpty()) {
-                        contentPage.list().setSelectedIndex(0);
-                    }
+                    contentPage.selectFirst();
                 } catch (Exception ex) {
                     Throwable cause = unwrap(ex);
                     Log.warn("Modrinth 搜索失败: " + messageOf(cause, ""));
@@ -2861,8 +2659,8 @@ public final class LauncherFrame extends JFrame {
     }
 
     public void openFirstProjectForScreenshot() {
-        if (contentPage.model() != null && !contentPage.model().isEmpty()) {
-            contentPage.list().setSelectedIndex(0);
+        if (contentPage.resultCount() > 0) {
+            contentPage.selectIndex(0);
             openProjectDetail();
         }
     }
@@ -3896,8 +3694,9 @@ public final class LauncherFrame extends JFrame {
             return source + (version.isEmpty() ? "" : " · MC " + version);
         }
         if ("versionDetail".equals(currentDownloadCard)) {
-            if (!"vanilla".equals(versionLoaderType)) {
-                return "Mojang 官方 + " + switch (versionLoaderType) {
+            String loaderType = versionDetailPage == null ? "vanilla" : versionDetailPage.loaderType();
+            if (!"vanilla".equals(loaderType)) {
+                return "Mojang 官方 + " + switch (loaderType) {
                     case "fabric" -> "Fabric Meta";
                     case "quilt" -> "Quilt Meta";
                     case "forge" -> "Forge Maven";

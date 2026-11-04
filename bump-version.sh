@@ -4,6 +4,10 @@ cd "$(dirname "$0")"
 current="$(cat VERSION)"
 IFS=. read -r major minor patch <<< "$current"
 case "${1:-patch}" in
+  minor)
+    minor=$((minor + 1))
+    patch=0
+    ;;
   major)
     minor=$((minor + 1))
     patch=$((patch + 5))
@@ -12,7 +16,7 @@ case "${1:-patch}" in
     patch=$((patch + 1))
     ;;
   *)
-    echo "用法: ./bump-version.sh patch|major"
+    echo "用法: ./bump-version.sh patch|minor|major"
     exit 1
     ;;
 esac
