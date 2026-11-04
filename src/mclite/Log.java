@@ -17,9 +17,12 @@ public final class Log {
     private Log() {
     }
 
+    private static final long MAX_LOG_BYTES = 1_000_000L;
+
     public static synchronized void init(Path logFile) {
         try {
             Files.createDirectories(logFile.getParent());
+            rotateIfLarge(logFile);
             file = logFile;
             writer = new PrintWriter(Files.newBufferedWriter(logFile, StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND), true);
@@ -27,6 +30,19 @@ public final class Log {
             info("MC Lite 启动");
         } catch (IOException ex) {
             System.err.println("无法创建日志文件: " + ex.getMessage());
+        }
+    }
+
+    /** Keeps the launcher log bounded: one old file, rotated once it passes 1 MB. */
+    private static void rotateIfLarge(Path logFile) {
+        try {
+            if (!Files.isRegularFile(logFile) || Files.size(logFile) <= MAX_LOG_BYTES) {
+                return;
+            }
+            Path old = logFile.resolveSibling(logFile.getFileName() + ".1");
+            Files.move(logFile, old, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ex) {
+            System.err.println("无法轮转日志文件: " + ex.getMessage());
         }
     }
 

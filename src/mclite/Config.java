@@ -26,6 +26,8 @@ public final class Config {
     private boolean forceModTranslation = true;
     private int windowWidth = 854;
     private int windowHeight = 480;
+    private int launcherWidth = 1180;
+    private int launcherHeight = 900;
     private boolean downloadAssets = true;
     private boolean autoMirror = true;
     private boolean isolateVersions = true;
@@ -103,6 +105,10 @@ public final class Config {
             }
             config.windowWidth = clampWidth(parseInt(properties.getProperty("windowWidth"), 854));
             config.windowHeight = clampHeight(parseInt(properties.getProperty("windowHeight"), 480));
+            config.launcherWidth = clampLauncherWidth(
+                    parseInt(properties.getProperty("launcherWidth"), 1180));
+            config.launcherHeight = clampLauncherHeight(
+                    parseInt(properties.getProperty("launcherHeight"), 900));
             config.downloadAssets = Boolean.parseBoolean(properties.getProperty("downloadAssets", "true"));
             config.autoMirror = Boolean.parseBoolean(properties.getProperty("autoMirror", "true"));
             config.forceModTranslation = Boolean.parseBoolean(
@@ -156,6 +162,8 @@ public final class Config {
         copy.forceModTranslation = forceModTranslation;
         copy.windowWidth = windowWidth;
         copy.windowHeight = windowHeight;
+        copy.launcherWidth = launcherWidth;
+        copy.launcherHeight = launcherHeight;
         copy.downloadAssets = downloadAssets;
         copy.autoMirror = autoMirror;
         copy.isolateVersions = isolateVersions;
@@ -510,6 +518,22 @@ public final class Config {
         this.windowHeight = clampHeight(value);
     }
 
+    public int launcherWidth() {
+        return launcherWidth;
+    }
+
+    public void launcherWidth(int value) {
+        this.launcherWidth = clampLauncherWidth(value);
+    }
+
+    public int launcherHeight() {
+        return launcherHeight;
+    }
+
+    public void launcherHeight(int value) {
+        this.launcherHeight = clampLauncherHeight(value);
+    }
+
     public boolean autoMirror() {
         return autoMirror;
     }
@@ -562,6 +586,8 @@ public final class Config {
                     Boolean.toString(forceModTranslation));
             properties.setProperty("windowWidth", Integer.toString(windowWidth));
             properties.setProperty("windowHeight", Integer.toString(windowHeight));
+            properties.setProperty("launcherWidth", Integer.toString(launcherWidth));
+            properties.setProperty("launcherHeight", Integer.toString(launcherHeight));
             properties.setProperty("downloadAssets", Boolean.toString(downloadAssets));
             properties.setProperty("autoMirror", Boolean.toString(autoMirror));
             properties.setProperty("isolateVersions", Boolean.toString(isolateVersions));
@@ -616,6 +642,14 @@ public final class Config {
 
     private static int clampHeight(int value) {
         return Math.max(240, Math.min(2160, value));
+    }
+
+    private static int clampLauncherWidth(int value) {
+        return Math.max(900, Math.min(4096, value));
+    }
+
+    private static int clampLauncherHeight(int value) {
+        return Math.max(600, Math.min(3000, value));
     }
 
     public static String timestamp() {

@@ -275,6 +275,11 @@ public final class Updater {
             if (!isSafeVersion(version) || compare(version, Version.VALUE) <= 0) {
                 return;
             }
+            if (!manual && version.equals(pendingVersion(config))) {
+                // 已经下载过同一版本，等重启生效即可，不要每 30 分钟重复下载。
+                Log.info("更新 V" + version + " 已下载，等待重启生效");
+                return;
+            }
             String asset = "MCLite_v" + version + "-region.jar";
             String url = "https://github.com/" + REPO + "/releases/download/v"
                     + version + "/" + asset;
@@ -310,6 +315,26 @@ public final class Updater {
         } catch (Exception ex) {
             Log.warn("检查启动器更新失败: " + ex.getMessage());
         }
+    }
+
+    /** Version already staged in updates/pending.properties, or "" when none is ready. */
+    private static String pendingVersion(Config config) {
+        Path pending = config.appHome().resolve("updates/pending.properties");
+        if (!Files.isRegularFile(pending)) {
+            return "";
+        }
+        Properties properties = new Properties();
+        try (var in = Files.newInputStream(pending)) {
+            properties.load(in);
+        } catch (IOException ex) {
+            return "";
+        }
+        String version = properties.getProperty("version", "").trim();
+        String jar = properties.getProperty("jar", "").trim();
+        if (!isSafeVersion(version) || jar.isEmpty() || !Files.isRegularFile(Path.of(jar))) {
+            return "";
+        }
+        return version;
     }
 
     private static Release latestFromApi(HttpClient client) {
