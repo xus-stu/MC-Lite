@@ -240,6 +240,18 @@ final class InstancesPage {
         return model == null || model.isEmpty() ? null : model.get(0);
     }
 
+    void resetGroupFilter() {
+        if (groupFilter == null) {
+            return;
+        }
+        updatingGroupFilter = true;
+        try {
+            groupFilter.setSelectedItem("全部分组");
+        } finally {
+            updatingGroupFilter = false;
+        }
+    }
+
     void selectId(String id) {
         if (list == null || model == null || id == null) {
             return;

@@ -703,11 +703,49 @@ public final class LauncherFrame extends JFrame {
         startRecommendations(items, entry.id(), loader, gameVersion);
     }
 
-    void copySelectedInstance() {
-        if (busyOrLaunching()) {
-            showError("暂时不能复制", "下载、安装或启动任务正在进行，请稍后再试。");
+    /** Runs a heavy instance file operation off the EDT with the normal busy gates. */
+    private void runInstanceJob(String startMessage, java.util.concurrent.Callable<String> job,
+                                boolean selectResult) {
+        if (busyOrLaunching() || (gameProcess != null && gameProcess.isAlive())) {
+            showError("暂时不能操作", "下载、安装、启动或游戏运行中，请稍后再试。");
             return;
         }
+        busy = true;
+        setControlsEnabled(false);
+        statusLabel.setText(startMessage);
+        statusLabel.setForeground(Theme.DIM);
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                return job.call();
+            }
+
+            @Override
+            protected void done() {
+                busy = false;
+                setControlsEnabled(true);
+                try {
+                    String result = get();
+                    if (instancesPage != null) {
+                        instancesPage.resetGroupFilter();
+                    }
+                    refreshAllVersions();
+                    refreshInstalledCache();
+                    refreshInstancesPage();
+                    if (selectResult && instancesPage != null && result != null) {
+                        instancesPage.selectId(result);
+                    }
+                    statusLabel.setText(result == null ? "完成" : result);
+                    statusLabel.setForeground(Theme.ACCENT);
+                } catch (Exception ex) {
+                    showError("操作失败", messageOf(unwrap(ex), "请检查磁盘空间和文件夹权限。"));
+                }
+                updateButtons();
+            }
+        }.execute();
+    }
+
+    void copySelectedInstance() {
         VersionManifest.VersionEntry entry = instancesPage == null ? null : instancesPage.selected();
         if (entry == null) {
             showError("复制实例", "请先在左侧选择一个实例。");
@@ -719,28 +757,18 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         String newId = value.trim();
-        if (!newId.matches("[A-Za-z0-9._-]{1,64}")) {
+        if (!VersionIds.valid(newId) || !newId.matches("(?i)[a-z0-9._-]+")) {
             showError("名称无效", "实例名称只能包含字母、数字、点、下划线和短横线。");
             return;
         }
-        try {
+        InstanceMeta.Entry sourceMeta = InstanceMeta.load(config.gameDir()).get(entry.id());
+        runInstanceJob("正在复制实例 " + entry.id() + "…", () -> {
             InstanceService.copy(gamePaths.versionsDir(), entry.id(), newId);
-        } catch (Exception ex) {
-            showError("复制失败", messageOf(ex, "请检查磁盘空间和实例文件夹权限。"));
-            return;
-        }
-        InstanceMeta.Entry meta = InstanceMeta.load(config.gameDir()).get(entry.id());
-        if (meta != null && meta.group() != null && !meta.group().isBlank()) {
-            InstanceMeta.put(config.gameDir(), newId, meta.group(), "");
-        }
-        refreshAllVersions();
-        refreshInstalledCache();
-        refreshInstancesPage();
-        if (instancesPage != null) {
-            instancesPage.selectId(newId);
-        }
-        statusLabel.setText("已复制实例 · " + newId);
-        statusLabel.setForeground(Theme.ACCENT);
+            if (sourceMeta != null) {
+                InstanceMeta.put(config.gameDir(), newId, sourceMeta.group(), sourceMeta.note());
+            }
+            return "已复制实例 · " + newId;
+        }, true);
     }
 
     void exportSelectedInstance() {
@@ -749,29 +777,27 @@ public final class LauncherFrame extends JFrame {
             showError("导出实例", "请先在左侧选择一个实例。");
             return;
         }
-        Path target = Ui.chooseFile(this, "导出实例 ZIP",
-                Path.of(System.getProperty("user.home"), entry.id() + ".zip"), "zip");
+        Path target = Ui.chooseSaveFile(this, "导出实例 ZIP",
+                Path.of(System.getProperty("user.home"), entry.id() + ".zip"));
         if (target == null) {
             return;
         }
         if (!target.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
             target = target.resolveSibling(target.getFileName() + ".zip");
         }
-        try {
-            InstanceService.exportZip(gamePaths.versionsDir(), entry.id(), target);
-        } catch (Exception ex) {
-            showError("导出失败", messageOf(ex, "请检查目标文件夹是否可写。"));
+        if (Files.exists(target) && !askYesNo("覆盖文件", "文件已存在：\n" + target + "\n\n要覆盖吗？")) {
             return;
         }
-        statusLabel.setText("已导出实例 · " + target.getFileName());
-        statusLabel.setForeground(Theme.ACCENT);
+        Path finalTarget = target;
+        InstanceMeta.Entry meta = InstanceMeta.load(config.gameDir()).get(entry.id());
+        runInstanceJob("正在导出实例 " + entry.id() + "…", () -> {
+            InstanceService.exportZip(gamePaths.versionsDir(), entry.id(), finalTarget,
+                    meta == null ? "" : meta.group(), meta == null ? "" : meta.note());
+            return "已导出实例 · " + finalTarget.getFileName();
+        }, false);
     }
 
     void importInstanceZip() {
-        if (busyOrLaunching()) {
-            showError("暂时不能导入", "下载、安装或启动任务正在进行，请稍后再试。");
-            return;
-        }
         Path archive = Ui.chooseFile(this, "导入实例 ZIP",
                 Path.of(System.getProperty("user.home")), "zip");
         if (archive == null) {
@@ -782,19 +808,15 @@ public final class LauncherFrame extends JFrame {
         if (value == null || value.isBlank()) {
             return;
         }
-        try {
-            String created = InstanceService.importZip(gamePaths.versionsDir(), archive, value.trim());
-            refreshAllVersions();
-            refreshInstalledCache();
-            refreshInstancesPage();
-            if (instancesPage != null) {
-                instancesPage.selectId(created);
+        String newId = value.trim();
+        runInstanceJob("正在导入实例 " + archive.getFileName() + "…", () -> {
+            InstanceService.ImportedInstance imported = InstanceService.importZipWithMeta(
+                    gamePaths.versionsDir(), archive, newId);
+            if (!imported.group().isBlank() || !imported.note().isBlank()) {
+                InstanceMeta.put(config.gameDir(), imported.id(), imported.group(), imported.note());
             }
-            statusLabel.setText("已导入实例 · " + created);
-            statusLabel.setForeground(Theme.ACCENT);
-        } catch (Exception ex) {
-            showError("导入失败", messageOf(ex, "请确认 ZIP 是由本启动器导出的实例包。"));
-        }
+            return "已导入实例 · " + imported.id();
+        }, true);
     }
 
     void editInstanceMeta() {

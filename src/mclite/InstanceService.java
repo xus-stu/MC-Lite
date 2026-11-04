@@ -191,6 +191,9 @@ public final class InstanceService {
         }
     }
 
+    public record ImportedInstance(String id, String group, String note) {
+    }
+
     /** Copies an instance folder and rewrites its id references for the new name. */
     public static void copy(Path root, String sourceId, String targetId) throws IOException {
         Path source = root.resolve(sourceId);
@@ -201,86 +204,155 @@ public final class InstanceService {
         if (Files.exists(target)) {
             throw new IOException("实例已存在: " + targetId);
         }
-        copyTree(source, target);
-        renameVersionJson(target, sourceId, targetId, false);
-        renameVersionJson(target, sourceId, targetId, true);
-        Path oldJar = target.resolve(sourceId + ".jar");
-        if (Files.isRegularFile(oldJar)) {
-            Files.move(oldJar, target.resolve(targetId + ".jar"));
+        Path staging = stage(root, targetId);
+        try {
+            copyTree(source, staging);
+            rewriteInstance(staging, sourceId, targetId);
+            moveIntoPlace(staging, target);
+        } catch (IOException | RuntimeException ex) {
+            deleteTree(staging);
+            throw ex;
         }
-        Path json = target.resolve(targetId + ".json");
-        if (Files.isRegularFile(json)) {
-            rewriteVersionJson(json, sourceId, targetId);
-        }
-        Path vanilla = target.resolve(targetId + ".vanilla.json");
-        if (Files.isRegularFile(vanilla)) {
-            rewriteVersionJson(vanilla, sourceId, targetId);
-        }
-        updateMarker(target, sourceId, targetId);
     }
 
-    /** Exports one instance as a portable ZIP: {@code <id>/<id>.json + game files}. */
+    /** Exports one instance as a portable ZIP (written atomically next to the target). */
     public static void exportZip(Path root, String id, Path target) throws IOException {
+        exportZip(root, id, target, "", "");
+    }
+
+    public static void exportZip(Path root, String id, Path target, String group, String note)
+            throws IOException {
         Path dir = root.resolve(id);
         if (!Files.isDirectory(dir)) {
             throw new IOException("实例不存在: " + id);
         }
-        Path parent = target.toAbsolutePath().getParent();
+        Path absoluteTarget = target.toAbsolutePath().normalize();
+        Path parent = absoluteTarget.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
         }
-        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(target))) {
-            putEntry(zip, "mclite-instance.properties",
-                    ("id=" + id + "\nexported=" + System.currentTimeMillis() + "\n")
-                            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            try (var walk = Files.walk(dir)) {
-                for (Path file : walk.filter(Files::isRegularFile).toList()) {
-                    String relative = dir.relativize(file).toString().replace('\\', '/');
-                    zip.putNextEntry(new ZipEntry(id + "/" + relative));
-                    Files.copy(file, zip);
-                    zip.closeEntry();
+        Path temp = absoluteTarget.resolveSibling(absoluteTarget.getFileName() + ".tmp");
+        try {
+            try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(temp))) {
+                StringBuilder meta = new StringBuilder("id=").append(id).append('\n');
+                if (group != null && !group.isBlank()) {
+                    meta.append("group=").append(group).append('\n');
+                }
+                if (note != null && !note.isBlank()) {
+                    meta.append("note=").append(note).append('\n');
+                }
+                putEntry(zip, "mclite-instance.properties",
+                        meta.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                try (var walk = Files.walk(dir)) {
+                    for (Path file : walk.filter(Files::isRegularFile).toList()) {
+                        Path absoluteFile = file.toAbsolutePath().normalize();
+                        if (absoluteFile.equals(absoluteTarget) || absoluteFile.equals(temp)) {
+                            continue;
+                        }
+                        String relative = dir.relativize(file).toString().replace('\\', '/');
+                        zip.putNextEntry(new ZipEntry(id + "/" + relative));
+                        Files.copy(file, zip);
+                        zip.closeEntry();
+                    }
                 }
             }
+            try {
+                Files.move(temp, absoluteTarget, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+                Files.move(temp, absoluteTarget,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException | RuntimeException ex) {
+            Files.deleteIfExists(temp);
+            throw ex;
         }
     }
 
     /** Imports an instance ZIP (zip-slip safe) and returns the instance id. */
     public static String importZip(Path root, Path archive, String preferredId) throws IOException {
-        Path temp = Files.createTempDirectory("mclite-instance-");
+        return importZipWithMeta(root, archive, preferredId).id();
+    }
+
+    public static ImportedInstance importZipWithMeta(Path root, Path archive, String preferredId)
+            throws IOException {
+        String requested = preferredId == null ? "" : preferredId.trim();
+        if (!requested.isEmpty() && !VersionIds.valid(requested)) {
+            throw new IOException("实例名称不合法: " + requested);
+        }
+        Path temp = Files.createTempDirectory("mclite-import-");
         try {
             unzip(archive, temp);
             Path source = findInstanceDir(temp);
             String oldId = source.getFileName().toString();
-            String id = preferredId == null || preferredId.isBlank() ? oldId : preferredId.trim();
-            if (!id.matches("[A-Za-z0-9._-]{1,64}")) {
-                throw new IOException("实例名称只能包含字母、数字、点、下划线和短横线");
+            String id = requested.isEmpty() ? oldId : requested;
+            if (!VersionIds.valid(id)) {
+                throw new IOException("实例名称不合法: " + id);
             }
             Path target = root.resolve(id);
             if (Files.exists(target)) {
                 throw new IOException("实例已存在: " + id);
             }
-            copyTree(source, target);
-            if (!oldId.equals(id)) {
-                renameVersionJson(target, oldId, id, false);
-                renameVersionJson(target, oldId, id, true);
-                Path oldJar = target.resolve(oldId + ".jar");
-                if (Files.isRegularFile(oldJar)) {
-                    Files.move(oldJar, target.resolve(id + ".jar"));
+            Path metaFile = temp.resolve("mclite-instance.properties");
+            String group = "";
+            String note = "";
+            if (Files.isRegularFile(metaFile)) {
+                java.util.Properties meta = new java.util.Properties();
+                try (var in = Files.newInputStream(metaFile)) {
+                    meta.load(in);
                 }
-                Path json = target.resolve(id + ".json");
-                if (Files.isRegularFile(json)) {
-                    rewriteVersionJson(json, oldId, id);
-                }
-                Path vanilla = target.resolve(id + ".vanilla.json");
-                if (Files.isRegularFile(vanilla)) {
-                    rewriteVersionJson(vanilla, oldId, id);
-                }
-                updateMarker(target, oldId, id);
+                group = meta.getProperty("group", "").trim();
+                note = meta.getProperty("note", "").trim();
             }
-            return id;
+            Path staging = stage(root, id);
+            try {
+                copyTree(source, staging);
+                if (!oldId.equals(id)) {
+                    rewriteInstance(staging, oldId, id);
+                }
+                moveIntoPlace(staging, target);
+            } catch (IOException | RuntimeException ex) {
+                deleteTree(staging);
+                throw ex;
+            }
+            return new ImportedInstance(id, group, note);
         } finally {
-            deleteTree(temp);
+            try {
+                deleteTree(temp);
+            } catch (IOException ignored) {
+            }
         }
+    }
+
+    private static Path stage(Path root, String id) throws IOException {
+        Files.createDirectories(root);
+        return Files.createTempDirectory(root, "." + id + "-staging-");
+    }
+
+    private static void moveIntoPlace(Path staging, Path target) throws IOException {
+        try {
+            Files.move(staging, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+            Files.move(staging, target);
+        }
+    }
+
+    private static void rewriteInstance(Path dir, String oldId, String newId) throws IOException {
+        renameVersionJson(dir, oldId, newId, false);
+        renameVersionJson(dir, oldId, newId, true);
+        Path oldJar = dir.resolve(oldId + ".jar");
+        if (Files.isRegularFile(oldJar)) {
+            Files.move(oldJar, dir.resolve(newId + ".jar"));
+        }
+        Path json = dir.resolve(newId + ".json");
+        if (Files.isRegularFile(json)) {
+            rewriteVersionJson(json, oldId, newId);
+        }
+        Path vanilla = dir.resolve(newId + ".vanilla.json");
+        if (Files.isRegularFile(vanilla)) {
+            rewriteVersionJson(vanilla, oldId, newId);
+        }
+        updateMarker(dir, oldId, newId);
     }
 
     private static Path findInstanceDir(Path temp) throws IOException {

@@ -22,6 +22,12 @@ final class InstanceMeta {
     }
 
     static Map<String, Entry> load(Path gameDir) {
+        Map<String, Entry> result = loadOrNull(gameDir);
+        return result == null ? new LinkedHashMap<>() : result;
+    }
+
+    /** Null means the file exists but could not be parsed; callers must not overwrite it. */
+    private static Map<String, Entry> loadOrNull(Path gameDir) {
         Map<String, Entry> result = new LinkedHashMap<>();
         Path file = file(gameDir);
         if (!Files.isRegularFile(file)) {
@@ -30,9 +36,9 @@ final class InstanceMeta {
         Properties properties = new Properties();
         try (InputStream in = Files.newInputStream(file)) {
             properties.load(in);
-        } catch (IOException ex) {
+        } catch (IOException | IllegalArgumentException ex) {
             Log.warn("读取实例备注失败: " + ex.getMessage());
-            return result;
+            return null;
         }
         for (String key : properties.stringPropertyNames()) {
             if (!key.endsWith(".note") && !key.endsWith(".group")) {
@@ -60,18 +66,27 @@ final class InstanceMeta {
                     properties.setProperty(item.getKey() + ".note", entry.note());
                 }
             }
-            Path temp = file.resolveSibling("instance-meta.properties.tmp");
+            Path temp = Files.createTempFile(file.getParent(), "instance-meta", ".tmp");
             try (OutputStream out = Files.newOutputStream(temp)) {
                 properties.store(out, "MC Lite instance metadata");
             }
-            Files.move(temp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(temp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+                Files.move(temp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException ex) {
             Log.warn("保存实例备注失败: " + ex.getMessage());
         }
     }
 
     static void put(Path gameDir, String id, String group, String note) {
-        Map<String, Entry> entries = load(gameDir);
+        Map<String, Entry> entries = loadOrNull(gameDir);
+        if (entries == null) {
+            Log.warn("实例备注文件损坏，跳过写入以避免覆盖: " + file(gameDir));
+            return;
+        }
         String cleanGroup = group == null ? "" : group.trim();
         String cleanNote = note == null ? "" : note.trim();
         if (cleanGroup.isEmpty() && cleanNote.isEmpty()) {
@@ -83,14 +98,20 @@ final class InstanceMeta {
     }
 
     static void remove(Path gameDir, String id) {
-        Map<String, Entry> entries = load(gameDir);
+        Map<String, Entry> entries = loadOrNull(gameDir);
+        if (entries == null) {
+            return;
+        }
         if (entries.remove(id) != null) {
             save(gameDir, entries);
         }
     }
 
     static void rename(Path gameDir, String oldId, String newId) {
-        Map<String, Entry> entries = load(gameDir);
+        Map<String, Entry> entries = loadOrNull(gameDir);
+        if (entries == null) {
+            return;
+        }
         Entry entry = entries.remove(oldId);
         if (entry != null) {
             entries.put(newId, entry);
