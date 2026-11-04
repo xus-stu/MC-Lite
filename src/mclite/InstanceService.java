@@ -234,15 +234,17 @@ public final class InstanceService {
         Path temp = absoluteTarget.resolveSibling(absoluteTarget.getFileName() + ".tmp");
         try {
             try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(temp))) {
-                StringBuilder meta = new StringBuilder("id=").append(id).append('\n');
+                java.util.Properties meta = new java.util.Properties();
+                meta.setProperty("id", id);
                 if (group != null && !group.isBlank()) {
-                    meta.append("group=").append(group).append('\n');
+                    meta.setProperty("group", group);
                 }
                 if (note != null && !note.isBlank()) {
-                    meta.append("note=").append(note).append('\n');
+                    meta.setProperty("note", note);
                 }
-                putEntry(zip, "mclite-instance.properties",
-                        meta.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                java.io.ByteArrayOutputStream metaBytes = new java.io.ByteArrayOutputStream();
+                meta.store(metaBytes, "MC Lite instance");
+                putEntry(zip, "mclite-instance.properties", metaBytes.toByteArray());
                 try (var walk = Files.walk(dir)) {
                     for (Path file : walk.filter(Files::isRegularFile).toList()) {
                         Path absoluteFile = file.toAbsolutePath().normalize();

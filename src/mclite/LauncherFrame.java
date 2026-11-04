@@ -732,8 +732,13 @@ public final class LauncherFrame extends JFrame {
                     refreshAllVersions();
                     refreshInstalledCache();
                     refreshInstancesPage();
-                    if (selectResult && instancesPage != null && result != null) {
-                        instancesPage.selectId(result);
+                    if (selectResult && result != null) {
+                        VersionManifest.VersionEntry created = findLoadedVersion(result);
+                        if (created != null) {
+                            useVersion(created, false);
+                        } else if (instancesPage != null) {
+                            instancesPage.selectId(result);
+                        }
                     }
                     statusLabel.setText(result == null ? "完成" : result);
                     statusLabel.setForeground(Theme.ACCENT);
@@ -743,6 +748,29 @@ public final class LauncherFrame extends JFrame {
                 updateButtons();
             }
         }.execute();
+    }
+
+    private VersionManifest.VersionEntry findLoadedVersion(String id) {
+        for (VersionManifest.VersionEntry entry : allVersions) {
+            if (entry.id().equals(id)) {
+                return entry;
+            }
+        }
+        for (VersionManifest.VersionEntry entry : LocalVersions.scan(gamePaths)) {
+            if (entry.id().equals(id)) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    private boolean isOfficialVersionId(String id) {
+        for (VersionManifest.VersionEntry entry : allVersions) {
+            if (entry.id().equals(id) && !entry.local()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     void copySelectedInstance() {
@@ -759,6 +787,10 @@ public final class LauncherFrame extends JFrame {
         String newId = value.trim();
         if (!VersionIds.valid(newId) || !newId.matches("(?i)[a-z0-9._-]+")) {
             showError("名称无效", "实例名称只能包含字母、数字、点、下划线和短横线。");
+            return;
+        }
+        if (isOfficialVersionId(newId)) {
+            showError("名称被占用", "这个名字和官方版本相同，请换一个实例名称。");
             return;
         }
         InstanceMeta.Entry sourceMeta = InstanceMeta.load(config.gameDir()).get(entry.id());
@@ -831,13 +863,23 @@ public final class LauncherFrame extends JFrame {
         if (group == null) {
             return;
         }
+        if ("全部分组".equals(group.trim())) {
+            showError("分组名称无效", "「全部分组」是筛选器的保留名称，请换一个。");
+            return;
+        }
         String note = ModernDialogs.input(this, "实例备注", "备注（留空表示清除）",
                 current == null ? "" : current.note());
         if (note == null) {
             return;
         }
         InstanceMeta.put(config.gameDir(), entry.id(), group, note);
+        InstanceMeta.Entry saved = InstanceMeta.load(config.gameDir()).get(entry.id());
         refreshInstancesPage();
+        if ((group.isBlank() && note.isBlank() && saved != null)
+                || (saved == null && (!group.isBlank() || !note.isBlank()))) {
+            showError("备注未保存", "实例备注写入失败，请检查游戏目录是否可写。");
+            return;
+        }
         statusLabel.setText("已更新实例备注 · " + entry.id());
         statusLabel.setForeground(Theme.ACCENT);
     }
