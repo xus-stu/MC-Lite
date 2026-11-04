@@ -1,5 +1,10 @@
 # MC Lite 更新记录
 
+## v1.3.4
+
+- Java 管理新增「测试运行」：直接探测所选运行时的版本、供应商和首行输出，失败时提示路径不可运行。
+
+
 ## v1.3.3
 
 - Bridge 新增 `GET /api/accounts`（账户列表与当前选中账户）和 `GET /api/diagnostics?instance=`（最近崩溃分类建议）。
