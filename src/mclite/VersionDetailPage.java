@@ -24,6 +24,7 @@ final class VersionDetailPage {
     private Ui.AccentButton installButton;
     private Ui.RoundedPanel recommendations;
     private String loaderType = "vanilla";
+    private final java.util.List<Ui.SegmentButton> loaderButtons = new java.util.ArrayList<>();
 
     VersionDetailPage(Runnable onBack, Consumer<String> onLoaderChosen, Runnable onInstall) {
         this.onBack = onBack;
@@ -84,6 +85,7 @@ final class VersionDetailPage {
                 onLoaderChosen.accept(choice[1]);
             });
             loaders.add(button);
+            loaderButtons.add(button);
             loaderChoices.add(button);
         }
         loaderChoices.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -126,6 +128,9 @@ final class VersionDetailPage {
     /** Resets the loader choice and version text for a freshly opened version. */
     void reset(String versionId, String metaText) {
         loaderType = "vanilla";
+        if (!loaderButtons.isEmpty()) {
+            loaderButtons.get(0).setSelected(true);
+        }
         if (loaderVersion != null) {
             loaderVersion.setText("");
             loaderVersion.setEnabled(true);

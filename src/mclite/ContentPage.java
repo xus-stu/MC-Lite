@@ -503,6 +503,15 @@ final class ContentPage {
         }
     }
 
+    /** True when the unfiltered search produced anything (the filter may hide all rows). */
+    boolean hasResults() {
+        return !allResults.isEmpty();
+    }
+
+    void reevaluateFilter() {
+        applyResultsFilter();
+    }
+
     void clearResults() {
         allResults = List.of();
         if (model != null) {

@@ -26,6 +26,7 @@ final class ProjectDetailPage {
     private final Runnable onMcmod;
     private final Consumer<HyperlinkEvent> onDependencyLink;
     private final Consumer<Modrinth.Version> onVersionSelected;
+    private final java.util.function.BooleanSupplier busy;
     private Ui.ProjectIcon icon;
     private JLabel title;
     private JLabel meta;
@@ -39,13 +40,15 @@ final class ProjectDetailPage {
 
     ProjectDetailPage(Runnable onBack, Runnable onRefresh, Runnable onInstall, Runnable onMcmod,
                       Consumer<HyperlinkEvent> onDependencyLink,
-                      Consumer<Modrinth.Version> onVersionSelected) {
+                      Consumer<Modrinth.Version> onVersionSelected,
+                      java.util.function.BooleanSupplier busy) {
         this.onBack = onBack;
         this.onRefresh = onRefresh;
         this.onInstall = onInstall;
         this.onMcmod = onMcmod;
         this.onDependencyLink = onDependencyLink;
         this.onVersionSelected = onVersionSelected;
+        this.busy = busy;
     }
 
     JPanel build(ListCellRenderer<Modrinth.Version> renderer) {
@@ -95,7 +98,7 @@ final class ProjectDetailPage {
             if (!e.getValueIsAdjusting()) {
                 Modrinth.Version selected = versionList.getSelectedValue();
                 if (installButton != null) {
-                    installButton.setEnabled(selected != null);
+                    installButton.setEnabled(selected != null && !busy.getAsBoolean());
                 }
                 onVersionSelected.accept(selected);
             }
@@ -228,6 +231,12 @@ final class ProjectDetailPage {
     void setInstallEnabled(boolean enabled) {
         if (installButton != null) {
             installButton.setEnabled(enabled);
+        }
+    }
+
+    void refreshInstallState() {
+        if (installButton != null) {
+            installButton.setEnabled(selectedVersion() != null && !busy.getAsBoolean());
         }
     }
 
