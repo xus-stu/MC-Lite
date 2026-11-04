@@ -1,5 +1,11 @@
 # MC Lite 更新记录
 
+## v1.3.1（未发布）
+
+- 抽出 `VersionListCard`：筛选后的版本列表、空状态、选中与滚动归页面所有；下载中心四张卡片全部搬出 `LauncherFrame`。
+- `LauncherFrame` 从 4477 行降到 4434 行。
+
+
 ## v1.3.0
 
 - 抽出 `VersionDetailPage`：版本标题/元信息、加载器选择、版本号输入、安装按钮和推荐模组区域归页面所有，`LauncherFrame` 只保留安装流程。

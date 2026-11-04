@@ -74,8 +74,7 @@ public final class LauncherFrame extends JFrame {
     GamePaths gamePaths;
     private VersionManifest manifest;
     List<VersionManifest.VersionEntry> allVersions = List.of();
-    private DefaultListModel<VersionManifest.VersionEntry> listModel = new DefaultListModel<>();
-    private final JList<VersionManifest.VersionEntry> versionList = new JList<>(listModel);
+    private VersionListCard versionListCard;
     private final Map<String, VersionMeta> metaCache = Collections.synchronizedMap(
             new LinkedHashMap<>(16, 0.75f, true) {
                 @Override
@@ -94,9 +93,6 @@ public final class LauncherFrame extends JFrame {
     private JLabel statusLabel;
     private JLabel sourceLabel;
     private JLabel countLabel;
-    private JLabel emptyLabel;
-    private JPanel listCards;
-    private CardLayout listCardLayout;
     private Ui.ThinProgress progressBar;
     private CardLayout contentCards;
     private JPanel contentCardsPanel;
@@ -468,7 +464,8 @@ public final class LauncherFrame extends JFrame {
                 this::openProjectDetail, this::startContentInstall, this::importLocalModpack,
                 this::openMcmod, this::updateContentSelection, this::runContentSearch,
                 this::isProjectInstalled);
-        contentCardsPanel.add(downloadPage.build(buildVersionList(),
+        versionListCard = new VersionListCard(this::onVersionSelected, this::openVersionDetail);
+        contentCardsPanel.add(downloadPage.build(versionListCard.build(new VersionRenderer()),
                 contentPage.build(new ContentRenderer()), versionDetailPage.build(),
                 projectDetailPage.build(new ProjectVersionRenderer())), "download");
         launchPage = new LaunchPage(this, config);
@@ -502,60 +499,6 @@ public final class LauncherFrame extends JFrame {
         content.add(status, BorderLayout.SOUTH);
         content.setComponentZOrder(status, 0);
         return content;
-    }
-
-    private JPanel buildVersionList() {
-        JPanel wrap = new JPanel(new BorderLayout());
-        wrap.setOpaque(true);
-        wrap.setBackground(Theme.BG);
-
-        versionList.setFixedCellHeight(52);
-        versionList.setBackground(Theme.BG);
-        versionList.setSelectionBackground(Theme.BG);
-        versionList.setSelectionForeground(Theme.TEXT);
-        versionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        versionList.setCellRenderer(new VersionRenderer());
-        versionList.setBorder(new EmptyBorder(4, 8, 24, 8));
-        versionList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting() && !refreshingList) {
-                onVersionSelected();
-            }
-        });
-        versionList.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    openVersionDetail();
-                }
-            }
-
-            @Override
-            public void mouseExited(java.awt.event.MouseEvent e) {
-                versionList.putClientProperty("hoverIndex", -1);
-                versionList.repaint();
-            }
-        });
-        versionList.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-            @Override
-            public void mouseMoved(java.awt.event.MouseEvent e) {
-                versionList.putClientProperty("hoverIndex", versionList.locationToIndex(e.getPoint()));
-                versionList.repaint();
-            }
-        });
-
-        JScrollPane scroll = Ui.scrollDark(versionList);
-        listCardLayout = new CardLayout();
-        listCards = new JPanel(listCardLayout);
-        listCards.setOpaque(false);
-        listCards.add(scroll, "list");
-        JPanel empty = new JPanel(new BorderLayout());
-        empty.setOpaque(false);
-        emptyLabel = Ui.label("没有匹配的版本", Theme.BODY, Theme.DIM);
-        emptyLabel.setHorizontalAlignment(JLabel.CENTER);
-        empty.add(emptyLabel, BorderLayout.CENTER);
-        listCards.add(empty, "empty");
-        wrap.add(listCards, BorderLayout.CENTER);
-        return wrap;
     }
 
     int selectedMemoryMb() {
@@ -1352,9 +1295,9 @@ public final class LauncherFrame extends JFrame {
                     finishTask(recommended.isEmpty());
                     refreshAllVersions();
                     refreshInstalledCache();
-                    for (int i = 0; i < listModel.size(); i++) {
-                        if (listModel.get(i).id().equals(loaderId)) {
-                            versionList.setSelectedIndex(i);
+                    for (int i = 0; i < versionListCard.size(); i++) {
+                        if (versionListCard.entryAt(i).id().equals(loaderId)) {
+                            versionListCard.selectIndex(i);
                             break;
                         }
                     }
@@ -1746,9 +1689,9 @@ public final class LauncherFrame extends JFrame {
             contentPage.reevaluateFilter();
             applyFilter();
             if (result.versionId() != null) {
-                for (int i = 0; i < listModel.size(); i++) {
-                    if (listModel.get(i).id().equals(result.versionId())) {
-                        versionList.setSelectedIndex(i);
+                for (int i = 0; i < versionListCard.size(); i++) {
+                    if (versionListCard.entryAt(i).id().equals(result.versionId())) {
+                        versionListCard.selectIndex(i);
                         revealVersion(i);
                         break;
                     }
@@ -1901,9 +1844,9 @@ public final class LauncherFrame extends JFrame {
         contentPage.reevaluateFilter();
         applyFilter();
         if (result.versionId() != null) {
-            for (int i = 0; i < listModel.size(); i++) {
-                if (listModel.get(i).id().equals(result.versionId())) {
-                    versionList.setSelectedIndex(i);
+            for (int i = 0; i < versionListCard.size(); i++) {
+                if (versionListCard.entryAt(i).id().equals(result.versionId())) {
+                    versionListCard.selectIndex(i);
                     revealVersion(i);
                     break;
                 }
@@ -1947,7 +1890,7 @@ public final class LauncherFrame extends JFrame {
             downloadPage.setSubtitle("Mojang 官方清单 · 选择版本下载或启动");
             applyFilter();
             SwingUtilities.invokeLater(() -> {
-                int index = versionList.getSelectedIndex();
+                int index = versionListCard.selectedIndex();
                 if (index >= 0) {
                     revealVersion(index);
                 }
@@ -2695,8 +2638,8 @@ public final class LauncherFrame extends JFrame {
     }
 
     public void openFirstVersionDetailForScreenshot() {
-        if (versionList.getSelectedIndex() < 0 && !listModel.isEmpty()) {
-            versionList.setSelectedIndex(0);
+        if (versionListCard.selectedIndex() < 0 && !versionListCard.isEmpty()) {
+            versionListCard.selectFirst();
         }
         openVersionDetail();
     }
@@ -3039,15 +2982,9 @@ public final class LauncherFrame extends JFrame {
 
         refreshingList = true;
         try {
-            DefaultListModel<VersionManifest.VersionEntry> nextModel = new DefaultListModel<>();
-            for (VersionManifest.VersionEntry entry : filtered) {
-                nextModel.addElement(entry);
-            }
-            listModel = nextModel;
-            versionList.setModel(listModel);
+            versionListCard.setEntries(filtered);
             downloadPage.selectFilter(filter);
             countLabel.setText(filtered.size() + " / " + allVersions.size() + " 个版本");
-            listCardLayout.show(listCards, filtered.isEmpty() ? "empty" : "list");
             if (filtered.isEmpty()) {
                 selectedEntry = null;
                 selectedMeta = null;
@@ -3085,13 +3022,13 @@ public final class LauncherFrame extends JFrame {
             if (target < 0) {
                 target = 0;
             }
-            versionList.setSelectedIndex(target);
-            revealVersion(target);
+            versionListCard.selectIndex(target);
+            versionListCard.reveal(target);
         } finally {
             refreshingList = false;
         }
         onVersionSelected();
-        final int targetIndex = versionList.getSelectedIndex();
+        final int targetIndex = versionListCard.selectedIndex();
         SwingUtilities.invokeLater(() -> {
             if (targetIndex >= 0) {
                 revealVersion(targetIndex);
@@ -3100,20 +3037,11 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void revealVersion(int index) {
-        if (index < 0) {
-            return;
-        }
-        versionList.ensureIndexIsVisible(index);
-        java.awt.Rectangle bounds = versionList.getCellBounds(index, index);
-        if (bounds != null) {
-            bounds.y = Math.max(0, bounds.y - 2);
-            bounds.height += 20;
-            versionList.scrollRectToVisible(bounds);
-        }
+        versionListCard.revealWithMargin(index);
     }
 
     private void onVersionSelected() {
-        VersionManifest.VersionEntry entry = versionList.getSelectedValue();
+        VersionManifest.VersionEntry entry = versionListCard.selectedValue();
         if (entry == null) {
             return;
         }
@@ -3283,7 +3211,7 @@ public final class LauncherFrame extends JFrame {
                     Installer.InstallResult result = get();
                     metaCache.put(entry.id(), result.meta());
                     refreshInstalledCache();
-                    versionList.repaint();
+                    versionListCard.repaintList();
                     if (selectedEntry != null && selectedEntry.id().equals(entry.id())) {
                         selectedMeta = result.meta();
                         updateDetailForSelection();
@@ -3778,13 +3706,8 @@ public final class LauncherFrame extends JFrame {
         config.filter("all");
         config.save();
         applyFilter();
-        for (int i = 0; i < listModel.size(); i++) {
-            if (listModel.get(i).id().equals(entry.id())) {
-                versionList.setSelectedIndex(i);
-                versionList.ensureIndexIsVisible(i);
-                break;
-            }
-        }
+        versionListCard.selectId(entry.id());
+        versionListCard.reveal(versionListCard.selectedIndex());
         selectPage("launch");
     }
 
@@ -3836,7 +3759,7 @@ public final class LauncherFrame extends JFrame {
 
     private void setControlsEnabled(boolean enabled) {
         downloadPage.setSearchEnabled(enabled);
-        versionList.setEnabled(enabled || busy);
+        versionListCard.setEnabled(enabled || busy);
         downloadPage.setRefreshEnabled(enabled && !manifestLoading);
         configPage.setControlsEnabled(enabled);
         settingsPage.setControlsEnabled(enabled);
@@ -3869,7 +3792,7 @@ public final class LauncherFrame extends JFrame {
             config.save();
             refreshAllVersions();
             refreshInstalledCache();
-            versionList.repaint();
+            versionListCard.repaintList();
             updateDetailForSelection();
         }
         configPage.setGameDirText(path.toString());
