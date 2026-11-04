@@ -658,15 +658,18 @@ final class SettingsPage {
     }
 
     private void installPythonModule() {
-        java.util.List<PythonLocator.Interpreter> interpreters = PythonLocator.detect();
+        java.util.List<PythonLocator.Interpreter> interpreters = PythonLocator.detectPycharm();
         java.util.List<String> labels = new java.util.ArrayList<>();
         for (PythonLocator.Interpreter interpreter : interpreters) {
             labels.add(interpreter.label());
         }
+        String pickProject = "选择 PyCharm 项目文件夹…";
         String browse = "浏览可执行文件…";
+        labels.add(pickProject);
         labels.add(browse);
         String picked = ModernDialogs.choice(owner, "安装 Python 模块",
-                "自动检测到的解释器，选择要安装到的那个：", labels.toArray(new String[0]), labels.get(0));
+                "只列出 ~/PycharmProjects 下的 .venv 环境；没有的话选项目文件夹：",
+                labels.toArray(new String[0]), labels.get(0));
         if (picked == null) {
             return;
         }
@@ -677,10 +680,34 @@ final class SettingsPage {
                 break;
             }
         }
-        if (python == null) {
-            if (!browse.equals(picked)) {
+        if (python == null && pickProject.equals(picked)) {
+            java.nio.file.Path project = Ui.chooseDirectory(owner, "选择 PyCharm 项目文件夹",
+                    java.nio.file.Path.of(System.getProperty("user.home"), "PycharmProjects"));
+            if (project == null) {
                 return;
             }
+            PythonLocator.Interpreter found = PythonLocator.findInProject(project);
+            if (found == null) {
+                try (var list = java.nio.file.Files.list(project)) {
+                    for (java.nio.file.Path child : list.toList()) {
+                        if (java.nio.file.Files.isDirectory(child)) {
+                            found = PythonLocator.findInProject(child);
+                            if (found != null) {
+                                break;
+                            }
+                        }
+                    }
+                } catch (java.io.IOException ignored) {
+                }
+            }
+            if (found == null) {
+                ModernDialogs.message(owner, "Python 模块",
+                        "这个项目里没找到 .venv/venv/env，请先在 PyCharm 里创建虚拟环境。");
+                return;
+            }
+            python = found.path();
+        }
+        if (python == null && browse.equals(picked)) {
             python = Ui.chooseFile(owner, "选择 Python 解释器",
                     java.nio.file.Path.of("/usr/bin/python3"));
         }
