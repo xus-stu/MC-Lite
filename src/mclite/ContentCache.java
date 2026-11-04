@@ -13,10 +13,13 @@ import java.util.Map;
  */
 final class ContentCache {
     record Key(String source, String type, String query, String gameVersion, String loader,
-               String sort, int page) {
+               String sort, int page, boolean translate) {
     }
 
-    private record Entry(List<Modrinth.Project> projects, long expiresAt) {
+    record Result(List<Modrinth.Project> projects, Map<String, String> chineseTitles) {
+    }
+
+    private record Entry(Result result, long expiresAt) {
     }
 
     private static final long DEFAULT_TTL_MS = 5 * 60 * 1000L;
@@ -35,7 +38,7 @@ final class ContentCache {
         this.maxEntries = Math.max(1, maxEntries);
     }
 
-    synchronized List<Modrinth.Project> get(Key key) {
+    synchronized Result get(Key key) {
         Entry entry = entries.get(key);
         if (entry == null) {
             return null;
@@ -44,14 +47,14 @@ final class ContentCache {
             entries.remove(key);
             return null;
         }
-        return entry.projects();
+        return entry.result();
     }
 
-    synchronized void put(Key key, List<Modrinth.Project> projects) {
-        if (projects == null) {
+    synchronized void put(Key key, Result result) {
+        if (result == null || result.projects() == null || result.projects().isEmpty()) {
             return;
         }
-        entries.put(key, new Entry(List.copyOf(projects), System.currentTimeMillis() + ttlMs));
+        entries.put(key, new Entry(result, System.currentTimeMillis() + ttlMs));
         while (entries.size() > maxEntries) {
             Key eldest = entries.keySet().iterator().next();
             entries.remove(eldest);

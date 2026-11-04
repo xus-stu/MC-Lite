@@ -507,6 +507,7 @@ versions/26.1.2
 
 - `LauncherFrame` 仍有 **4644 行**，下载中心还剩版本列表、版本详情、项目详情三张卡片。
 - 1.2.3 审查遗留（P2，未修）：窗口最大化状态不持久化；manifest 为空时 `updateVersionPicker` 会在 EDT 扫 versions；busy 时从实例页点「启动所选实例」会静默丢弃 `pendingLaunch`。
+- `ContentPage` 仍向 `LauncherFrame` 暴露 `list()/model()/installButton()` 等访问器（所有权是名义上的），下一步改成 `appendResults/selectFirst/setStatusText` 这类窄方法。
 - 四个页面控件访问都已归零，接下来是 `DownloadPage` 和 `InstancesPage` 的包级字段。
 - `InstancesPage` 通过包级字段访问 owner 的 `config/gamePaths/allVersions/installedCache/selectedEntry`。
 - 页面类仍依赖 owner 回调，不是完全独立。

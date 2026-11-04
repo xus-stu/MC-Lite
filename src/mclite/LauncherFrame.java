@@ -471,9 +471,9 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel.setOpaque(false);
         downloadPage = new DownloadPage(this::scheduleSearch, this::setFilter, this::loadManifest,
                 this::openVersionDetail, this::showDownloadTab, () -> RegionGate.showGuide(this));
-        contentPage = new ContentPage(this::searchContent, this::openProjectDetail,
-                this::startContentInstall, this::importLocalModpack, this::openMcmod,
-                this::updateContentSelection, this::runContentSearch);
+        contentPage = new ContentPage(this::searchContent, this::refreshContent,
+                this::openProjectDetail, this::startContentInstall, this::importLocalModpack,
+                this::openMcmod, this::updateContentSelection, this::runContentSearch);
         contentCardsPanel.add(downloadPage.build(buildVersionList(),
                 contentPage.build(new ContentRenderer()), buildVersionDetailPage(),
                 buildProjectDetailPage()), "download");
@@ -2383,7 +2383,16 @@ public final class LauncherFrame extends JFrame {
         runContentSearch();
     }
 
+    private void refreshContent() {
+        contentPage.setPageIndex(0);
+        runContentSearch(true);
+    }
+
     private void runContentSearch() {
+        runContentSearch(false);
+    }
+
+    private void runContentSearch(boolean bypassCache) {
         if (contentPage.model() == null) {
             return;
         }
@@ -2412,10 +2421,14 @@ public final class LauncherFrame extends JFrame {
             @Override
             protected List<Modrinth.Project> doInBackground() throws Exception {
                 ContentCache.Key cacheKey = new ContentCache.Key(source, contentType, query,
-                        gameVersion, loader == null ? "" : loader, sort, pageNumber);
-                List<Modrinth.Project> cached = contentCache.get(cacheKey);
-                if (cached != null) {
-                    return cached;
+                        gameVersion, loader == null ? "" : loader, sort, pageNumber,
+                        config.forceModTranslation());
+                if (!bypassCache) {
+                    ContentCache.Result cached = contentCache.get(cacheKey);
+                    if (cached != null) {
+                        contentChineseTitles.putAll(cached.chineseTitles());
+                        return cached.projects();
+                    }
                 }
                 boolean cjkQuery = containsCjk(query);
                 List<Modrinth.Project> projects = cjkQuery ? new ArrayList<>()
@@ -2532,7 +2545,14 @@ public final class LauncherFrame extends JFrame {
                         pool.shutdownNow();
                     }
                 }
-                contentCache.put(cacheKey, enriched);
+                java.util.Map<String, String> cachedTitles = new java.util.HashMap<>();
+                for (Modrinth.Project project : enriched) {
+                    String chinese = contentChineseTitles.get(project.id());
+                    if (chinese != null) {
+                        cachedTitles.put(project.id(), chinese);
+                    }
+                }
+                contentCache.put(cacheKey, new ContentCache.Result(enriched, cachedTitles));
                 return enriched;
             }
 
@@ -2569,7 +2589,7 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void updateContentSelection() {
-        if (contentPage.list() == null) {
+        if (contentPage.list() == null || contentPage.installButton() == null) {
             return;
         }
         Modrinth.Project project = contentPage.list().getSelectedValue();
@@ -2584,6 +2604,7 @@ public final class LauncherFrame extends JFrame {
                     case "shader" -> "安装光影";
                     default -> "安装所选";
                 });
+        contentPage.setDetailEnabled(selected);
         contentPage.mcmodButton().setVisible(selected && project.mcmodUrl() != null
                 && !project.mcmodUrl().isBlank());
         if (selected) {

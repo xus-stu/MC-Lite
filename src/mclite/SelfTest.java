@@ -30,16 +30,20 @@ public final class SelfTest {
                     "author", 1, null, "mod");
             ContentCache cache = new ContentCache(60_000, 2);
             ContentCache.Key cacheKey = new ContentCache.Key("modrinth", "mod", "a", "26.1.2",
-                    "", "relevance", 0);
-            cache.put(cacheKey, List.of(cacheSample));
-            check(cache.get(cacheKey) != null && cache.get(cacheKey).size() == 1, "内容缓存命中");
+                    "", "relevance", 0, false);
+            ContentCache.Result cacheResult = new ContentCache.Result(List.of(cacheSample),
+                    Map.of("id", "中文名"));
+            cache.put(cacheKey, cacheResult);
+            check(cache.get(cacheKey) != null
+                    && cache.get(cacheKey).projects().size() == 1
+                    && "中文名".equals(cache.get(cacheKey).chineseTitles().get("id")), "内容缓存命中");
             ContentCache expired = new ContentCache(0, 2);
-            expired.put(cacheKey, List.of(cacheSample));
+            expired.put(cacheKey, cacheResult);
             check(expired.get(cacheKey) == null, "内容缓存过期");
-            cache.put(new ContentCache.Key("modrinth", "mod", "b", "26.1.2", "", "relevance", 0),
-                    List.of(cacheSample));
-            cache.put(new ContentCache.Key("modrinth", "mod", "c", "26.1.2", "", "relevance", 0),
-                    List.of(cacheSample));
+            cache.put(new ContentCache.Key("modrinth", "mod", "b", "26.1.2", "", "relevance", 0, false),
+                    cacheResult);
+            cache.put(new ContentCache.Key("modrinth", "mod", "c", "26.1.2", "", "relevance", 0, false),
+                    cacheResult);
             check(cache.size() == 2, "内容缓存上限");
             passed += 3;
 
