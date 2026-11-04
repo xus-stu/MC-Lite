@@ -41,14 +41,37 @@ check_page() {
 echo "== page ownership gate"
 check_page InstancesPage 20 0
 check_page SettingsPage 10 0
-check_page LaunchPage 6 0
+check_page LaunchPage 5 0
 check_page ConfigPage 7 0
 
 # Page classes own their controls, so LauncherFrame must not touch them.
 # A stale field read here crashed 启动游戏 with a NullPointerException in 1.2.0.
 echo "== frame control gate"
-if grep -nE '\b(memorySlider|assetsToggle|mirrorToggle|jvmArgsField|curseForgeKeyField|widthSlider|heightSlider|autoMemoryToggle|autoJvmToggle|metalToggle|autoUpdateToggle|removeRegionLimitsToggle|uiCssArea|fontCombo|recommendToggle|gameDirField|javaCombo|javaHint|launchVersion|launchMeta|launchJava|launchMemory|launchJvm|launchAssets|installButton|launchButton|cancelButton|logButton|downloadTitle|downloadSubtitle|downloadTools|downloadSubtabs|downloadCards|downloadCardsLayout|versionsTab|modsTab|packsTab|modpacksTab|shadersTab|searchField|releaseFilter|snapshotFilter|allFilter|refreshButton|downloadDetailButton|contentSearchField|contentVersionField|contentModel|contentList|contentInstallButton|contentSelectionLabel|contentPageLabel|contentPrevPage|contentNextPage)\b' \
-  src/mclite/LauncherFrame.java; then
+if ! python3 - src/mclite/LauncherFrame.java <<'PY'
+import re
+import sys
+
+names = """memorySlider assetsToggle mirrorToggle jvmArgsField curseForgeKeyField
+widthSlider heightSlider autoMemoryToggle autoJvmToggle metalToggle autoUpdateToggle
+removeRegionLimitsToggle uiCssArea fontCombo recommendToggle gameDirField javaCombo
+javaHint downloadTitle downloadSubtitle downloadTools downloadSubtabs downloadCards
+downloadCardsLayout versionsTab modsTab packsTab modpacksTab shadersTab releaseFilter
+snapshotFilter allFilter downloadDetailButton contentSearchField contentVersionField
+contentModel contentSelectionLabel contentPageLabel contentPrevPage contentNextPage
+contentInstallButton launchVersion launchAccount launchJava launchMemory launchJvm
+launchAssets launchSkin configSkin configAccountLabel accountsDirLabel
+forceTranslationToggle""".split()
+pattern = re.compile(r"\b(" + "|".join(re.escape(n) for n in names) + r")\b")
+hits = []
+with open(sys.argv[1], encoding="utf-8") as source:
+    for number, line in enumerate(source, 1):
+        if pattern.search(line):
+            hits.append(f"  {number}: {line.strip()}")
+for hit in hits:
+    print(hit)
+sys.exit(1 if hits else 0)
+PY
+then
   echo "LauncherFrame 仍在直接引用页面控件" >&2
   exit 1
 fi

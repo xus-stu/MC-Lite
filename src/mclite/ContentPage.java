@@ -31,6 +31,7 @@ final class ContentPage {
     private final Runnable onImport;
     private final Consumer<Modrinth.Project> onMcmod;
     private final Runnable onSelectionChanged;
+    private final Runnable onPageChanged;
     private JTextField searchField;
     private JTextField versionField;
     private Ui.DarkCombo<String> loaderCombo;
@@ -58,13 +59,15 @@ final class ContentPage {
     private String lastSearchedVersion = "";
 
     ContentPage(Runnable onSearch, Runnable onDetail, Runnable onInstall, Runnable onImport,
-                Consumer<Modrinth.Project> onMcmod, Runnable onSelectionChanged) {
+                Consumer<Modrinth.Project> onMcmod, Runnable onSelectionChanged,
+                Runnable onPageChanged) {
         this.onSearch = onSearch;
         this.onDetail = onDetail;
         this.onInstall = onInstall;
         this.onImport = onImport;
         this.onMcmod = onMcmod;
         this.onSelectionChanged = onSelectionChanged;
+        this.onPageChanged = onPageChanged;
     }
 
     JPanel build(ListCellRenderer<Modrinth.Project> renderer) {
@@ -280,7 +283,7 @@ final class ContentPage {
         prevPage.addActionListener(e -> {
             if (pageIndex > 0) {
                 pageIndex--;
-                onSearch.run();
+                onPageChanged.run();
             }
         });
         nextPage = Ui.smallButton(">", Ui.AccentButton.Style.GHOST);
@@ -288,7 +291,7 @@ final class ContentPage {
         nextPage.setMaximumSize(new Dimension(28, 30));
         nextPage.addActionListener(e -> {
             pageIndex++;
-            onSearch.run();
+            onPageChanged.run();
         });
         pageLabel = new JTextField("1");
         pageLabel.setFont(Theme.MONO);
@@ -350,7 +353,7 @@ final class ContentPage {
         }
         pageIndex = page - 1;
         pageLabel.setText(Integer.toString(page));
-        onSearch.run();
+        onPageChanged.run();
     }
 
     void updateSortOptions() {

@@ -319,22 +319,30 @@ public final class Updater {
 
     /** Version already staged in updates/pending.properties, or "" when none is ready. */
     private static String pendingVersion(Config config) {
-        Path pending = config.appHome().resolve("updates/pending.properties");
-        if (!Files.isRegularFile(pending)) {
+        try {
+            Path root = config.appHome().resolve("updates").toAbsolutePath().normalize();
+            Path pending = root.resolve("pending.properties");
+            if (!Files.isRegularFile(pending)) {
+                return "";
+            }
+            Properties properties = new Properties();
+            try (var in = Files.newInputStream(pending)) {
+                properties.load(in);
+            } catch (IOException ex) {
+                return "";
+            }
+            String version = properties.getProperty("version", "").trim();
+            String channel = properties.getProperty("channel", "").trim();
+            Path staged = safeStagedPath(properties.getProperty("jar", "").trim(), root);
+            if (!isSafeVersion(version) || compare(version, Version.VALUE) <= 0
+                    || !channel.equals(channel()) || staged == null
+                    || !Files.isRegularFile(staged)) {
+                return "";
+            }
+            return version;
+        } catch (RuntimeException ex) {
             return "";
         }
-        Properties properties = new Properties();
-        try (var in = Files.newInputStream(pending)) {
-            properties.load(in);
-        } catch (IOException ex) {
-            return "";
-        }
-        String version = properties.getProperty("version", "").trim();
-        String jar = properties.getProperty("jar", "").trim();
-        if (!isSafeVersion(version) || jar.isEmpty() || !Files.isRegularFile(Path.of(jar))) {
-            return "";
-        }
-        return version;
     }
 
     private static Release latestFromApi(HttpClient client) {

@@ -132,7 +132,6 @@ final class LaunchPage {
         form.add(LauncherLayout.sidebarNote("启动前会检查客户端、运行库和资源；缺失时会提示下载 / 修复。"));
         form.add(Box.createVerticalGlue());
         page.add(form, BorderLayout.CENTER);
-        owner.updateButtons();
         return page;
     }
 

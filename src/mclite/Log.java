@@ -13,6 +13,7 @@ public final class Log {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private static PrintWriter writer;
     private static Path file;
+    private static int linesSinceCheck;
 
     private Log() {
     }
@@ -24,8 +25,7 @@ public final class Log {
             Files.createDirectories(logFile.getParent());
             rotateIfLarge(logFile);
             file = logFile;
-            writer = new PrintWriter(Files.newBufferedWriter(logFile, StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND), true);
+            writer = newWriter(logFile);
             Runtime.getRuntime().addShutdownHook(new Thread(Log::close, "mclite-log-close"));
             info("MC Lite 启动");
         } catch (IOException ex) {
@@ -43,6 +43,41 @@ public final class Log {
             Files.move(logFile, old, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
             System.err.println("无法轮转日志文件: " + ex.getMessage());
+        }
+    }
+
+    private static PrintWriter newWriter(Path logFile) throws IOException {
+        return new PrintWriter(Files.newBufferedWriter(logFile, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND), true);
+    }
+
+    /** Long-running sessions also rotate: checked every 200 lines instead of only at startup. */
+    private static void maybeRotate() {
+        if (writer == null || file == null || ++linesSinceCheck < 200) {
+            return;
+        }
+        linesSinceCheck = 0;
+        try {
+            if (Files.size(file) <= MAX_LOG_BYTES) {
+                return;
+            }
+            writer.close();
+            writer = null;
+            Path old = file.resolveSibling(file.getFileName() + ".1");
+            try {
+                Files.move(file, old, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ex) {
+                System.err.println("无法轮转日志文件: " + ex.getMessage());
+            }
+            writer = newWriter(file);
+        } catch (IOException ex) {
+            System.err.println("检查日志大小失败: " + ex.getMessage());
+            if (writer == null) {
+                try {
+                    writer = newWriter(file);
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
 
@@ -70,6 +105,7 @@ public final class Log {
             if (error != null) {
                 error.printStackTrace(writer);
             }
+            maybeRotate();
         } else if (error != null) {
             error.printStackTrace(System.err);
         }
