@@ -57,6 +57,32 @@ public final class SkinStore {
         copyForGame(config, accountId);
     }
 
+    /** Saves an in-memory 64x64 skin (used by the built-in editor). */
+    public static void saveImage(Config config, String accountId, java.awt.image.BufferedImage image)
+            throws IOException {
+        if (image == null || image.getWidth() != 64 || image.getHeight() != 64) {
+            throw new IOException("编辑器只支持 64×64 皮肤");
+        }
+        Path target = skinFile(config, accountId);
+        if (target == null) {
+            throw new IOException("没有选中的账户");
+        }
+        Files.createDirectories(target.getParent());
+        Path temp = target.resolveSibling(target.getFileName() + ".tmp");
+        try {
+            java.awt.image.BufferedImage copy = new java.awt.image.BufferedImage(
+                    64, 64, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            java.awt.Graphics2D g = copy.createGraphics();
+            g.drawImage(image, 0, 0, null);
+            g.dispose();
+            javax.imageio.ImageIO.write(copy, "png", temp.toFile());
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+        copyForGame(config, accountId);
+    }
+
     public static void remove(Config config, String accountId) {
         Path file = skinFile(config, accountId);
         if (file != null) {

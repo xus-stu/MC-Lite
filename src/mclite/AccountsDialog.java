@@ -98,6 +98,11 @@ public final class AccountsDialog extends JDialog {
         removeSkin.setAlignmentX(JLabel.CENTER_ALIGNMENT);
         removeSkin.addActionListener(e -> removeSkin());
         skinPanel.add(removeSkin);
+        skinPanel.add(Box.createVerticalStrut(5));
+        Ui.AccentButton paintSkin = Ui.smallButton("自绘皮肤…", Ui.AccentButton.Style.PRIMARY);
+        paintSkin.setAlignmentX(JLabel.CENTER_ALIGNMENT);
+        paintSkin.addActionListener(e -> paintSkin());
+        skinPanel.add(paintSkin);
         skinPanel.setPreferredSize(new Dimension(130, 0));
         skinPanel.setBorder(new EmptyBorder(10, 12, 10, 12));
         skinPanel.setBackground(Theme.CARD);
@@ -145,6 +150,16 @@ public final class AccountsDialog extends JDialog {
         actions.add(use);
         actions.add(delete);
         actions.add(close);
+        bottom.add(Ui.vgap(8));
+        JPanel accountTools = new JPanel(new GridLayout(1, 2, 8, 0));
+        accountTools.setOpaque(false);
+        Ui.AccentButton renameAccount = Ui.smallButton("重命名账户", Ui.AccentButton.Style.GHOST);
+        renameAccount.addActionListener(e -> renameAccount());
+        Ui.AccentButton duplicateAccount = Ui.smallButton("复制账户", Ui.AccentButton.Style.GHOST);
+        duplicateAccount.addActionListener(e -> duplicateAccount());
+        accountTools.add(renameAccount);
+        accountTools.add(duplicateAccount);
+        bottom.add(accountTools);
         bottom.add(actions);
         bottom.add(Ui.vgap(8));
         JLabel skinNote = new JLabel("<html><body style='width:500px'>皮肤文件会保存到账户目录；"
@@ -166,6 +181,115 @@ public final class AccountsDialog extends JDialog {
                 list.setSelectedIndex(i);
                 return;
             }
+        }
+        if (!model.isEmpty()) {
+            list.setSelectedIndex(0);
+        }
+        updateSkinPreview();
+    }
+
+    private AccountStore.Account selectedAccount() {
+        return list.getSelectedValue();
+    }
+
+    private void paintSkin() {
+        AccountStore.Account account = selectedAccount();
+        if (account == null) {
+            JOptionPane.showMessageDialog(this, "请先选择一个账户。");
+            return;
+        }
+        new SkinEditorDialog(this, config, account.id(), this::updateSkinPreview).setVisible(true);
+    }
+
+    private void renameAccount() {
+        AccountStore.Account account = selectedAccount();
+        if (account == null) {
+            JOptionPane.showMessageDialog(this, "请先选择一个账户。");
+            return;
+        }
+        String name = ModernDialogs.input(this, "重命名账户", "新的用户名（字母、数字、下划线，3-16 位）",
+                account.name());
+        if (name == null) {
+            return;
+        }
+        name = name.trim();
+        if (!Config.isValidUsername(name)) {
+            JOptionPane.showMessageDialog(this, "用户名不合法：3-16 位字母、数字或下划线。");
+            return;
+        }
+        AccountStore.Account renamed = AccountStore.create(name);
+        List<AccountStore.Account> accounts = new ArrayList<>(currentAccounts());
+        String selected = config.accountId();
+        for (int i = 0; i < accounts.size(); i++) {
+            if (accounts.get(i).id().equals(account.id())) {
+                accounts.set(i, renamed);
+                if (account.id().equals(selected)) {
+                    selected = renamed.id();
+                }
+                break;
+            }
+        }
+        AccountStore.save(config.accountsDir(), new AccountStore.Data(accounts, selected));
+        copySkin(account.id(), renamed.id());
+        if (renamed.id().equals(selected)) {
+            config.accountId(renamed.id());
+            config.username(renamed.name());
+            config.save();
+        }
+        reloadAccounts();
+    }
+
+    private void duplicateAccount() {
+        AccountStore.Account account = selectedAccount();
+        if (account == null) {
+            JOptionPane.showMessageDialog(this, "请先选择一个账户。");
+            return;
+        }
+        String name = ModernDialogs.input(this, "复制账户", "新用户名", account.name() + "2");
+        if (name == null) {
+            return;
+        }
+        name = name.trim();
+        if (!Config.isValidUsername(name)) {
+            JOptionPane.showMessageDialog(this, "用户名不合法：3-16 位字母、数字或下划线。");
+            return;
+        }
+        AccountStore.Account copy = AccountStore.create(name);
+        List<AccountStore.Account> accounts = new ArrayList<>(currentAccounts());
+        accounts.add(copy);
+        AccountStore.save(config.accountsDir(), new AccountStore.Data(accounts, config.accountId()));
+        copySkin(account.id(), copy.id());
+        reloadAccounts();
+        list.setSelectedValue(copy, true);
+    }
+
+    private List<AccountStore.Account> currentAccounts() {
+        List<AccountStore.Account> accounts = new ArrayList<>();
+        for (int i = 0; i < model.size(); i++) {
+            accounts.add(model.get(i));
+        }
+        return accounts;
+    }
+
+    private void copySkin(String fromId, String toId) {
+        try {
+            Path source = SkinStore.skinFile(config, fromId);
+            Path target = SkinStore.skinFile(config, toId);
+            if (source != null && target != null && java.nio.file.Files.isRegularFile(source)) {
+                java.nio.file.Files.createDirectories(target.getParent());
+                java.nio.file.Files.copy(source, target,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (Exception ex) {
+            Log.warn("复制皮肤失败: " + ex.getMessage());
+        }
+    }
+
+    private void reloadAccounts() {
+        AccountStore.Data data = AccountStore.load(config.accountsDir());
+        model.clear();
+        for (AccountStore.Account account : data.accounts()) {
+            model.addElement(account);
         }
         if (!model.isEmpty()) {
             list.setSelectedIndex(0);
