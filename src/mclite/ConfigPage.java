@@ -9,15 +9,33 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Image;
 import java.nio.file.Path;
+import java.util.List;
 
+/** Launcher configuration page: account, game directory and Java runtime. */
 final class ConfigPage {
     private final LauncherFrame owner;
+    private final Config config;
+    private final Runnable applyGameDir;
+    private final Runnable updateJavaHint;
+    private Ui.SkinHead accountSkin;
+    private JLabel accountLabel;
+    private JTextField gameDirField;
+    private Ui.AccentButton openDirButton;
+    private Ui.DarkCombo<LauncherFrame.JavaChoice> javaCombo;
+    private JTextArea javaHint;
+    private Ui.ToggleChip autoJavaToggle;
+    private boolean refreshingJavaCombo;
 
-    ConfigPage(LauncherFrame owner) {
+    ConfigPage(LauncherFrame owner, Config config, Runnable applyGameDir, Runnable updateJavaHint) {
         this.owner = owner;
+        this.config = config;
+        this.applyGameDir = applyGameDir;
+        this.updateJavaHint = updateJavaHint;
     }
 
     JPanel build() {
@@ -30,6 +48,92 @@ final class ConfigPage {
         return page;
     }
 
+    void setAccount(String username, Image skin) {
+        if (accountLabel != null) {
+            accountLabel.setText(username);
+        }
+        if (accountSkin != null) {
+            accountSkin.setSkin(skin);
+        }
+    }
+
+    String gameDirText() {
+        return gameDirField == null ? "" : gameDirField.getText().trim();
+    }
+
+    void setGameDirText(String text) {
+        if (gameDirField != null) {
+            gameDirField.setText(text);
+            gameDirField.setCaretPosition(0);
+        }
+    }
+
+    LauncherFrame.JavaChoice selectedJava() {
+        return javaCombo == null ? null : (LauncherFrame.JavaChoice) javaCombo.getSelectedItem();
+    }
+
+    void refreshJavaChoices(List<JavaManager.JavaInfo> infos, Path selectPath) {
+        if (javaCombo == null) {
+            return;
+        }
+        refreshingJavaCombo = true;
+        try {
+            javaCombo.removeAllItems();
+            javaCombo.addItem(new LauncherFrame.JavaChoice("自动选择（按版本匹配）", null));
+            for (JavaManager.JavaInfo info : infos) {
+                javaCombo.addItem(new LauncherFrame.JavaChoice(info.label(), info.path()));
+            }
+            Path wanted = selectPath;
+            if (wanted == null && !config.javaPath().isBlank()) {
+                try {
+                    wanted = Path.of(config.javaPath()).toAbsolutePath().normalize();
+                } catch (RuntimeException ignored) {
+                    wanted = null;
+                }
+            }
+            if (wanted == null) {
+                javaCombo.setSelectedIndex(0);
+            } else {
+                int index = 0;
+                for (int i = 0; i < javaCombo.getItemCount(); i++) {
+                    LauncherFrame.JavaChoice choice = javaCombo.getItemAt(i);
+                    if (choice.path() != null && choice.path().toAbsolutePath().normalize()
+                            .equals(wanted.toAbsolutePath().normalize())) {
+                        index = i;
+                        break;
+                    }
+                }
+                javaCombo.setSelectedIndex(index);
+            }
+        } finally {
+            refreshingJavaCombo = false;
+        }
+        updateJavaHint.run();
+    }
+
+    void setJavaHint(String text, Color color) {
+        if (javaHint == null) {
+            return;
+        }
+        javaHint.setText(text);
+        javaHint.setForeground(color);
+    }
+
+    void setJavaHintTooltip(String tooltip) {
+        if (javaHint != null) {
+            javaHint.setToolTipText(tooltip);
+        }
+    }
+
+    void setControlsEnabled(boolean enabled) {
+        for (javax.swing.JComponent component : new javax.swing.JComponent[]{
+                gameDirField, openDirButton, javaCombo}) {
+            if (component != null) {
+                component.setEnabled(enabled);
+            }
+        }
+    }
+
     private JPanel buildConfigForm() {
         JPanel form = new JPanel();
         form.setOpaque(false);
@@ -39,14 +143,14 @@ final class ConfigPage {
         JPanel account = LauncherLayout.section("账户", "离线账户只用于单机 / 局域网，正版服务器仍需正版登录");
         JPanel accountRow = new JPanel(new BorderLayout(10, 0));
         accountRow.setOpaque(false);
-        owner.configSkin = new Ui.SkinHead(36);
-        accountRow.add(owner.configSkin, BorderLayout.WEST);
+        accountSkin = new Ui.SkinHead(36);
+        accountRow.add(accountSkin, BorderLayout.WEST);
         JPanel accountText = new JPanel();
         accountText.setOpaque(false);
         accountText.setLayout(new BoxLayout(accountText, BoxLayout.Y_AXIS));
-        owner.configAccountLabel = Ui.label(owner.config.username(), Theme.BODY_BOLD, Theme.TEXT);
+        accountLabel = Ui.label(config.username(), Theme.BODY_BOLD, Theme.TEXT);
         JLabel accountType = Ui.label("离线账户", Theme.TINY, Theme.DIM);
-        accountText.add(owner.configAccountLabel);
+        accountText.add(accountLabel);
         accountText.add(Ui.vgap(1));
         accountText.add(accountType);
         accountRow.add(accountText, BorderLayout.CENTER);
@@ -57,7 +161,7 @@ final class ConfigPage {
         accountRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
         account.add(accountRow);
         account.add(Ui.vgap(7));
-        account.add(LauncherLayout.sidebarNote("账户保存在 " + owner.config.accountsDir()
+        account.add(LauncherLayout.sidebarNote("账户保存在 " + config.accountsDir()
                 + "，可在账户管理里修改保存目录；创建离线账户不需要密码。"));
         form.add(LauncherLayout.lockedHeight(account));
         form.add(Ui.vgap(30));
@@ -67,17 +171,17 @@ final class ConfigPage {
         JPanel directory = LauncherLayout.section("游戏目录", "版本、存档、资源和日志都会放在这个目录");
         JPanel dirRow = new JPanel(new BorderLayout(6, 0));
         dirRow.setOpaque(false);
-        owner.gameDirField = Ui.field(owner.config.gameDir().toString(), "游戏目录");
-        owner.gameDirField.setCaretPosition(0);
-        owner.gameDirField.setToolTipText("Minecraft 的 .minecraft 目录。");
-        owner.gameDirField.addActionListener(e -> owner.applyGameDirFromField());
-        owner.gameDirField.addFocusListener(new java.awt.event.FocusAdapter() {
+        gameDirField = Ui.field(config.gameDir().toString(), "游戏目录");
+        gameDirField.setCaretPosition(0);
+        gameDirField.setToolTipText("Minecraft 的 .minecraft 目录。");
+        gameDirField.addActionListener(e -> applyGameDir.run());
+        gameDirField.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
             public void focusLost(java.awt.event.FocusEvent e) {
-                owner.applyGameDirFromField();
+                applyGameDir.run();
             }
         });
-        dirRow.add(owner.gameDirField, BorderLayout.CENTER);
+        dirRow.add(gameDirField, BorderLayout.CENTER);
         Ui.AccentButton browseDir = Ui.smallButton("选择", Ui.AccentButton.Style.SECONDARY);
         browseDir.setPreferredSize(new Dimension(62, 32));
         browseDir.setMaximumSize(new Dimension(62, 32));
@@ -90,9 +194,9 @@ final class ConfigPage {
         JPanel dirLinks = new JPanel();
         dirLinks.setOpaque(false);
         dirLinks.setLayout(new BoxLayout(dirLinks, BoxLayout.X_AXIS));
-        owner.openDirButton = Ui.smallButton("打开游戏目录", Ui.AccentButton.Style.LINK);
-        owner.openDirButton.addActionListener(e -> owner.openGameDirectory());
-        dirLinks.add(owner.openDirButton);
+        openDirButton = Ui.smallButton("打开游戏目录", Ui.AccentButton.Style.LINK);
+        openDirButton.addActionListener(e -> owner.openGameDirectory());
+        dirLinks.add(openDirButton);
         dirLinks.add(Ui.hgap(16));
         Ui.AccentButton importInstance = Ui.smallButton("导入已有实例", Ui.AccentButton.Style.LINK);
         importInstance.addActionListener(e -> owner.chooseInstanceFolder());
@@ -106,12 +210,12 @@ final class ConfigPage {
         directory.add(dirLinks);
         directory.add(Ui.vgap(10));
         Ui.ToggleChip isolate = new Ui.ToggleChip("版本隔离（每个版本独立存档 / mods / 配置）");
-        isolate.setSelected(owner.config.isolateVersions());
+        isolate.setSelected(config.isolateVersions());
         isolate.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
         isolate.setAlignmentX(Component.LEFT_ALIGNMENT);
         isolate.addActionListener(e -> {
-            owner.config.isolateVersions(isolate.isSelected());
-            owner.config.save();
+            config.isolateVersions(isolate.isSelected());
+            config.save();
         });
         directory.add(isolate);
         directory.add(Ui.vgap(6));
@@ -125,20 +229,21 @@ final class ConfigPage {
         JPanel java = LauncherLayout.section("Java 运行时", "自动选择会优先匹配该版本需要的 Java 大版本");
         JPanel javaRow = new JPanel(new BorderLayout(6, 0));
         javaRow.setOpaque(false);
-        owner.javaCombo.setPreferredSize(new Dimension(100, 32));
-        owner.javaCombo.setEnabled(true);
-        owner.javaCombo.setOpaque(true);
-        owner.javaCombo.setBackground(Theme.CARD_ALT);
-        owner.javaCombo.addActionListener(e -> {
-            if (owner.refreshingJavaCombo) {
+        javaCombo = new Ui.DarkCombo<>();
+        javaCombo.setPreferredSize(new Dimension(100, 32));
+        javaCombo.setEnabled(true);
+        javaCombo.setOpaque(true);
+        javaCombo.setBackground(Theme.CARD_ALT);
+        javaCombo.addActionListener(e -> {
+            if (refreshingJavaCombo) {
                 return;
             }
-            LauncherFrame.JavaChoice choice = (LauncherFrame.JavaChoice) owner.javaCombo.getSelectedItem();
-            owner.config.javaPath(choice == null || choice.path() == null ? "" : choice.path().toString());
-            owner.config.save();
-            owner.updateJavaHint();
+            LauncherFrame.JavaChoice choice = (LauncherFrame.JavaChoice) javaCombo.getSelectedItem();
+            config.javaPath(choice == null || choice.path() == null ? "" : choice.path().toString());
+            config.save();
+            updateJavaHint.run();
         });
-        javaRow.add(owner.javaCombo, BorderLayout.CENTER);
+        javaRow.add(javaCombo, BorderLayout.CENTER);
         JPanel javaButtons = new JPanel();
         javaButtons.setOpaque(false);
         javaButtons.setLayout(new BoxLayout(javaButtons, BoxLayout.X_AXIS));
@@ -158,32 +263,31 @@ final class ConfigPage {
         javaRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         java.add(javaRow);
         java.add(Ui.vgap(6));
-        owner.javaHint = new JTextArea(2, 40);
-        owner.javaHint.setEditable(false);
-        owner.javaHint.setFocusable(false);
-        owner.javaHint.setOpaque(false);
-        owner.javaHint.setLineWrap(true);
-        owner.javaHint.setWrapStyleWord(true);
-        owner.javaHint.setFont(Theme.TINY);
-        owner.javaHint.setForeground(Theme.DIM);
-        owner.javaHint.setBorder(new EmptyBorder(0, 0, 0, 0));
-        owner.javaHint.setText("正在检测 Java…");
-        owner.javaHint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.javaHint.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        java.add(owner.javaHint);
+        javaHint = new JTextArea(2, 40);
+        javaHint.setEditable(false);
+        javaHint.setFocusable(false);
+        javaHint.setOpaque(false);
+        javaHint.setLineWrap(true);
+        javaHint.setWrapStyleWord(true);
+        javaHint.setFont(Theme.TINY);
+        javaHint.setForeground(Theme.DIM);
+        javaHint.setBorder(new EmptyBorder(0, 0, 0, 0));
+        javaHint.setText("正在检测 Java…");
+        javaHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        javaHint.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        java.add(javaHint);
         java.add(Ui.vgap(8));
-        owner.autoJavaToggle = new Ui.ToggleChip("缺少 Java 时自动从 Mojang 下载");
-        owner.autoJavaToggle.setSelected(owner.config.autoDownloadJava());
-        owner.autoJavaToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        owner.autoJavaToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        owner.autoJavaToggle.addActionListener(e -> {
-            owner.config.autoDownloadJava(owner.autoJavaToggle.isSelected());
-            owner.config.save();
+        autoJavaToggle = new Ui.ToggleChip("缺少 Java 时自动从 Mojang 下载");
+        autoJavaToggle.setSelected(config.autoDownloadJava());
+        autoJavaToggle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        autoJavaToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        autoJavaToggle.addActionListener(e -> {
+            config.autoDownloadJava(autoJavaToggle.isSelected());
+            config.save();
         });
-        java.add(owner.autoJavaToggle);
+        java.add(autoJavaToggle);
         form.add(LauncherLayout.lockedHeight(java));
         form.add(Box.createVerticalGlue());
         return form;
     }
-
 }

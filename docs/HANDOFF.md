@@ -74,7 +74,7 @@ usb-speed-sandisk.png
 关键文件：
 
 ```text
-src/mclite/LauncherFrame.java       主窗口，当前 5360 行
+src/mclite/LauncherFrame.java       主窗口，当前 5236 行
 src/mclite/InstancesPage.java       版本列表页
 src/mclite/SettingsPage.java        设置页
 src/mclite/LaunchPage.java          启动页
@@ -322,11 +322,11 @@ CI 由 tag `v*` 触发；不要重写已经推送的 tag。
 当前行数：
 
 ```text
-LauncherFrame   5360
+LauncherFrame   5236
 InstancesPage    371
 SettingsPage     674
 LaunchPage       135
-ConfigPage       189
+ConfigPage       293
 ```
 
 已拆出：
@@ -334,7 +334,7 @@ ConfigPage       189
 - `InstancesPage`：版本列表/实例详情
 - `SettingsPage`：设置页
 - `LaunchPage`：启动页
-- `ConfigPage`：启动器配置页
+- `ConfigPage`：启动器配置页（1.2.2 起控件也归页面所有）
 
 ### 所有权状态
 
@@ -345,12 +345,18 @@ owner.*          199 -> 10
 owner.<控件>     0
 ```
 
+`ConfigPage` 也已完成控件所有权拆分：
+
+```text
+owner.*          56 -> 7
+owner.<控件>     0
+```
+
 剩余债务：
 
 ```text
 InstancesPage  owner=19  controls=0
 LaunchPage     owner=45  controls=17
-ConfigPage     owner=56  controls=29
 ```
 
 `test/run-ci.sh` 当前基线：
@@ -359,7 +365,7 @@ ConfigPage     owner=56  controls=29
 InstancesPage <=20 / 0
 SettingsPage  <=10 / 0
 LaunchPage    <=45 / 17
-ConfigPage    <=56 / 29
+ConfigPage    <=7 / 0
 frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 ```
 
@@ -381,7 +387,7 @@ frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 
 2. **继续所有权拆分**
    - `LaunchPage`：把 `launchVersion`、`launchMeta`、`launchJava`、按钮等控件搬进页面。
-   - `ConfigPage`：把 `javaCombo`、`gameDirField`、`javaHint`、账户控件搬进页面。
+   - `ConfigPage`：已完成（56/29 → 7/0），可当模板。
    - 每搬一个，降低 CI 基线，不能只改文件位置。
 
 3. **拆 DownloadPage**
@@ -495,8 +501,8 @@ versions/26.1.2
 
 ## 8. 已知风险
 
-- `LauncherFrame` 仍有 **5360 行**，DownloadPage 未拆。
-- Launch/Config 控件所有权未完成，CI 只是锁住当前基线。
+- `LauncherFrame` 仍有 **5236 行**，DownloadPage 未拆。
+- `LaunchPage` 控件所有权未完成，CI 只是锁住当前基线。
 - `InstancesPage` 通过包级字段访问 owner 的 `config/gamePaths/allVersions/installedCache/selectedEntry`。
 - 页面类仍依赖 owner 回调，不是完全独立。
 - GUI 主要靠截图和手动检查，CI 不启动真实 Minecraft。

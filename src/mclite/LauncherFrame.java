@@ -85,11 +85,9 @@ public final class LauncherFrame extends JFrame {
             });
     final Set<String> installedCache = new HashSet<>();
     private final List<JavaManager.JavaInfo> javaInfos = new ArrayList<>();
-    final Ui.DarkCombo<JavaChoice> javaCombo = new Ui.DarkCombo<>();
+    private ConfigPage configPage;
 
     private JTextField searchField;
-    JTextField gameDirField;
-    Ui.ToggleChip autoJavaToggle;
     private Ui.SegmentButton releaseFilter;
     private Ui.SegmentButton snapshotFilter;
     private Ui.SegmentButton allFilter;
@@ -99,13 +97,11 @@ public final class LauncherFrame extends JFrame {
     Ui.AccentButton cancelButton;
     Ui.AccentButton logButton;
     private Ui.AccentButton tasksButton;
-    Ui.AccentButton openDirButton;
     private JLabel detailTitle;
     private JTextArea detailMeta;
     private JLabel statusLabel;
     private JLabel sourceLabel;
     private JLabel countLabel;
-    JTextArea javaHint;
     private JLabel emptyLabel;
     private JPanel listCards;
     private CardLayout listCardLayout;
@@ -207,16 +203,13 @@ public final class LauncherFrame extends JFrame {
     JLabel launchJvm;
     JLabel launchAssets;
     JLabel accountsDirLabel;
-    JLabel configAccountLabel;
     private Ui.SkinHead sidebarSkin;
     Ui.SkinHead launchSkin;
-    Ui.SkinHead configSkin;
 
     VersionManifest.VersionEntry selectedEntry;
     VersionMeta selectedMeta;
     private int selectionGeneration;
     private boolean refreshingList;
-    boolean refreshingJavaCombo;
     private boolean busy;
     private boolean manifestLoading;
     private CancellationToken taskToken;
@@ -528,7 +521,8 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel.add(new LaunchPage(this).build(), "launch");
         instancesPage = new InstancesPage(this);
         contentCardsPanel.add(instancesPage.build(), "instances");
-        contentCardsPanel.add(new ConfigPage(this).build(), "config");
+        configPage = new ConfigPage(this, config, this::applyGameDirFromField, this::updateJavaHint);
+        contentCardsPanel.add(configPage.build(), "config");
         settingsPage = new SettingsPage(this, config, taskCenter, this::updateLaunchInfo);
         contentCardsPanel.add(settingsPage.build(), "settings");
 
@@ -2364,7 +2358,7 @@ public final class LauncherFrame extends JFrame {
             }
             config.save();
             gamePaths = new GamePaths(instance);
-            gameDirField.setText(instance.toString());
+            configPage.setGameDirText(instance.toString());
             refreshAllVersions();
             refreshInstalledCache();
             applyFilter();
@@ -2513,7 +2507,7 @@ public final class LauncherFrame extends JFrame {
         }
         config.save();
         gamePaths = new GamePaths(instance);
-        gameDirField.setText(instance.toString());
+        configPage.setGameDirText(instance.toString());
         refreshAllVersions();
         refreshInstalledCache();
         applyFilter();
@@ -3465,9 +3459,6 @@ public final class LauncherFrame extends JFrame {
         if (launchAccount != null) {
             launchAccount.setText(config.username() + "  ·  离线账户");
         }
-        if (configAccountLabel != null) {
-            configAccountLabel.setText(config.username());
-        }
         java.awt.Image skin = SkinStore.load(config, config.accountId());
         if (sidebarSkin != null) {
             sidebarSkin.setSkin(skin);
@@ -3475,8 +3466,8 @@ public final class LauncherFrame extends JFrame {
         if (launchSkin != null) {
             launchSkin.setSkin(skin);
         }
-        if (configSkin != null) {
-            configSkin.setSkin(skin);
+        if (configPage != null) {
+            configPage.setAccount(config.username(), skin);
         }
         SkinStore.copyForGame(config, config.accountId());
         if (accountsDirLabel != null) {
@@ -3586,43 +3577,11 @@ public final class LauncherFrame extends JFrame {
     }
 
     void refreshJavaChoices(Path selectPath) {
-        refreshingJavaCombo = true;
-        try {
-            javaCombo.removeAllItems();
-            javaCombo.addItem(new JavaChoice("自动选择（按版本匹配）", null));
-            for (JavaManager.JavaInfo info : javaInfos) {
-                javaCombo.addItem(new JavaChoice(info.label(), info.path()));
-            }
-            Path wanted = selectPath;
-            if (wanted == null && !config.javaPath().isBlank()) {
-                try {
-                    wanted = Path.of(config.javaPath()).toAbsolutePath().normalize();
-                } catch (RuntimeException ignored) {
-                    wanted = null;
-                }
-            }
-            if (wanted == null) {
-                javaCombo.setSelectedIndex(0);
-            } else {
-                int index = 0;
-                for (int i = 0; i < javaCombo.getItemCount(); i++) {
-                    JavaChoice choice = javaCombo.getItemAt(i);
-                    if (choice.path() != null && choice.path().toAbsolutePath().normalize()
-                            .equals(wanted.toAbsolutePath().normalize())) {
-                        index = i;
-                        break;
-                    }
-                }
-                javaCombo.setSelectedIndex(index);
-            }
-        } finally {
-            refreshingJavaCombo = false;
-        }
-        updateJavaHint();
+        configPage.refreshJavaChoices(javaInfos, selectPath);
     }
 
     void updateJavaHint() {
-        if (javaHint == null || javaCombo == null) {
+        if (configPage == null) {
             return;
         }
         if (selectedMeta == null) {
@@ -3653,7 +3612,7 @@ public final class LauncherFrame extends JFrame {
             setJavaHint("将使用 Java " + java.major()
                     + (java.official() ? "（Mojang 官方）" : "（本机）"), Theme.DIM);
         }
-        javaHint.setToolTipText(java == null ? null : java.path().toString());
+        configPage.setJavaHintTooltip(java == null ? null : java.path().toString());
         if (launchJava != null) {
             launchJava.setText(java == null ? "未检测到"
                     : "Java " + java.major() + (java.official() ? " · 官方" : ""));
@@ -3661,12 +3620,11 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void setJavaHint(String text, Color color) {
-        javaHint.setText(text);
-        javaHint.setForeground(color);
+        configPage.setJavaHint(text, color);
     }
 
     private JavaManager.JavaInfo resolveJava(VersionMeta meta) {
-        JavaChoice choice = (JavaChoice) javaCombo.getSelectedItem();
+        JavaChoice choice = configPage.selectedJava();
         if (choice != null && choice.path() != null) {
             for (JavaManager.JavaInfo info : javaInfos) {
                 if (info.path().toAbsolutePath().normalize()
@@ -4094,7 +4052,7 @@ public final class LauncherFrame extends JFrame {
         }
         config.username(username);
         settingsPage.persistControls();
-        JavaChoice javaChoice = (JavaChoice) javaCombo.getSelectedItem();
+        JavaChoice javaChoice = configPage.selectedJava();
         config.javaPath(javaChoice == null || javaChoice.path() == null ? "" : javaChoice.path().toString());
         config.save();
 
@@ -4595,13 +4553,11 @@ public final class LauncherFrame extends JFrame {
         }
         versionList.setEnabled(enabled || busy);
         refreshButton.setEnabled(enabled && !manifestLoading);
-        gameDirField.setEnabled(enabled);
-        javaCombo.setEnabled(enabled);
+        configPage.setControlsEnabled(enabled);
         settingsPage.setControlsEnabled(enabled);
         releaseFilter.setEnabled(enabled);
         snapshotFilter.setEnabled(enabled);
         allFilter.setEnabled(enabled);
-        openDirButton.setEnabled(enabled);
         if (contentSearchField != null) {
             // 下载过程中仍允许浏览、搜索和翻页，只有安装按钮受 busy 限制。
             contentSearchField.setEnabled(true);
@@ -4623,12 +4579,9 @@ public final class LauncherFrame extends JFrame {
     }
 
     boolean applyGameDirFromField() {
-        if (gameDirField == null) {
-            return false;
-        }
-        String value = gameDirField.getText().trim();
+        String value = configPage.gameDirText();
         if (value.isEmpty()) {
-            gameDirField.setText(gamePaths.gameDir().toString());
+            configPage.setGameDirText(gamePaths.gameDir().toString());
             return true;
         }
         if (value.equals("~") || value.startsWith("~/")) {
@@ -4651,8 +4604,7 @@ public final class LauncherFrame extends JFrame {
             versionList.repaint();
             updateDetailForSelection();
         }
-        gameDirField.setText(path.toString());
-        gameDirField.setCaretPosition(0);
+        configPage.setGameDirText(path.toString());
         return true;
     }
 
@@ -4696,7 +4648,7 @@ public final class LauncherFrame extends JFrame {
             showError("目录不可用", "这个 HMCL 游戏目录里没有 versions 文件夹：\n" + entry.path());
             return;
         }
-        gameDirField.setText(entry.path().toString());
+        configPage.setGameDirText(entry.path().toString());
         applyGameDirFromField();
         statusLabel.setText("已读取 HMCL 游戏目录 · " + entry.path().getFileName());
         statusLabel.setForeground(Theme.ACCENT);
@@ -4713,9 +4665,7 @@ public final class LauncherFrame extends JFrame {
             gamePaths = new GamePaths(entry.path());
             config.gameDir(entry.path());
             config.save();
-            if (gameDirField != null) {
-                gameDirField.setText(entry.path().toString());
-            }
+            configPage.setGameDirText(entry.path().toString());
             Log.info("自动使用 HMCL 游戏目录: " + entry.path());
             return;
         }
@@ -4737,7 +4687,7 @@ public final class LauncherFrame extends JFrame {
                     + "请选择包含 versions/<版本>/<版本>.json 的 .minecraft 或整合包实例目录。");
             return;
         }
-        gameDirField.setText(candidate.toString());
+        configPage.setGameDirText(candidate.toString());
         if (applyGameDirFromField()) {
             statusLabel.setText("已导入实例 · " + candidate.getFileName());
             statusLabel.setForeground(Theme.ACCENT);
@@ -4750,7 +4700,7 @@ public final class LauncherFrame extends JFrame {
     void chooseGameDirectory() {
         Path selected = Ui.chooseDirectory(this, "选择 Minecraft 游戏目录", gamePaths.gameDir());
         if (selected != null) {
-            gameDirField.setText(selected.toString());
+            configPage.setGameDirText(selected.toString());
             applyGameDirFromField();
         }
     }
@@ -4912,9 +4862,7 @@ public final class LauncherFrame extends JFrame {
             taskToken.cancel();
         }
         settingsPage.persistControls();
-        if (gameDirField != null) {
-            applyGameDirFromField();
-        }
+        applyGameDirFromField();
         config.save();
         dispose();
         System.exit(0);
