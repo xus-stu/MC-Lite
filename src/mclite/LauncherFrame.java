@@ -203,7 +203,10 @@ public final class LauncherFrame extends JFrame {
         this.gamePaths = new GamePaths(config.gameDir());
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setMinimumSize(new Dimension(1100, 720));
-        setSize(1180, 900);
+        java.awt.Rectangle screen = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
+                .getMaximumWindowBounds();
+        setSize(Math.min(Math.max(1100, config.launcherWidth()), Math.max(1100, screen.width)),
+                Math.min(Math.max(720, config.launcherHeight()), Math.max(720, screen.height)));
         reloadAccounts();
         setContentPane(buildRoot());
         adoptHmclGameDirIfEmpty();
@@ -4642,6 +4645,10 @@ public final class LauncherFrame extends JFrame {
         }
         settingsPage.persistControls();
         applyGameDirFromField();
+        if ((getExtendedState() & java.awt.Frame.MAXIMIZED_BOTH) == 0) {
+            config.launcherWidth(getWidth());
+            config.launcherHeight(getHeight());
+        }
         config.save();
         dispose();
         System.exit(0);
