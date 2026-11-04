@@ -41,7 +41,7 @@ check_page() {
 echo "== page ownership gate"
 check_page InstancesPage 20 0
 check_page SettingsPage 10 0
-check_page LaunchPage 45 17
+check_page LaunchPage 6 0
 check_page ConfigPage 7 0
 
 # SettingsPage owns these controls, so LauncherFrame must not touch them.
