@@ -466,6 +466,32 @@ public final class SelfTest {
                 "地区版应用包保留地区版命名");
         passed++;
 
+        Path versionsRoot = work.resolve("instances");
+        Path sourceDir = versionsRoot.resolve("inst-a");
+        writeFile(sourceDir.resolve("inst-a.json"), "{\"id\":\"inst-a\"}");
+        writeFile(sourceDir.resolve("mods/a.jar"), "jar");
+        try {
+            InstanceService.copy(versionsRoot, "inst-a", "inst-b");
+            check(Files.isRegularFile(versionsRoot.resolve("inst-b/inst-b.json"))
+                    && !Files.exists(versionsRoot.resolve("inst-b/inst-a.json")),
+                    "实例复制并重写 id");
+            Path instanceZip = work.resolve("inst-b.zip");
+            InstanceService.exportZip(versionsRoot, "inst-b", instanceZip);
+            String importedId = InstanceService.importZip(versionsRoot, instanceZip, "inst-c");
+            check("inst-c".equals(importedId)
+                    && Files.isRegularFile(versionsRoot.resolve("inst-c/inst-c.json")),
+                    "实例导出导入 round-trip");
+        } catch (Exception ex) {
+            check(false, "实例复制/导出/导入: " + ex.getMessage());
+        }
+        InstanceMeta.put(work, "inst-a", "刷铁", "测试备注");
+        InstanceMeta.Entry instanceMeta = InstanceMeta.load(work).get("inst-a");
+        check(instanceMeta != null && "刷铁".equals(instanceMeta.group())
+                && "测试备注".equals(instanceMeta.note()), "实例分组备注读写");
+        InstanceMeta.rename(work, "inst-a", "inst-d");
+        check(InstanceMeta.load(work).containsKey("inst-d"), "实例备注跟随重命名");
+        passed += 4;
+
         return passed;
     }
 

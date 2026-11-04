@@ -470,7 +470,9 @@ public final class LauncherFrame extends JFrame {
                 projectDetailPage.build(new ProjectVersionRenderer())), "download");
         launchPage = new LaunchPage(this, config);
         contentCardsPanel.add(launchPage.build(), "launch");
-        instancesPage = new InstancesPage(this);
+        instancesPage = new InstancesPage(this, this::copySelectedInstance,
+                this::exportSelectedInstance, this::importInstanceZip, this::editInstanceMeta,
+                config::gameDir);
         contentCardsPanel.add(instancesPage.build(), "instances");
         configPage = new ConfigPage(this, config, this::applyGameDirFromField, this::updateJavaHint);
         contentCardsPanel.add(configPage.build(), "config");
@@ -701,6 +703,123 @@ public final class LauncherFrame extends JFrame {
         startRecommendations(items, entry.id(), loader, gameVersion);
     }
 
+    void copySelectedInstance() {
+        if (busyOrLaunching()) {
+            showError("暂时不能复制", "下载、安装或启动任务正在进行，请稍后再试。");
+            return;
+        }
+        VersionManifest.VersionEntry entry = instancesPage == null ? null : instancesPage.selected();
+        if (entry == null) {
+            showError("复制实例", "请先在左侧选择一个实例。");
+            return;
+        }
+        String value = ModernDialogs.input(this, "复制实例",
+                "新实例名称（字母、数字、点、下划线、短横线）", entry.id() + "-copy");
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        String newId = value.trim();
+        if (!newId.matches("[A-Za-z0-9._-]{1,64}")) {
+            showError("名称无效", "实例名称只能包含字母、数字、点、下划线和短横线。");
+            return;
+        }
+        try {
+            InstanceService.copy(gamePaths.versionsDir(), entry.id(), newId);
+        } catch (Exception ex) {
+            showError("复制失败", messageOf(ex, "请检查磁盘空间和实例文件夹权限。"));
+            return;
+        }
+        InstanceMeta.Entry meta = InstanceMeta.load(config.gameDir()).get(entry.id());
+        if (meta != null && meta.group() != null && !meta.group().isBlank()) {
+            InstanceMeta.put(config.gameDir(), newId, meta.group(), "");
+        }
+        refreshAllVersions();
+        refreshInstalledCache();
+        refreshInstancesPage();
+        if (instancesPage != null) {
+            instancesPage.selectId(newId);
+        }
+        statusLabel.setText("已复制实例 · " + newId);
+        statusLabel.setForeground(Theme.ACCENT);
+    }
+
+    void exportSelectedInstance() {
+        VersionManifest.VersionEntry entry = instancesPage == null ? null : instancesPage.selected();
+        if (entry == null) {
+            showError("导出实例", "请先在左侧选择一个实例。");
+            return;
+        }
+        Path target = Ui.chooseFile(this, "导出实例 ZIP",
+                Path.of(System.getProperty("user.home"), entry.id() + ".zip"), "zip");
+        if (target == null) {
+            return;
+        }
+        if (!target.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
+            target = target.resolveSibling(target.getFileName() + ".zip");
+        }
+        try {
+            InstanceService.exportZip(gamePaths.versionsDir(), entry.id(), target);
+        } catch (Exception ex) {
+            showError("导出失败", messageOf(ex, "请检查目标文件夹是否可写。"));
+            return;
+        }
+        statusLabel.setText("已导出实例 · " + target.getFileName());
+        statusLabel.setForeground(Theme.ACCENT);
+    }
+
+    void importInstanceZip() {
+        if (busyOrLaunching()) {
+            showError("暂时不能导入", "下载、安装或启动任务正在进行，请稍后再试。");
+            return;
+        }
+        Path archive = Ui.chooseFile(this, "导入实例 ZIP",
+                Path.of(System.getProperty("user.home")), "zip");
+        if (archive == null) {
+            return;
+        }
+        String base = archive.getFileName().toString().replaceFirst("(?i)\\.zip$", "");
+        String value = ModernDialogs.input(this, "导入实例", "导入后的实例名称", base);
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        try {
+            String created = InstanceService.importZip(gamePaths.versionsDir(), archive, value.trim());
+            refreshAllVersions();
+            refreshInstalledCache();
+            refreshInstancesPage();
+            if (instancesPage != null) {
+                instancesPage.selectId(created);
+            }
+            statusLabel.setText("已导入实例 · " + created);
+            statusLabel.setForeground(Theme.ACCENT);
+        } catch (Exception ex) {
+            showError("导入失败", messageOf(ex, "请确认 ZIP 是由本启动器导出的实例包。"));
+        }
+    }
+
+    void editInstanceMeta() {
+        VersionManifest.VersionEntry entry = instancesPage == null ? null : instancesPage.selected();
+        if (entry == null) {
+            showError("实例备注", "请先在左侧选择一个实例。");
+            return;
+        }
+        InstanceMeta.Entry current = InstanceMeta.load(config.gameDir()).get(entry.id());
+        String group = ModernDialogs.input(this, "实例分组", "分组名称（留空表示不分组）",
+                current == null ? "" : current.group());
+        if (group == null) {
+            return;
+        }
+        String note = ModernDialogs.input(this, "实例备注", "备注（留空表示清除）",
+                current == null ? "" : current.note());
+        if (note == null) {
+            return;
+        }
+        InstanceMeta.put(config.gameDir(), entry.id(), group, note);
+        refreshInstancesPage();
+        statusLabel.setText("已更新实例备注 · " + entry.id());
+        statusLabel.setForeground(Theme.ACCENT);
+    }
+
     void renameSelectedInstance() {
         if (busy || launching) {
             showError("暂时不能重命名", "下载、安装或启动任务正在进行，请稍后再试。");
@@ -755,6 +874,7 @@ public final class LauncherFrame extends JFrame {
             if (entry.id().equals(versionDetailId)) {
                 versionDetailId = newId;
             }
+            InstanceMeta.rename(config.gameDir(), entry.id(), newId);
             selectedEntry = new VersionManifest.VersionEntry(newId, "local",
                     null, null, "", 0, true);
             selectedMeta = null;
@@ -803,6 +923,7 @@ public final class LauncherFrame extends JFrame {
         }
         try {
             InstanceService.deleteTree(dir);
+            InstanceMeta.remove(config.gameDir(), entry.id());
             metaCache.remove(entry.id());
             installedCache.remove(entry.id());
             if (entry.id().equals(config.lastVersion())) {
