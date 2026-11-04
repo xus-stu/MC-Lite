@@ -6,10 +6,10 @@
 
 ```bash
 # 终端 1：启动 Bridge
-java -jar MCLite_v1.3.1.jar --py-bridge
+java -jar MCLite_v1.3.2.jar --py-bridge
 
 # 终端 2：运行示例
-python3 python/examples/api_tour.py
+PYTHONPATH=python python3 python/examples/api_tour.py
 ```
 
 依赖只有标准库和随包的 `mclite_bridge`，不需要 PySide6。

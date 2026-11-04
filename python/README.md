@@ -45,7 +45,7 @@ print(client.search("Sodium", "mod", "26.1.2", "fabric"))
 
 ```bash
 java -jar MCLite_v1.3.2.jar --py-bridge
-python3 python/examples/api_tour.py
+PYTHONPATH=python python3 python/examples/api_tour.py
 ```
 
 ## PySide6 前端

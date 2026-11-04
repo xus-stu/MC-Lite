@@ -133,7 +133,9 @@ final class SkinEditorDialog extends JDialog {
         Graphics2D g = result.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        if (existing != null) {
+        if (existing != null && existing.getHeight() == 32) {
+            g.drawImage(existing, 0, 0, null);
+        } else if (existing != null) {
             g.drawImage(existing, 0, 0, SIZE, SIZE, null);
         } else {
             g.setColor(new Color(0, 0, 0, 0));
@@ -248,6 +250,9 @@ final class SkinEditorDialog extends JDialog {
                 public void mousePressed(MouseEvent e) {
                     int x = e.getX() / ZOOM;
                     int y = e.getY() / ZOOM;
+                    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) {
+                        return;
+                    }
                     if (e.getButton() == MouseEvent.BUTTON3 || "pick".equals(tool)) {
                         color = new Color(canvas.getRGB(x, y), true);
                         return;

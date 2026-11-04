@@ -83,11 +83,11 @@ final class InstanceMeta {
         }
     }
 
-    static void put(Path gameDir, String id, String group, String note) {
+    static boolean put(Path gameDir, String id, String group, String note) {
         Map<String, Entry> entries = loadOrNull(gameDir);
         if (entries == null) {
             Log.warn("实例备注文件损坏，跳过写入以避免覆盖: " + file(gameDir));
-            return;
+            return false;
         }
         // 保存失败由调用方提示；这里不静默吞掉
         String cleanGroup = group == null ? "" : group.trim();
@@ -97,7 +97,7 @@ final class InstanceMeta {
         } else {
             entries.put(id, new Entry(cleanGroup, cleanNote));
         }
-        save(gameDir, entries);
+        return save(gameDir, entries);
     }
 
     static void remove(Path gameDir, String id) {

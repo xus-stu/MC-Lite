@@ -80,7 +80,9 @@ public final class SkinStore {
         } finally {
             Files.deleteIfExists(temp);
         }
-        copyForGame(config, accountId);
+        if (accountId.equals(config.accountId())) {
+            copyForGame(config, accountId);
+        }
     }
 
     public static void remove(Config config, String accountId) {
