@@ -1,5 +1,14 @@
 # MC Lite 更新记录
 
+## v1.2.1
+
+- 修复 1.2.0 的启动崩溃：`SettingsPage` 拆分后 `LauncherFrame` 仍引用已搬走的设置控件，点「启动游戏」报 `Cannot invoke "mclite.UI$ValueSlider.getValue()" because "this.memorySlider" is null`。
+- `startLaunch`、`setControlsEnabled`、`closeApplication` 改为委托 `SettingsPage`，删除 15 个失效控件字段。
+- 切换版本时「自动分配内存」推荐值、CurseForge key 保存恢复生效（此前因字段恒为 null 被静默跳过）。
+- CI 新增 frame control gate：`LauncherFrame` 不得再直接引用 `SettingsPage` 的控件。
+- 未引入新依赖，JAR 仍小于 700KB。
+
+
 ## v1.2.0
 
 - `SettingsPage` 完成所有权拆分：控件移入页面，构造时只传 Config、TaskCenter 和回调；`owner.` 调用 199→10，控件访问 0。

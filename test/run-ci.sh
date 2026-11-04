@@ -44,6 +44,15 @@ check_page SettingsPage 10 0
 check_page LaunchPage 45 17
 check_page ConfigPage 56 29
 
+# SettingsPage owns these controls, so LauncherFrame must not touch them.
+# A stale field read here crashed 启动游戏 with a NullPointerException in 1.2.0.
+echo "== frame control gate"
+if grep -nE '\b(memorySlider|assetsToggle|mirrorToggle|jvmArgsField|curseForgeKeyField|widthSlider|heightSlider|autoMemoryToggle|autoJvmToggle|metalToggle|autoUpdateToggle|removeRegionLimitsToggle|uiCssArea|fontCombo|recommendToggle)\b' \
+  src/mclite/LauncherFrame.java; then
+  echo "LauncherFrame 仍在直接引用 SettingsPage 的控件" >&2
+  exit 1
+fi
+
 # Bridge API smoke test: old /api and versioned /api/v1 must both answer.
 BRIDGE_HOME="$PWD/build/bridge-test-home"
 BRIDGE_GAME="$PWD/build/bridge-test-game"
