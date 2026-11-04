@@ -1,5 +1,12 @@
 # MC Lite 更新记录
 
+## v1.3.12
+
+- 新增模块化设置 API：`GET /api/config/schema` 返回可编辑设置的 key/label/type/min/max/value，外部界面（PySide6 等）可据此生成设置页并用 `PUT /api/config` 写回，无需修改启动器。
+- PySide6 新增「扩展设置」标签页，按 schema 动态渲染整数/开关/文本控件并保存。
+- Python 客户端新增 `config_schema()`；`python/README.md` 增加外部 UI 集成说明。
+
+
 ## v1.3.11
 
 - 设置页新增「启动 Python Bridge」：后台拉起 `--py-bridge`，自动生成 `~/.mclite/bridge.json`，不用再手敲终端命令。

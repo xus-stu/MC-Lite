@@ -34,6 +34,7 @@ class MainWindow(QtWidgets.QMainWindow if QtWidgets else object):
         tabs.addTab(self._logs_tab(), "日志")
         tabs.addTab(self._accounts_tab(), "账户")
         tabs.addTab(self._diagnostics_tab(), "诊断")
+        tabs.addTab(self._settings_tab(), "扩展设置")
         self.setCentralWidget(tabs)
 
         self.timer = QtCore.QTimer(self)
@@ -44,6 +45,7 @@ class MainWindow(QtWidgets.QMainWindow if QtWidgets else object):
         self.refresh_tasks()
         self.refresh_accounts()
         self.refresh_diagnostics()
+        self.refresh_schema()
 
     def _versions_tab(self):
         page = QtWidgets.QWidget()
@@ -168,6 +170,66 @@ class MainWindow(QtWidgets.QMainWindow if QtWidgets else object):
         self.diag_text.setReadOnly(True)
         layout.addWidget(self.diag_text)
         return page
+
+    def _settings_tab(self):
+        page = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(page)
+        self.schema_host = QtWidgets.QWidget()
+        self.schema_form = QtWidgets.QFormLayout(self.schema_host)
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self.schema_host)
+        layout.addWidget(scroll, 1)
+        bar = QtWidgets.QHBoxLayout()
+        reload_button = QtWidgets.QPushButton("重新读取")
+        reload_button.clicked.connect(self.refresh_schema)
+        save_button = QtWidgets.QPushButton("保存到启动器")
+        save_button.clicked.connect(self.save_schema)
+        bar.addWidget(reload_button)
+        bar.addWidget(save_button)
+        bar.addStretch(1)
+        layout.addLayout(bar)
+        self.schema_widgets = {}
+        return page
+
+    def refresh_schema(self) -> None:
+        try:
+            fields = self.client.config_schema()
+        except BridgeError:
+            return
+        while self.schema_form.rowCount():
+            self.schema_form.removeRow(0)
+        self.schema_widgets.clear()
+        for field in fields:
+            key = field.get("key", "")
+            kind = field.get("type", "text")
+            value = field.get("value")
+            if kind == "bool":
+                widget = QtWidgets.QCheckBox()
+                widget.setChecked(bool(value))
+            elif kind == "int":
+                widget = QtWidgets.QSpinBox()
+                widget.setRange(int(field.get("min", 0)), int(field.get("max", 999999)))
+                widget.setValue(int(value or 0))
+            else:
+                widget = QtWidgets.QLineEdit("" if value is None else str(value))
+            self.schema_widgets[key] = widget
+            self.schema_form.addRow(field.get("label", key), widget)
+
+    def save_schema(self) -> None:
+        values = {}
+        for key, widget in self.schema_widgets.items():
+            if isinstance(widget, QtWidgets.QCheckBox):
+                values[key] = widget.isChecked()
+            elif isinstance(widget, QtWidgets.QSpinBox):
+                values[key] = widget.value()
+            else:
+                values[key] = widget.text()
+        try:
+            self.client.update_config(**values)
+            QtWidgets.QMessageBox.information(self, "MC Lite", "设置已保存到启动器")
+        except BridgeError as error:
+            self.fail(error)
 
     def refresh_accounts(self) -> None:
         try:

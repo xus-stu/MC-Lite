@@ -30,7 +30,7 @@ public final class BridgeServer {
             "health", "info", "capabilities", "versions", "instances", "content.search",
             "content.project", "content.install", "tasks", "tasks.cancel", "tasks.clear",
             "config", "datapacks", "datapacks.install", "datapacks.sync",
-            "logs", "launch", "java", "accounts", "diagnostics");
+            "logs", "launch", "java", "accounts", "diagnostics", "config.schema");
     private final Config config;
     private final String token;
     private final HttpServer server;
@@ -212,6 +212,10 @@ public final class BridgeServer {
                 job.token.cancel();
                 send(exchange, 200, Map.of("cancelled", true));
             }
+            return;
+        }
+        if ("/api/config/schema".equals(path)) {
+            send(exchange, 200, configSchema());
             return;
         }
         if ("/api/config".equals(path)) {
@@ -522,6 +526,38 @@ public final class BridgeServer {
         }
         return Map.of("instance", instance == null ? "" : instance,
                 "packs", names, "worlds", GlobalDatapacks.worlds(gameDir).size());
+    }
+
+    /** Editable settings plus type hints, so an external UI can render a settings page. */
+    private List<Object> configSchema() {
+        Map<String, Object> values = publicConfig();
+        List<Object> schema = new ArrayList<>();
+        schema.add(field("memoryMb", "内存 (MB)", "int", 512, 32768, values));
+        schema.add(field("autoMemory", "自动分配内存", "bool", 0, 0, values));
+        schema.add(field("autoJvmTuning", "自动 JVM 优化", "bool", 0, 0, values));
+        schema.add(field("jvmArgs", "额外 JVM 参数", "text", 0, 0, values));
+        schema.add(field("isolateVersions", "版本隔离", "bool", 0, 0, values));
+        schema.add(field("downloadAssets", "下载完整资源", "bool", 0, 0, values));
+        schema.add(field("forceModTranslation", "强制中文名称", "bool", 0, 0, values));
+        schema.add(field("autoUpdate", "自动检查更新", "bool", 0, 0, values));
+        schema.add(field("windowWidth", "游戏窗口宽度", "int", 320, 3840, values));
+        schema.add(field("windowHeight", "游戏窗口高度", "int", 240, 2160, values));
+        schema.add(field("username", "离线用户名", "text", 0, 0, values));
+        return schema;
+    }
+
+    private Map<String, Object> field(String key, String label, String type,
+                                      int min, int max, Map<String, Object> values) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("key", key);
+        map.put("label", label);
+        map.put("type", type);
+        if (min != 0 || max != 0) {
+            map.put("min", min);
+            map.put("max", max);
+        }
+        map.put("value", values.get(key));
+        return map;
     }
 
     private Map<String, Object> publicConfig() {
