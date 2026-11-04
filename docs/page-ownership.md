@@ -26,6 +26,8 @@ ConfigPage    owner<=7  controls=0
 - 1.2.2：`ConfigPage` 自己创建并持有 `gameDirField`、`javaCombo`、`javaHint`、账户控件，只通过构造参数拿 `Config` 和两个回调；`owner.` 56 → 7，控件访问 29 → 0。
 - 1.2.2：`LaunchPage` 持有账户/版本/参数标签和四个按钮，暴露 `setVersion`、`setMeta`、`setBusy` 等窄方法；`owner.` 45 → 6，控件访问 17 → 0。
 
+- 1.2.3：`ContentPage` 接管内容浏览卡片的搜索栏、结果列表、分页和选中底栏；`LauncherFrame` 通过窄访问器（`query()`/`results()`/`selectedProjects()` 等）交互，不再持有这些控件。搜索结果缓存 `ContentCache` 独立成类，带 LRU 和 5 分钟 TTL。
+
 ## 未完成
 
 - `InstancesPage` 仍通过包级字段读 `owner.config/gamePaths/allVersions/installedCache/selectedEntry`（没有控件访问）。

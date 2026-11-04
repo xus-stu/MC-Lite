@@ -47,7 +47,7 @@ check_page ConfigPage 7 0
 # Page classes own their controls, so LauncherFrame must not touch them.
 # A stale field read here crashed 启动游戏 with a NullPointerException in 1.2.0.
 echo "== frame control gate"
-if grep -nE '\b(memorySlider|assetsToggle|mirrorToggle|jvmArgsField|curseForgeKeyField|widthSlider|heightSlider|autoMemoryToggle|autoJvmToggle|metalToggle|autoUpdateToggle|removeRegionLimitsToggle|uiCssArea|fontCombo|recommendToggle|gameDirField|javaCombo|javaHint|launchVersion|launchMeta|launchJava|launchMemory|launchJvm|launchAssets|installButton|launchButton|cancelButton|logButton|downloadTitle|downloadSubtitle|downloadTools|downloadSubtabs|downloadCards|downloadCardsLayout|versionsTab|modsTab|packsTab|modpacksTab|shadersTab|searchField|releaseFilter|snapshotFilter|allFilter|refreshButton|downloadDetailButton)\b' \
+if grep -nE '\b(memorySlider|assetsToggle|mirrorToggle|jvmArgsField|curseForgeKeyField|widthSlider|heightSlider|autoMemoryToggle|autoJvmToggle|metalToggle|autoUpdateToggle|removeRegionLimitsToggle|uiCssArea|fontCombo|recommendToggle|gameDirField|javaCombo|javaHint|launchVersion|launchMeta|launchJava|launchMemory|launchJvm|launchAssets|installButton|launchButton|cancelButton|logButton|downloadTitle|downloadSubtitle|downloadTools|downloadSubtabs|downloadCards|downloadCardsLayout|versionsTab|modsTab|packsTab|modpacksTab|shadersTab|searchField|releaseFilter|snapshotFilter|allFilter|refreshButton|downloadDetailButton|contentSearchField|contentVersionField|contentModel|contentList|contentInstallButton|contentSelectionLabel|contentPageLabel|contentPrevPage|contentNextPage)\b' \
   src/mclite/LauncherFrame.java; then
   echo "LauncherFrame 仍在直接引用页面控件" >&2
   exit 1
