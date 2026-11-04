@@ -51,6 +51,124 @@ usb-speed-sandisk.png
 
 ---
 
+## 1.1 文件存放目录
+
+### 仓库目录
+
+```text
+/Users/xiaoxu/PycharmProjects/Java/
+├── src/mclite/          Java 源码
+├── assets/              图标等打包资源
+├── benchmark/           可选跑分模块源码
+├── test/                手动测试 + 无网络回归测试
+├── python/              可选 Python Bridge 模块源码
+├── docs/                架构、页面所有权、Bridge 契约、交接文档
+├── installer/           Windows 安装器相关文件
+├── packaging/           打包资源
+├── build/               构建中间产物（不提交）
+├── dist/                发布产物（不提交）
+├── backup/              本地源码备份（.gitignore）
+└── .github/workflows/   CI 发布流程
+```
+
+关键文件：
+
+```text
+src/mclite/LauncherFrame.java       主窗口，当前 5360 行
+src/mclite/InstancesPage.java       版本列表页
+src/mclite/SettingsPage.java        设置页
+src/mclite/LaunchPage.java          启动页
+src/mclite/ConfigPage.java          启动器配置页
+src/mclite/BridgeServer.java        Python Bridge HTTP API
+src/mclite/Version.java             启动器版本常量
+CHANGELOG.md                        发布说明来源
+VERSION                             当前版本号
+build.sh / test.sh / test-update.sh
+```
+
+### 本地运行数据
+
+启动器自己的数据在：
+
+```text
+~/.mclite/
+├── config.properties   用户配置
+├── accounts/           离线账户与皮肤
+├── cache/icons/        远程图标缓存
+├── java/               自动下载的 Java 运行时
+│   └── java-runtime-epsilon/
+├── logs/launcher.log   启动器日志
+├── updates/            更新暂存区
+└── bridge.json         --py-bridge 运行时生成，退出后删除
+```
+
+注意：`bridge.json` 只在 Bridge 运行期间存在，里面有临时 token，不要提交。
+
+### 用户游戏目录
+
+不在仓库内：
+
+```text
+/Users/xiaoxu/Desktop/MC/
+├── versions/26.1.2/            当前主要实例
+│   ├── mods/                   启用的模组
+│   ├── mods-disabled/          已移出的冲突/不兼容模组
+│   ├── datapacks/              实例级全局数据包
+│   ├── saves/                  存档
+│   │   └── <世界>/players/data/<uuid>.dat
+│   ├── config/                 模组和 Tectonic 配置
+│   ├── logs/                   latest.log / 历史日志
+│   ├── crash-reports/          崩溃报告
+│   ├── shaderpacks/            Iris 光影
+│   └── resourcepacks/          资源包
+└── versions/<其他实例>/         MITE、Fabric、NeoForge 等
+```
+
+**重要**：26.1.2 的玩家数据目录是：
+
+```text
+saves/<世界>/players/data/<uuid>.dat
+```
+
+不是旧版的 `playerdata/`。迁移/编辑玩家数据前确认路径。
+
+### 发布产物
+
+```text
+dist/
+├── MCLite_v1.2.0.jar
+├── MCLite_v1.2.0-region.jar
+├── MCLitePyBridge_v1.2.0.zip
+├── MC-Lite_v1.2.0_region_Windows.zip
+├── MCLiteBenchmark.jar
+└── SHA256SUMS.txt
+```
+
+- 主 JAR 和地区版 JAR 由 `build.sh` 生成。
+- macOS app 在 macOS 上生成到 `dist/MC Lite*.app`。
+- Python 模块是单独的 ZIP，解压到任意目录使用，不需要放进游戏目录。
+- 不要手动改 `dist/` 里的产物；重新构建。
+
+### 备份与截图
+
+```text
+backup/
+├── LauncherFrame-v1.1.77.java
+└── ModernDialogs-v1.1.77.java
+```
+
+- Git 备份标签：`v1.1.77-before-ui-split`
+- 游戏数据备份通常命名为 `*.bak-*`，例如：
+
+```text
+versions/26.1.2/saves/<世界>/players/data/<uuid>.dat.bak-inventory
+versions/26.1.2/config/tectonic.json.bak
+```
+
+- `docs/*.png` 是仓库内的界面截图；临时截图放 `/tmp/`，不要提交。
+
+---
+
 ## 2. 硬约束
 
 1. **JAR 必须小于 700KB**
