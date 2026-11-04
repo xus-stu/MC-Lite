@@ -151,6 +151,11 @@ final class SettingsPage {
         installPython.setToolTipText("把 Bridge 的 Python 客户端安装到指定解释器，PyCharm 里可直接 import");
         installPython.addActionListener(e -> installPythonModule());
         settingsActions.add(installPython);
+        Ui.AccentButton startBridge = Ui.smallButton("启动 Python Bridge",
+                Ui.AccentButton.Style.GHOST);
+        startBridge.setToolTipText("后台启动 Bridge，生成 ~/.mclite/bridge.json 供 Python 脚本连接");
+        startBridge.addActionListener(e -> startPythonBridge());
+        settingsActions.add(startBridge);
         settingsActions.add(Ui.hgap(6));
         Ui.AccentButton checkUpdate = Ui.smallButton("检查更新", Ui.AccentButton.Style.GHOST);
         checkUpdate.addActionListener(e -> Updater.checkNow(config, owner,
@@ -655,6 +660,29 @@ final class SettingsPage {
         Theme.setFontFamily(family);
         Theme.install();
         restartFrame();
+    }
+
+    private void startPythonBridge() {
+        String classPath = System.getProperty("java.class.path", "");
+        java.nio.file.Path jar = classPath.endsWith(".jar") ? java.nio.file.Path.of(classPath) : null;
+        if (jar == null || !java.nio.file.Files.isRegularFile(jar)) {
+            ModernDialogs.message(owner, "Python Bridge",
+                    "当前不是以 JAR 方式启动，无法自动拉起 Bridge。\n"
+                            + "请在终端执行：java -jar <启动器>.jar --py-bridge");
+            return;
+        }
+        try {
+            java.nio.file.Path javaBin = java.nio.file.Path.of(System.getProperty("java.home"),
+                    "bin", "java");
+            new ProcessBuilder(javaBin.toString(), "-jar", jar.toString(), "--py-bridge")
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            ModernDialogs.message(owner, "Python Bridge",
+                    "Bridge 已在后台启动。\n稍等 1-2 秒，~/.mclite/bridge.json 生成后即可运行 Python 脚本。");
+        } catch (Exception ex) {
+            ModernDialogs.message(owner, "Python Bridge", "启动失败：" + ex.getMessage());
+        }
     }
 
     private void installPythonModule() {

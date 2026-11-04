@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # 逐行注释版 Bridge API 示例：把启动器能通过 HTTP 暴露的能力全部走一遍。
 # 每一行代码后面的注释说明这一行在干什么、对应哪个 API。
-# 运行前先启动 Bridge：java -jar MCLite_v1.3.10.jar --py-bridge
+# 运行前先启动 Bridge：java -jar MCLite_v1.3.11.jar --py-bridge
 # Bridge 会在 ~/.mclite/bridge.json 写入 url 和临时 token。
 
 import json  # 标准库：把返回的 JSON 打印得好看一点
@@ -23,7 +23,13 @@ def show(title, value):  # 定义一个打印函数，统一输出格式
 
 
 def main():  # 主流程：所有 API 调用都写在这里
-    client = BridgeClient.from_file()  # 从 ~/.mclite/bridge.json 读取 url 和 token 并连接
+    try:  # Bridge 必须在运行，bridge.json 才会存在
+        client = BridgeClient.from_file()  # 从 ~/.mclite/bridge.json 读取 url 和 token 并连接
+    except FileNotFoundError:  # 没找到 bridge.json：Bridge 没启动
+        print("Bridge 没有在运行：~/.mclite/bridge.json 不存在。", file=sys.stderr)  # 说明失败原因
+        print("先保持一个终端运行：java -jar \"/你的路径/MCLite_v1.3.11.jar\" --py-bridge", file=sys.stderr)  # 给出启动命令
+        print("然后不要关那个终端，再重新运行本脚本。", file=sys.stderr)  # 提醒 Bridge 要常驻
+        raise SystemExit(1)  # 直接退出
     show("health", client.health())  # GET /api/health：健康检查，无需 token
     show("info", client.info())  # GET /api/info：启动器版本、游戏目录、当前用户名
     show("capabilities", client.capabilities())  # GET /api/capabilities：当前服务端支持的能力列表
@@ -76,5 +82,5 @@ if __name__ == "__main__":  # 只有直接运行脚本时才执行
         main()  # 调用主流程
     except Exception as error:  # Bridge 未启动 / token 失效 / 端口被占用都会到这里
         print("API 示例运行失败：", error, file=sys.stderr)  # 打印错误到 stderr
-        print("请先运行：java -jar MCLite_v1.3.10.jar --py-bridge", file=sys.stderr)  # 提示启动 Bridge
+        print("提示：先运行 java -jar <启动器>.jar --py-bridge，并保持终端开启。", file=sys.stderr)  # 提示启动 Bridge
         sys.exit(1)  # 用非零退出码表示失败
