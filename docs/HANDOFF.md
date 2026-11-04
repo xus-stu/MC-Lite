@@ -181,7 +181,9 @@ versions/26.1.2/config/tectonic.json.bak
    - 冻结期只接受修复类补丁（如 1.2.1 的启动崩溃）；新功能、重构、发版都要先得到用户明确要求。
 
 3. **发布必须是真实 Release**
-   - 有版本 tag、JAR、macOS/Windows 包、`SHA256SUMS.txt`。
+   - 有版本 tag、JAR、Windows 包、`SHA256SUMS.txt`。
+   - 当前 CI 上传：地区版 JAR、Windows 包、`MCLiteBenchmark.jar`、Python Bridge ZIP、`SHA256SUMS.txt`。
+   - macOS `.app` 和 macOS ZIP 只在本地 `build.sh` 生成，CI 用的是 Linux runner，不会上传。
    - 不能只给源码或口头说明。
 
 4. **不要提交用户游戏目录**
