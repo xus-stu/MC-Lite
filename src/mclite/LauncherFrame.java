@@ -86,16 +86,13 @@ public final class LauncherFrame extends JFrame {
     final Set<String> installedCache = new HashSet<>();
     private final List<JavaManager.JavaInfo> javaInfos = new ArrayList<>();
     private ConfigPage configPage;
+    private LaunchPage launchPage;
 
     private JTextField searchField;
     private Ui.SegmentButton releaseFilter;
     private Ui.SegmentButton snapshotFilter;
     private Ui.SegmentButton allFilter;
     private Ui.AccentButton refreshButton;
-    Ui.AccentButton installButton;
-    Ui.AccentButton launchButton;
-    Ui.AccentButton cancelButton;
-    Ui.AccentButton logButton;
     private Ui.AccentButton tasksButton;
     private JLabel detailTitle;
     private JTextArea detailMeta;
@@ -195,16 +192,8 @@ public final class LauncherFrame extends JFrame {
     private record DependencyLink(String projectId, String source, String title) {
     }
     private JLabel sidebarAccount;
-    JLabel launchAccount;
-    JLabel launchVersion;
-    JTextArea launchMeta;
-    JLabel launchJava;
-    JLabel launchMemory;
-    JLabel launchJvm;
-    JLabel launchAssets;
     JLabel accountsDirLabel;
     private Ui.SkinHead sidebarSkin;
-    Ui.SkinHead launchSkin;
 
     VersionManifest.VersionEntry selectedEntry;
     VersionMeta selectedMeta;
@@ -518,7 +507,8 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel = new Ui.FadePanel(contentCards);
         contentCardsPanel.setOpaque(false);
         contentCardsPanel.add(buildDownloadPage(), "download");
-        contentCardsPanel.add(new LaunchPage(this).build(), "launch");
+        launchPage = new LaunchPage(this, config);
+        contentCardsPanel.add(launchPage.build(), "launch");
         instancesPage = new InstancesPage(this);
         contentCardsPanel.add(instancesPage.build(), "instances");
         configPage = new ConfigPage(this, config, this::applyGameDirFromField, this::updateJavaHint);
@@ -1027,14 +1017,14 @@ public final class LauncherFrame extends JFrame {
     }
 
     void updateLaunchInfo() {
-        if (launchVersion == null) {
+        if (launchPage == null) {
             return;
         }
-        launchVersion.setText(selectedEntry == null ? "未选择版本" : selectedEntry.id());
+        launchPage.setVersion(selectedEntry == null ? "未选择版本" : selectedEntry.id());
         updateVersionPicker();
-        launchMeta.setText(detailMeta == null ? "" : detailMeta.getText());
-        launchAccount.setText(config.username() + "  ·  离线账户");
-        launchMemory.setText((selectedMeta != null ? config.effectiveMemoryMb(selectedMeta)
+        launchPage.setMeta(detailMeta == null ? "" : detailMeta.getText());
+        launchPage.setAccountName(config.username());
+        launchPage.setMemory((selectedMeta != null ? config.effectiveMemoryMb(selectedMeta)
                 : config.effectiveMemoryMb(selectedEntry == null ? null : selectedEntry.id()))
                 + " MB" + (config.autoMemory() ? "（自动）" : ""));
         String jvm = config.jvmArgs().isBlank() ? "" : config.jvmArgs();
@@ -1042,11 +1032,11 @@ public final class LauncherFrame extends JFrame {
             jvm = jvm.isBlank() ? "自动优化（按 Java/版本选择 GC）"
                     : jvm + "  ·  自动优化";
         }
-        launchJvm.setText(jvm.isBlank() ? "无额外参数" : jvm);
-        launchAssets.setText(config.downloadAssets() ? "完整资源" : "仅核心文件");
-        String java = launchJava == null ? null : launchJava.getText();
+        launchPage.setJvm(jvm.isBlank() ? "无额外参数" : jvm);
+        launchPage.setAssets(config.downloadAssets() ? "完整资源" : "仅核心文件");
+        String java = launchPage.javaText();
         if (java == null || java.isBlank()) {
-            launchJava.setText("自动选择");
+            launchPage.setJava("自动选择");
         }
     }
 
@@ -3456,15 +3446,12 @@ public final class LauncherFrame extends JFrame {
         if (sidebarAccount != null) {
             sidebarAccount.setText(config.username());
         }
-        if (launchAccount != null) {
-            launchAccount.setText(config.username() + "  ·  离线账户");
-        }
         java.awt.Image skin = SkinStore.load(config, config.accountId());
         if (sidebarSkin != null) {
             sidebarSkin.setSkin(skin);
         }
-        if (launchSkin != null) {
-            launchSkin.setSkin(skin);
+        if (launchPage != null) {
+            launchPage.setAccount(config.username(), skin);
         }
         if (configPage != null) {
             configPage.setAccount(config.username(), skin);
@@ -3581,20 +3568,16 @@ public final class LauncherFrame extends JFrame {
     }
 
     void updateJavaHint() {
-        if (configPage == null) {
+        if (configPage == null || launchPage == null) {
             return;
         }
         if (selectedMeta == null) {
             if (javaInfos.isEmpty()) {
                 setJavaHint("未检测到 Java；启动时会提示下载官方运行时", Theme.WARNING);
-                if (launchJava != null) {
-                    launchJava.setText("未检测到");
-                }
+                launchPage.setJava("未检测到");
             } else {
                 setJavaHint("自动选择；当前可用 Java " + javaInfos.get(0).major(), Theme.DIM);
-                if (launchJava != null) {
-                    launchJava.setText("Java " + javaInfos.get(0).major());
-                }
+                launchPage.setJava("Java " + javaInfos.get(0).major());
             }
             return;
         }
@@ -3613,10 +3596,8 @@ public final class LauncherFrame extends JFrame {
                     + (java.official() ? "（Mojang 官方）" : "（本机）"), Theme.DIM);
         }
         configPage.setJavaHintTooltip(java == null ? null : java.path().toString());
-        if (launchJava != null) {
-            launchJava.setText(java == null ? "未检测到"
-                    : "Java " + java.major() + (java.official() ? " · 官方" : ""));
-        }
+        launchPage.setJava(java == null ? "未检测到"
+                : "Java " + java.major() + (java.official() ? " · 官方" : ""));
     }
 
     private void setJavaHint(String text, Color color) {
@@ -3942,23 +3923,12 @@ public final class LauncherFrame extends JFrame {
         boolean local = hasSelection && selectedEntry.local();
         boolean assetsIncomplete = installed && gamePaths.hasMarker(selectedEntry.id())
                 && !gamePaths.assetsComplete(selectedEntry.id());
-        if (installButton != null) {
-            installButton.setText(local ? "本地实例" : installed ? "修复 / 更新" : "下载");
-            installButton.setEnabled(hasSelection && !local);
-        }
-        if (launchButton != null) {
-            launchButton.setText(!installed ? "下载并启动"
-                    : assetsIncomplete && config.downloadAssets() ? "补全资源并启动"
-                    : "启动游戏");
-            launchButton.setEnabled(hasSelection && !busy && manifest != null);
-        }
-        if (cancelButton != null) {
-            cancelButton.setVisible(busy);
-            cancelButton.setEnabled(busy);
-        }
-        if (logButton != null) {
-            logButton.setEnabled(!busy);
-        }
+        launchPage.setInstallButton(local ? "本地实例" : installed ? "修复 / 更新" : "下载",
+                hasSelection && !local);
+        launchPage.setLaunchButton(!installed ? "下载并启动"
+                : assetsIncomplete && config.downloadAssets() ? "补全资源并启动"
+                : "启动游戏", hasSelection && !busy && manifest != null);
+        launchPage.setBusy(busy);
         if (downloadDetailButton != null) {
             downloadDetailButton.setEnabled(hasSelection && !busy);
         }
@@ -4329,8 +4299,8 @@ public final class LauncherFrame extends JFrame {
         progressTimer.start();
         setControlsEnabled(false);
         updateButtons();
-        cancelButton.setVisible(true);
-        cancelButton.setEnabled(true);
+        launchPage.setCancelVisible(true);
+        launchPage.setCancelEnabled(true);
     }
 
     private void updateProgress() {
@@ -4401,7 +4371,7 @@ public final class LauncherFrame extends JFrame {
         }
         setControlsEnabled(true);
         updateButtons();
-        cancelButton.setVisible(false);
+        launchPage.setCancelVisible(false);
         updateDetailForSelection();
         updateJavaHint();
         updateContentSelection();
@@ -4427,7 +4397,7 @@ public final class LauncherFrame extends JFrame {
             statusLabel.setForeground(Theme.WARNING);
             progressBar.setIndeterminate(false);
             progressBar.setValue(0);
-            cancelButton.setEnabled(false);
+            launchPage.setCancelEnabled(false);
         }
     }
 
