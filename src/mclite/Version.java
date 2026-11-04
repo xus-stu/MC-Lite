@@ -22,6 +22,6 @@ public final class Version {
             }
         } catch (Exception ignored) {
         }
-        return "1.3.8";
+        return "1.3.9";
     }
 }

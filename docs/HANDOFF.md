@@ -1,7 +1,7 @@
 # MC Lite 接手工作指南
 
-> 给下一个 AI / 开发者的交接文档。当前版本 **1.3.8**，最新发布：
-> https://github.com/xus-stu/MC-Lite/releases/tag/v1.3.8
+> 给下一个 AI / 开发者的交接文档。当前版本 **1.3.9**，最新发布：
+> https://github.com/xus-stu/MC-Lite/releases/tag/v1.3.9
 >
 > 仓库：`git@github.com:xus-stu/MC-Lite.git`
 > 本地目录：`/Users/xiaoxu/PycharmProjects/Java`
@@ -23,7 +23,7 @@ cat VERSION
 预期：
 
 ```text
-VERSION = 1.3.8
+VERSION = 1.3.9
 SELF-TEST PASSED (74 checks)
 SELF-TEST PASSED (74 checks)
 HEADLESS REGRESSION PASSED
@@ -145,10 +145,10 @@ saves/<世界>/players/data/<uuid>.dat
 
 ```text
 dist/
-├── MCLite_v1.3.8.jar
-├── MCLite_v1.3.8-region.jar
-├── MCLitePyBridge_v1.3.8.zip
-├── MC-Lite_v1.3.8_region_Windows.zip
+├── MCLite_v1.3.9.jar
+├── MCLite_v1.3.9-region.jar
+├── MCLitePyBridge_v1.3.9.zip
+├── MC-Lite_v1.3.9_region_Windows.zip
 ├── MCLiteBenchmark.jar
 └── SHA256SUMS.txt
 ```
@@ -219,10 +219,10 @@ versions/26.1.2/config/tectonic.json.bak
 产物在 `dist/`：
 
 ```text
-MCLite_v1.3.8.jar
-MCLite_v1.3.8-region.jar
-MCLitePyBridge_v1.3.8.zip
-MC-Lite_v1.3.8_region_Windows.zip
+MCLite_v1.3.9.jar
+MCLite_v1.3.9-region.jar
+MCLitePyBridge_v1.3.9.zip
+MC-Lite_v1.3.9_region_Windows.zip
 MCLiteBenchmark.jar
 SHA256SUMS.txt
 ```
@@ -241,7 +241,7 @@ SHA256SUMS.txt
 ```
 
 - `test.sh`：构建 + 两个 JAR 自检 + `test/run-ci.sh`
-- `test-update.sh`：模拟 1.3.8 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
+- `test-update.sh`：模拟 1.3.9 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
 - `test/run-ci.sh` 包含：
   - LocalTest
   - JvmTunerTest
@@ -255,7 +255,7 @@ CI 只跑无网络、无 GUI 测试；不会真正启动 Minecraft。
 ### 截图检查
 
 ```bash
-java -jar dist/MCLite_v1.3.8.jar \
+java -jar dist/MCLite_v1.3.9.jar \
   --screenshot=/tmp/settings.png --page=settings
 ```
 
@@ -298,10 +298,10 @@ version-detail
 
 ```bash
 git add ...
-git commit -m "...; V1.3.8"
+git commit -m "...; V1.3.9"
 git push origin main
-git tag -a v1.3.8 -m "..."
-git push origin v1.3.8
+git tag -a v1.3.9 -m "..."
+git push origin v1.3.9
 ```
 
 CI 由 tag `v*` 触发；不要重写已经推送的 tag。
@@ -428,13 +428,13 @@ frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 可选模块，**不在主 JAR 内**：
 
 ```text
-dist/MCLitePyBridge_v1.3.8.zip
+dist/MCLitePyBridge_v1.3.9.zip
 ```
 
 启动：
 
 ```bash
-java -jar dist/MCLite_v1.3.8.jar --py-bridge
+java -jar dist/MCLite_v1.3.9.jar --py-bridge
 ```
 
 生成：
@@ -452,7 +452,7 @@ X-MCLite-Token: <token>
 ### Python 客户端 / UI
 
 ```bash
-python3 run_ui.py --jar /path/to/MCLite_v1.3.8.jar
+python3 run_ui.py --jar /path/to/MCLite_v1.3.9.jar
 ```
 
 `run_ui.py` 会找已安装 PySide6 的解释器。
@@ -537,7 +537,7 @@ versions/26.1.2
 ## 9. 接手检查清单
 
 - [ ] `git status` 没有意外修改
-- [ ] `VERSION` = 1.3.8
+- [ ] `VERSION` = 1.3.9
 - [ ] `./test.sh` 通过（74 checks + headless + bridge）
 - [ ] `./test-update.sh` 通过
 - [ ] JAR < 800KB
