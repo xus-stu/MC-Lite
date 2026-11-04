@@ -1,5 +1,10 @@
 # MC Lite 更新记录
 
+## v1.3.9
+
+- 「安装 Python 模块」改为自动检测解释器：扫描 PATH、Homebrew/系统目录、pyenv/conda，以及 `~/PycharmProjects/*/.venv|venv|env`，列出带版本号的候选；仍保留「浏览可执行文件…」兜底。
+
+
 ## v1.3.8
 
 - `mclite_bridge` 现在随 JAR 一起打包，设置页新增「安装 Python 模块…」：选择解释器即可离线 pip 安装，PyCharm 里可直接 `import mclite_bridge`。

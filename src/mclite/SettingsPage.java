@@ -658,8 +658,32 @@ final class SettingsPage {
     }
 
     private void installPythonModule() {
-        java.nio.file.Path python = Ui.chooseFile(owner, "选择 Python 解释器",
-                java.nio.file.Path.of("/usr/bin/python3"));
+        java.util.List<PythonLocator.Interpreter> interpreters = PythonLocator.detect();
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        for (PythonLocator.Interpreter interpreter : interpreters) {
+            labels.add(interpreter.label());
+        }
+        String browse = "浏览可执行文件…";
+        labels.add(browse);
+        String picked = ModernDialogs.choice(owner, "安装 Python 模块",
+                "自动检测到的解释器，选择要安装到的那个：", labels.toArray(new String[0]), labels.get(0));
+        if (picked == null) {
+            return;
+        }
+        java.nio.file.Path python = null;
+        for (PythonLocator.Interpreter interpreter : interpreters) {
+            if (interpreter.label().equals(picked)) {
+                python = interpreter.path();
+                break;
+            }
+        }
+        if (python == null) {
+            if (!browse.equals(picked)) {
+                return;
+            }
+            python = Ui.chooseFile(owner, "选择 Python 解释器",
+                    java.nio.file.Path.of("/usr/bin/python3"));
+        }
         if (python == null) {
             return;
         }
@@ -667,12 +691,13 @@ final class SettingsPage {
             ModernDialogs.message(owner, "Python 模块", "选择的文件不可用：" + python);
             return;
         }
+        final java.nio.file.Path targetPython = python;
         new javax.swing.SwingWorker<String, Void>() {
             @Override
             protected String doInBackground() {
                 try {
-                    PythonModuleInstaller.install(python);
-                    return "已安装到 " + python + "\n\n在 PyCharm 里重新加载解释器后即可 import mclite_bridge。";
+                    PythonModuleInstaller.install(targetPython);
+                    return "已安装到 " + targetPython + "\n\n在 PyCharm 里重新加载解释器后即可 import mclite_bridge。";
                 } catch (Exception ex) {
                     return "安装失败：" + (ex.getMessage() == null ? ex.toString() : ex.getMessage());
                 }
