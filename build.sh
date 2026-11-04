@@ -260,10 +260,12 @@ perl -0pi -e "s/MCLite-region\.jar/${REGION_JAR}/g" build/windows/MC-Lite-Region
 (cd build/windows && zip -rq "../../dist/${WIN_ZIP}" MC-Lite-Region)
 rm -f "dist/${WIN_ZIP}.sha256"
 
+# 校验值覆盖 dist 里全部可分发产物，避免漏掉 Benchmark / PyBridge。
+CHECK_FILES="${NORMAL_JAR} ${REGION_JAR} ${MAC_ZIP} ${REGION_MAC_ZIP} ${WIN_ZIP} ${PY_ZIP} MCLiteBenchmark.jar"
 if command -v shasum >/dev/null 2>&1; then
-  (cd dist && files="${REGION_JAR}"; for z in "${REGION_MAC_ZIP}" "${WIN_ZIP}"; do [ -f "$z" ] && files="$files $z"; done; shasum -a 256 $files > SHA256SUMS.txt)
+  (cd dist && files=""; for z in $CHECK_FILES; do [ -f "$z" ] && files="$files $z"; done; shasum -a 256 $files > SHA256SUMS.txt)
 else
-  (cd dist && files="${REGION_JAR}"; for z in "${REGION_MAC_ZIP}" "${WIN_ZIP}"; do [ -f "$z" ] && files="$files $z"; done; sha256sum $files > SHA256SUMS.txt)
+  (cd dist && files=""; for z in $CHECK_FILES; do [ -f "$z" ] && files="$files $z"; done; sha256sum $files > SHA256SUMS.txt)
 fi
 
 echo "[4/4] 完成。"
