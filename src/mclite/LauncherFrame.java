@@ -88,11 +88,6 @@ public final class LauncherFrame extends JFrame {
     private ConfigPage configPage;
     private LaunchPage launchPage;
 
-    private JTextField searchField;
-    private Ui.SegmentButton releaseFilter;
-    private Ui.SegmentButton snapshotFilter;
-    private Ui.SegmentButton allFilter;
-    private Ui.AccentButton refreshButton;
     private Ui.AccentButton tasksButton;
     private JLabel detailTitle;
     private JTextArea detailMeta;
@@ -120,19 +115,9 @@ public final class LauncherFrame extends JFrame {
     private Ui.AccentButton headerBackButton;
     private String currentTop = "download";
     private String currentDownloadCard = "versions";
-    private JPanel downloadTools;
+    private DownloadPage downloadPage;
     private JPanel sidebar;
     private Ui.AccentButton sidebarToggle;
-    private JLabel downloadTitle;
-    private JLabel downloadSubtitle;
-    private JPanel downloadCards;
-    private JPanel downloadSubtabs;
-    private CardLayout downloadCardsLayout;
-    private Ui.SegmentButton versionsTab;
-    private Ui.SegmentButton modsTab;
-    private Ui.SegmentButton packsTab;
-    private Ui.SegmentButton modpacksTab;
-    private Ui.SegmentButton shadersTab;
     private JTextField contentSearchField;
     private JTextField contentVersionField;
     private Ui.DarkCombo<String> contentLoaderCombo;
@@ -149,7 +134,6 @@ public final class LauncherFrame extends JFrame {
     private Ui.AccentButton contentImportButton;
     private Ui.AccentButton contentDetailButton;
     private JLabel contentSelectionLabel;
-    private Ui.AccentButton downloadDetailButton;
     private String contentType = "mod";
     private boolean contentSearching;
     private int contentPage;
@@ -506,7 +490,10 @@ public final class LauncherFrame extends JFrame {
         contentCards = new CardLayout();
         contentCardsPanel = new Ui.FadePanel(contentCards);
         contentCardsPanel.setOpaque(false);
-        contentCardsPanel.add(buildDownloadPage(), "download");
+        downloadPage = new DownloadPage(this::scheduleSearch, this::setFilter, this::loadManifest,
+                this::openVersionDetail, this::showDownloadTab, () -> RegionGate.showGuide(this));
+        contentCardsPanel.add(downloadPage.build(buildVersionList(), buildContentPage(),
+                buildVersionDetailPage(), buildProjectDetailPage()), "download");
         launchPage = new LaunchPage(this, config);
         contentCardsPanel.add(launchPage.build(), "launch");
         instancesPage = new InstancesPage(this);
@@ -536,155 +523,6 @@ public final class LauncherFrame extends JFrame {
         content.add(status, BorderLayout.SOUTH);
         content.setComponentZOrder(status, 0);
         return content;
-    }
-
-    private JPanel buildDownloadPage() {
-        JPanel page = new JPanel(new BorderLayout());
-        page.setOpaque(true);
-        page.setBackground(Theme.BG);
-        page.add(buildDownloadTopbar(), BorderLayout.NORTH);
-
-        JPanel middle = new JPanel(new BorderLayout());
-        middle.setOpaque(false);
-        downloadSubtabs = buildDownloadSubtabs();
-        middle.add(downloadSubtabs, BorderLayout.NORTH);
-        downloadCardsLayout = new CardLayout();
-        downloadCards = new Ui.FadePanel(downloadCardsLayout);
-        downloadCards.setOpaque(false);
-        downloadCards.add(buildVersionList(), "versions");
-        downloadCards.add(buildContentPage(), "content");
-        downloadCards.add(buildVersionDetailPage(), "versionDetail");
-        downloadCards.add(buildProjectDetailPage(), "projectDetail");
-        middle.add(downloadCards, BorderLayout.CENTER);
-        page.add(middle, BorderLayout.CENTER);
-        return page;
-    }
-
-    private JPanel buildDownloadSubtabs() {
-        JPanel bar = new JPanel(new BorderLayout());
-        bar.setBackground(Theme.CARD);
-        bar.setBorder(BorderFactory.createCompoundBorder(
-                new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(4, 14, 4, 14)));
-        JPanel tabs = new JPanel();
-        tabs.setOpaque(false);
-        tabs.setLayout(new BoxLayout(tabs, BoxLayout.X_AXIS));
-        versionsTab = new Ui.SegmentButton("游戏版本");
-        modsTab = new Ui.SegmentButton("模组");
-        packsTab = new Ui.SegmentButton("资源包");
-        modpacksTab = new Ui.SegmentButton("整合包");
-        shadersTab = new Ui.SegmentButton("光影");
-        ButtonGroup group = new ButtonGroup();
-        group.add(versionsTab);
-        group.add(modsTab);
-        group.add(packsTab);
-        group.add(modpacksTab);
-        group.add(shadersTab);
-        versionsTab.setSelected(true);
-        versionsTab.addActionListener(e -> showDownloadTab("versions"));
-        modsTab.addActionListener(e -> showDownloadTab("mod"));
-        packsTab.addActionListener(e -> showDownloadTab("resourcepack"));
-        modpacksTab.addActionListener(e -> showDownloadTab("modpack"));
-        shadersTab.addActionListener(e -> showDownloadTab("shader"));
-        tabs.add(versionsTab);
-        tabs.add(modsTab);
-        tabs.add(packsTab);
-        tabs.add(modpacksTab);
-        tabs.add(shadersTab);
-        bar.add(tabs, BorderLayout.WEST);
-        return bar;
-    }
-
-    private JPanel buildDownloadTopbar() {
-        JPanel top = new JPanel(new BorderLayout(16, 0));
-        top.setBackground(Theme.CARD);
-        top.setBorder(BorderFactory.createCompoundBorder(
-                new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(8, 14, 8, 14)));
-
-        JPanel info = new JPanel();
-        info.setOpaque(false);
-        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
-        downloadTitle = Ui.label("下载中心", Theme.H2, Theme.TEXT);
-        downloadSubtitle = Ui.label("Mojang 官方清单 · 选择版本下载或启动", Theme.MONO, Theme.DIM);
-        downloadTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        downloadSubtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        info.add(downloadTitle);
-        info.add(Ui.vgap(1));
-        info.add(downloadSubtitle);
-        if (RegionGate.restricted()) {
-            JLabel notice = Ui.label("<html>为遵守相关法律法规，不提供游戏本体和整合包下载；<br>"
-                            + "模组、资源包、光影下载可用</html>", Theme.TINY, Theme.WARNING);
-            notice.setAlignmentX(Component.LEFT_ALIGNMENT);
-            notice.setCursor(java.awt.Cursor.getPredefinedCursor(
-                    java.awt.Cursor.HAND_CURSOR));
-            notice.addMouseListener(new java.awt.event.MouseAdapter() {
-                @Override
-                public void mouseClicked(java.awt.event.MouseEvent e) {
-                    RegionGate.showGuide(LauncherFrame.this);
-                }
-            });
-            info.add(Ui.vgap(3));
-            info.add(notice);
-        }
-        top.add(info, BorderLayout.CENTER);
-
-        JPanel tools = new JPanel();
-        tools.setOpaque(false);
-        tools.setLayout(new BoxLayout(tools, BoxLayout.X_AXIS));
-        downloadTools = tools;
-        searchField = Ui.field("搜索版本号，例如 1.20.1 / 26.3");
-        searchField.setPreferredSize(new Dimension(210, 30));
-        searchField.setMaximumSize(new Dimension(210, 30));
-        searchField.setAlignmentY(Component.CENTER_ALIGNMENT);
-        searchField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                scheduleSearch();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                scheduleSearch();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                scheduleSearch();
-            }
-        });
-        tools.add(searchField);
-        tools.add(Ui.hgap(8));
-
-        releaseFilter = new Ui.SegmentButton("正式版");
-        snapshotFilter = new Ui.SegmentButton("快照");
-        allFilter = new Ui.SegmentButton("全部");
-        ButtonGroup filters = new ButtonGroup();
-        filters.add(releaseFilter);
-        filters.add(snapshotFilter);
-        filters.add(allFilter);
-        releaseFilter.addActionListener(e -> setFilter("release"));
-        snapshotFilter.addActionListener(e -> setFilter("snapshot"));
-        allFilter.addActionListener(e -> setFilter("all"));
-        tools.add(releaseFilter);
-        tools.add(snapshotFilter);
-        tools.add(allFilter);
-        tools.add(Ui.hgap(8));
-
-        downloadDetailButton = Ui.smallButton("详情", Ui.AccentButton.Style.SECONDARY);
-        downloadDetailButton.setPreferredSize(new Dimension(52, 30));
-        downloadDetailButton.setMaximumSize(new Dimension(52, 30));
-        downloadDetailButton.setEnabled(false);
-        downloadDetailButton.addActionListener(e -> openVersionDetail());
-        tools.add(downloadDetailButton);
-        tools.add(Ui.hgap(6));
-        refreshButton = Ui.smallButton("刷新", Ui.AccentButton.Style.SECONDARY);
-        refreshButton.setPreferredSize(new Dimension(52, 30));
-        refreshButton.setMaximumSize(new Dimension(52, 30));
-        refreshButton.addActionListener(e -> loadManifest());
-        tools.add(refreshButton);
-        top.add(tools, BorderLayout.EAST);
-        return top;
     }
 
     private JPanel buildVersionList() {
@@ -1141,16 +979,16 @@ public final class LauncherFrame extends JFrame {
         Ui.AccentButton back = Ui.smallButton("返回内容", Ui.AccentButton.Style.GHOST);
         back.addActionListener(e -> {
             currentDownloadCard = "content";
-            downloadCardsLayout.show(downloadCards, "content");
+            downloadPage.showCard("content");
             updateBackButton();
-            downloadSubtabs.setVisible(true);
-            downloadTitle.setText(switch (contentType) {
+            downloadPage.setSubtabsVisible(true);
+            downloadPage.setTitle(switch (contentType) {
                 case "mod" -> "模组下载";
                 case "resourcepack" -> "资源包";
                 case "shader" -> "光影下载";
                 default -> "整合包";
             });
-            downloadSubtitle.setText("来自 Modrinth · 自动补齐必需前置 · SHA-1 校验");
+            downloadPage.setSubtitle("来自 Modrinth · 自动补齐必需前置 · SHA-1 校验");
         });
         page.add(LauncherLayout.pageHeader("文件版本", "选择具体文件版本后安装", back), BorderLayout.NORTH);
 
@@ -1899,15 +1737,12 @@ public final class LauncherFrame extends JFrame {
         versionDetailMeta.setText(detailMeta == null ? ""
                 : detailMeta.getText());
         currentDownloadCard = "versionDetail";
-        downloadCardsLayout.show(downloadCards, "versionDetail");
-        if (downloadCards instanceof Ui.FadePanel fade) {
-            fade.fadeIn();
-        }
+        downloadPage.showCard("versionDetail");
         updateBackButton();
-        downloadSubtabs.setVisible(false);
-        downloadTitle.setText("版本安装");
-        downloadSubtitle.setText("选择加载器并下载原版");
-        downloadTools.setVisible(false);
+        downloadPage.setSubtabsVisible(false);
+        downloadPage.setTitle("版本安装");
+        downloadPage.setSubtitle("选择加载器并下载原版");
+        downloadPage.setToolsVisible(false);
     }
 
     private void installFromVersionDetail() {
@@ -2068,15 +1903,12 @@ public final class LauncherFrame extends JFrame {
                 + Formatting.html(summary) + "</body></html>");
         projectDetailIcon.setUrl(detailProject.iconUrl());
         currentDownloadCard = "projectDetail";
-        downloadCardsLayout.show(downloadCards, "projectDetail");
-        if (downloadCards instanceof Ui.FadePanel fade) {
-            fade.fadeIn();
-        }
+        downloadPage.showCard("projectDetail");
         updateBackButton();
-        downloadSubtabs.setVisible(false);
-        downloadTitle.setText("项目详情");
-        downloadSubtitle.setText("选择具体文件版本");
-        downloadTools.setVisible(false);
+        downloadPage.setSubtabsVisible(false);
+        downloadPage.setTitle("项目详情");
+        downloadPage.setSubtitle("选择具体文件版本");
+        downloadPage.setToolsVisible(false);
         loadProjectVersions();
     }
 
@@ -2520,9 +2352,7 @@ public final class LauncherFrame extends JFrame {
 
     private void showDownloadTab(String type) {
         boolean versions = "versions".equals(type);
-        if (downloadSubtabs != null) {
-            downloadSubtabs.setVisible(true);
-        }
+        downloadPage.setSubtabsVisible(true);
         String previousType = contentType;
         contentType = versions ? "versions" : type;
         boolean contentChanged = !versions && !type.equals(previousType);
@@ -2532,19 +2362,10 @@ public final class LauncherFrame extends JFrame {
             lastSearchedContentVersion = "";
         }
         currentDownloadCard = versions ? "versions" : "content";
-        downloadCardsLayout.show(downloadCards, versions ? "versions" : "content");
-        if (downloadCards instanceof Ui.FadePanel fade) {
-            fade.fadeIn();
-        }
+        downloadPage.showCard(versions ? "versions" : "content");
         updateBackButton();
-        downloadTools.setVisible(versions);
-        if (versionsTab != null) {
-            versionsTab.setSelected(versions);
-            modsTab.setSelected("mod".equals(type));
-            packsTab.setSelected("resourcepack".equals(type));
-            modpacksTab.setSelected("modpack".equals(type));
-            shadersTab.setSelected("shader".equals(type));
-        }
+        downloadPage.setToolsVisible(versions);
+        downloadPage.selectTab(type);
         contentLoaderCombo.setVisible("mod".equals(type));
         contentLoaderCombo.setEnabled("mod".equals(type));
         if (contentImportButton != null) {
@@ -2558,8 +2379,8 @@ public final class LauncherFrame extends JFrame {
             default -> "安装所选";
         });
         if (versions) {
-            downloadTitle.setText("下载中心");
-            downloadSubtitle.setText("Mojang 官方清单 · 选择版本下载或启动");
+            downloadPage.setTitle("下载中心");
+            downloadPage.setSubtitle("Mojang 官方清单 · 选择版本下载或启动");
             applyFilter();
             SwingUtilities.invokeLater(() -> {
                 int index = versionList.getSelectedIndex();
@@ -2569,13 +2390,13 @@ public final class LauncherFrame extends JFrame {
             });
             return;
         }
-        downloadTitle.setText(switch (type) {
+        downloadPage.setTitle(switch (type) {
             case "mod" -> "模组下载";
             case "resourcepack" -> "资源包";
             case "shader" -> "光影下载";
             default -> "整合包";
         });
-        downloadSubtitle.setText("来自 Modrinth · 自动补齐必需前置 · SHA-1 校验");
+        downloadPage.setSubtitle("来自 Modrinth · 自动补齐必需前置 · SHA-1 校验");
         String contentVersionBefore = contentVersionField.getText().trim();
         updateContentVersionIfNeeded();
         String contentVersionAfter = contentVersionField.getText().trim();
@@ -3636,7 +3457,7 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         manifestLoading = true;
-        refreshButton.setEnabled(false);
+        downloadPage.setRefreshEnabled(false);
         sourceLabel.setText("正在更新官方版本列表…");
         sourceLabel.setForeground(Theme.MUTED);
         if (allVersions.isEmpty()) {
@@ -3654,7 +3475,7 @@ public final class LauncherFrame extends JFrame {
             @Override
             protected void done() {
                 manifestLoading = false;
-                refreshButton.setEnabled(true);
+                downloadPage.setRefreshEnabled(true);
                 try {
                     Versions.FetchResult result = get();
                     manifest = result.manifest();
@@ -3700,7 +3521,7 @@ public final class LauncherFrame extends JFrame {
         if (manifest == null) {
             return;
         }
-        String query = searchField == null ? "" : searchField.getText().trim().toLowerCase();
+        String query = downloadPage.query().toLowerCase();
         String filter = config.filter();
         String previous = selectedEntry == null ? null : selectedEntry.id();
         List<VersionManifest.VersionEntry> filtered = new ArrayList<>();
@@ -3727,11 +3548,7 @@ public final class LauncherFrame extends JFrame {
             }
             listModel = nextModel;
             versionList.setModel(listModel);
-            if (releaseFilter != null) {
-                releaseFilter.setSelected(filter.equals("release"));
-                snapshotFilter.setSelected(filter.equals("snapshot"));
-                allFilter.setSelected(filter.equals("all"));
-            }
+            downloadPage.selectFilter(filter);
             countLabel.setText(filtered.size() + " / " + allVersions.size() + " 个版本");
             listCardLayout.show(listCards, filtered.isEmpty() ? "empty" : "list");
             if (filtered.isEmpty()) {
@@ -3929,9 +3746,7 @@ public final class LauncherFrame extends JFrame {
                 : assetsIncomplete && config.downloadAssets() ? "补全资源并启动"
                 : "启动游戏", hasSelection && !busy && manifest != null);
         launchPage.setBusy(busy);
-        if (downloadDetailButton != null) {
-            downloadDetailButton.setEnabled(hasSelection && !busy);
-        }
+        downloadPage.setDetailEnabled(hasSelection && !busy);
         if (contentInstallButton != null) {
             contentInstallButton.setEnabled(contentList != null
                     && contentList.getSelectedValue() != null);
@@ -4455,9 +4270,7 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         pendingLaunch = launch;
-        if (searchField != null) {
-            searchField.setText("");
-        }
+        downloadPage.clearQuery();
         config.filter("all");
         config.save();
         applyFilter();
@@ -4518,16 +4331,12 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void setControlsEnabled(boolean enabled) {
-        if (searchField != null) {
-            searchField.setEnabled(enabled);
-        }
+        downloadPage.setSearchEnabled(enabled);
         versionList.setEnabled(enabled || busy);
-        refreshButton.setEnabled(enabled && !manifestLoading);
+        downloadPage.setRefreshEnabled(enabled && !manifestLoading);
         configPage.setControlsEnabled(enabled);
         settingsPage.setControlsEnabled(enabled);
-        releaseFilter.setEnabled(enabled);
-        snapshotFilter.setEnabled(enabled);
-        allFilter.setEnabled(enabled);
+        downloadPage.setFiltersEnabled(enabled);
         if (contentSearchField != null) {
             // 下载过程中仍允许浏览、搜索和翻页，只有安装按钮受 busy 限制。
             contentSearchField.setEnabled(true);
