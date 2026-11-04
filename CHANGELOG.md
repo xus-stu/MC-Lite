@@ -1,9 +1,12 @@
 # MC Lite 更新记录
 
-## v1.3.1（未发布）
+## v1.3.1
 
 - 抽出 `VersionListCard`：筛选后的版本列表、空状态、选中与滚动归页面所有；下载中心四张卡片全部搬出 `LauncherFrame`。
-- `LauncherFrame` 从 4477 行降到 4434 行。
+- `LauncherFrame` 从 4477 行降到 4555 行（含新增实例功能）。
+- 实例管理新增：复制实例（重写 id 与继承引用）、导出实例 ZIP、导入实例 ZIP（zip-slip 校验与 id 冲突保护）。
+- 实例支持分组与备注：保存在 `<gameDir>/.mclite/instance-meta.properties`，实例页可按分组筛选，重命名/删除会同步迁移或清理。
+- 自检新增实例复制、导出导入 round-trip、分组备注读写、备注跟随重命名 4 项（70 项）。
 
 
 ## v1.3.0

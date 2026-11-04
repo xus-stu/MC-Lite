@@ -24,6 +24,11 @@ import java.util.stream.Stream;
 /** Version/instance browser page, extracted from LauncherFrame. */
 final class InstancesPage {
     private final LauncherFrame owner;
+    private final Runnable onCopy;
+    private final Runnable onExport;
+    private final Runnable onImport;
+    private final Runnable onMeta;
+    private final java.util.function.Supplier<Path> gameDir;
     private final Map<String, int[]> counts = new HashMap<>();
     private JList<VersionManifest.VersionEntry> list;
     private DefaultListModel<VersionManifest.VersionEntry> model;
@@ -33,9 +38,17 @@ final class InstancesPage {
     private JLabel packsHeader;
     private DefaultListModel<String> modsModel;
     private DefaultListModel<String> packsModel;
+    private javax.swing.JComboBox<String> groupFilter;
+    private boolean updatingGroupFilter;
 
-    InstancesPage(LauncherFrame owner) {
+    InstancesPage(LauncherFrame owner, Runnable onCopy, Runnable onExport, Runnable onImport,
+                  Runnable onMeta, java.util.function.Supplier<Path> gameDir) {
         this.owner = owner;
+        this.onCopy = onCopy;
+        this.onExport = onExport;
+        this.onImport = onImport;
+        this.onMeta = onMeta;
+        this.gameDir = gameDir;
     }
 
     JPanel build() {
@@ -73,6 +86,28 @@ final class InstancesPage {
         Ui.AccentButton datapack = Ui.smallButton("数据包", Ui.AccentButton.Style.GHOST);
         datapack.setToolTipText("把数据包 ZIP 安装到所选实例的某个存档");
         datapack.addActionListener(e -> owner.installDatapack());
+        Ui.AccentButton copy = Ui.smallButton("复制", Ui.AccentButton.Style.GHOST);
+        copy.setToolTipText("复制所选实例（存档、模组、配置一起复制）");
+        copy.addActionListener(e -> onCopy.run());
+        Ui.AccentButton export = Ui.smallButton("导出 ZIP", Ui.AccentButton.Style.GHOST);
+        export.setToolTipText("把所选实例打包成可迁移的 ZIP");
+        export.addActionListener(e -> onExport.run());
+        Ui.AccentButton importZip = Ui.smallButton("导入 ZIP", Ui.AccentButton.Style.GHOST);
+        importZip.setToolTipText("从本启动器导出的实例 ZIP 导入");
+        importZip.addActionListener(e -> onImport.run());
+        Ui.AccentButton meta = Ui.smallButton("备注/分组", Ui.AccentButton.Style.GHOST);
+        meta.setToolTipText("给所选实例设置分组和备注");
+        meta.addActionListener(e -> onMeta.run());
+        groupFilter = new javax.swing.JComboBox<>();
+        groupFilter.setPreferredSize(new Dimension(132, 30));
+        groupFilter.setMaximumSize(new Dimension(132, 30));
+        groupFilter.addActionListener(e -> {
+            if (!updatingGroupFilter) {
+                refresh();
+            }
+        });
+        headerActions.add(groupFilter);
+        headerActions.add(Ui.hgap(8));
         headerActions.add(launch);
         headerActions.add(Ui.hgap(8));
         headerActions.add(update);
@@ -84,6 +119,14 @@ final class InstancesPage {
         headerActions.add(zip);
         headerActions.add(Ui.hgap(8));
         headerActions.add(datapack);
+        headerActions.add(Ui.hgap(8));
+        headerActions.add(copy);
+        headerActions.add(Ui.hgap(8));
+        headerActions.add(export);
+        headerActions.add(Ui.hgap(8));
+        headerActions.add(importZip);
+        headerActions.add(Ui.hgap(8));
+        headerActions.add(meta);
         headerActions.add(Ui.hgap(8));
         headerActions.add(refresh);
         page.add(LauncherLayout.pageHeader("版本列表", "查看并启动游戏文件夹中的版本、模组和资源包",
@@ -219,7 +262,16 @@ final class InstancesPage {
         if (entries.isEmpty()) {
             entries.addAll(LocalVersions.scan(owner.gamePaths));
         }
+        Map<String, InstanceMeta.Entry> meta = InstanceMeta.load(gameDir.get());
+        refreshGroupFilter(meta);
+        String selectedGroup = groupFilter == null ? "全部分组" : (String) groupFilter.getSelectedItem();
         entries.removeIf(entry -> !entry.local() && !owner.installedCache.contains(entry.id()));
+        if (selectedGroup != null && !"全部分组".equals(selectedGroup)) {
+            entries.removeIf(entry -> {
+                InstanceMeta.Entry item = meta.get(entry.id());
+                return item == null || !selectedGroup.equals(item.group());
+            });
+        }
         entries.sort((a, b) -> Boolean.compare(b.local(), a.local()));
         VersionManifest.VersionEntry previous = list.getSelectedValue();
         DefaultListModel<VersionManifest.VersionEntry> next = new DefaultListModel<>();
@@ -248,6 +300,39 @@ final class InstancesPage {
         }
     }
 
+    private void refreshGroupFilter(Map<String, InstanceMeta.Entry> meta) {
+        if (groupFilter == null) {
+            return;
+        }
+        String previous = (String) groupFilter.getSelectedItem();
+        java.util.TreeSet<String> groups = new java.util.TreeSet<>();
+        for (InstanceMeta.Entry item : meta.values()) {
+            if (item.group() != null && !item.group().isBlank()) {
+                groups.add(item.group());
+            }
+        }
+        java.util.List<String> wanted = new ArrayList<>();
+        wanted.add("全部分组");
+        wanted.addAll(groups);
+        java.util.List<String> current = new ArrayList<>();
+        for (int i = 0; i < groupFilter.getItemCount(); i++) {
+            current.add(groupFilter.getItemAt(i));
+        }
+        if (wanted.equals(current)) {
+            return;
+        }
+        updatingGroupFilter = true;
+        try {
+            groupFilter.removeAllItems();
+            for (String group : wanted) {
+                groupFilter.addItem(group);
+            }
+            groupFilter.setSelectedItem(previous != null && wanted.contains(previous) ? previous : "全部分组");
+        } finally {
+            updatingGroupFilter = false;
+        }
+    }
+
     private void updateDetail(VersionManifest.VersionEntry entry) {
         if (modsModel == null || packsModel == null) {
             return;
@@ -263,8 +348,11 @@ final class InstancesPage {
         }
         detailTitle.setText(entry.id());
         boolean installed = Files.isRegularFile(owner.gamePaths.versionJson(entry.id()));
+        InstanceMeta.Entry meta = InstanceMeta.load(gameDir.get()).get(entry.id());
         detailMeta.setText(entry.displayType() + "  ·  " + Formatting.date(entry.releaseTime())
-                + (entry.local() ? "  ·  本地实例" : installed ? "  ·  已安装" : "  ·  未安装"));
+                + (entry.local() ? "  ·  本地实例" : installed ? "  ·  已安装" : "  ·  未安装")
+                + (meta == null || meta.group().isBlank() ? "" : "  ·  分组 " + meta.group()));
+        detailMeta.setToolTipText(meta == null || meta.note().isBlank() ? null : meta.note());
         Path content = owner.config.isolateVersions()
                 ? owner.config.effectiveGameDir(entry.id()) : owner.config.gameDir();
         List<Path> mods = listFiles(content.resolve("mods"));

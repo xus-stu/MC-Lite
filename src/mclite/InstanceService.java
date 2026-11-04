@@ -3,6 +3,9 @@ package mclite;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 import java.util.Map;
 import java.util.Properties;
 
@@ -185,6 +188,152 @@ public final class InstanceService {
             }
         } catch (IOException ex) {
             Log.warn("扫描继承版本失败: " + ex.getMessage());
+        }
+    }
+
+    /** Copies an instance folder and rewrites its id references for the new name. */
+    public static void copy(Path root, String sourceId, String targetId) throws IOException {
+        Path source = root.resolve(sourceId);
+        Path target = root.resolve(targetId);
+        if (!Files.isDirectory(source)) {
+            throw new IOException("实例不存在: " + sourceId);
+        }
+        if (Files.exists(target)) {
+            throw new IOException("实例已存在: " + targetId);
+        }
+        copyTree(source, target);
+        renameVersionJson(target, sourceId, targetId, false);
+        renameVersionJson(target, sourceId, targetId, true);
+        Path oldJar = target.resolve(sourceId + ".jar");
+        if (Files.isRegularFile(oldJar)) {
+            Files.move(oldJar, target.resolve(targetId + ".jar"));
+        }
+        Path json = target.resolve(targetId + ".json");
+        if (Files.isRegularFile(json)) {
+            rewriteVersionJson(json, sourceId, targetId);
+        }
+        Path vanilla = target.resolve(targetId + ".vanilla.json");
+        if (Files.isRegularFile(vanilla)) {
+            rewriteVersionJson(vanilla, sourceId, targetId);
+        }
+        updateMarker(target, sourceId, targetId);
+    }
+
+    /** Exports one instance as a portable ZIP: {@code <id>/<id>.json + game files}. */
+    public static void exportZip(Path root, String id, Path target) throws IOException {
+        Path dir = root.resolve(id);
+        if (!Files.isDirectory(dir)) {
+            throw new IOException("实例不存在: " + id);
+        }
+        Path parent = target.toAbsolutePath().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(target))) {
+            putEntry(zip, "mclite-instance.properties",
+                    ("id=" + id + "\nexported=" + System.currentTimeMillis() + "\n")
+                            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            try (var walk = Files.walk(dir)) {
+                for (Path file : walk.filter(Files::isRegularFile).toList()) {
+                    String relative = dir.relativize(file).toString().replace('\\', '/');
+                    zip.putNextEntry(new ZipEntry(id + "/" + relative));
+                    Files.copy(file, zip);
+                    zip.closeEntry();
+                }
+            }
+        }
+    }
+
+    /** Imports an instance ZIP (zip-slip safe) and returns the instance id. */
+    public static String importZip(Path root, Path archive, String preferredId) throws IOException {
+        Path temp = Files.createTempDirectory("mclite-instance-");
+        try {
+            unzip(archive, temp);
+            Path source = findInstanceDir(temp);
+            String oldId = source.getFileName().toString();
+            String id = preferredId == null || preferredId.isBlank() ? oldId : preferredId.trim();
+            if (!id.matches("[A-Za-z0-9._-]{1,64}")) {
+                throw new IOException("实例名称只能包含字母、数字、点、下划线和短横线");
+            }
+            Path target = root.resolve(id);
+            if (Files.exists(target)) {
+                throw new IOException("实例已存在: " + id);
+            }
+            copyTree(source, target);
+            if (!oldId.equals(id)) {
+                renameVersionJson(target, oldId, id, false);
+                renameVersionJson(target, oldId, id, true);
+                Path oldJar = target.resolve(oldId + ".jar");
+                if (Files.isRegularFile(oldJar)) {
+                    Files.move(oldJar, target.resolve(id + ".jar"));
+                }
+                Path json = target.resolve(id + ".json");
+                if (Files.isRegularFile(json)) {
+                    rewriteVersionJson(json, oldId, id);
+                }
+                Path vanilla = target.resolve(id + ".vanilla.json");
+                if (Files.isRegularFile(vanilla)) {
+                    rewriteVersionJson(vanilla, oldId, id);
+                }
+                updateMarker(target, oldId, id);
+            }
+            return id;
+        } finally {
+            deleteTree(temp);
+        }
+    }
+
+    private static Path findInstanceDir(Path temp) throws IOException {
+        try (var list = Files.list(temp)) {
+            for (Path child : list.sorted().toList()) {
+                if (!Files.isDirectory(child)) {
+                    continue;
+                }
+                String name = child.getFileName().toString();
+                if (Files.isRegularFile(child.resolve(name + ".json"))) {
+                    return child;
+                }
+            }
+        }
+        throw new IOException("ZIP 里没有找到实例文件夹（需要 <名称>/<名称>.json）");
+    }
+
+    private static void unzip(Path archive, Path target) throws IOException {
+        Path base = target.toAbsolutePath().normalize();
+        try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(archive))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                Path out = base.resolve(entry.getName()).normalize();
+                if (!out.startsWith(base)) {
+                    throw new IOException("压缩包包含非法路径: " + entry.getName());
+                }
+                if (entry.isDirectory()) {
+                    Files.createDirectories(out);
+                } else {
+                    Files.createDirectories(out.getParent());
+                    Files.copy(zip, out, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
+    }
+
+    private static void putEntry(ZipOutputStream zip, String name, byte[] data) throws IOException {
+        zip.putNextEntry(new ZipEntry(name));
+        zip.write(data);
+        zip.closeEntry();
+    }
+
+    private static void copyTree(Path source, Path target) throws IOException {
+        try (var walk = Files.walk(source)) {
+            for (Path path : walk.toList()) {
+                Path out = target.resolve(source.relativize(path).toString());
+                if (Files.isDirectory(path)) {
+                    Files.createDirectories(out);
+                } else {
+                    Files.createDirectories(out.getParent());
+                    Files.copy(path, out, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
         }
     }
 
