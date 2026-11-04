@@ -42,7 +42,7 @@ echo "== page ownership gate"
 check_page InstancesPage 20 0
 check_page SettingsPage 10 0
 check_page LaunchPage 45 17
-check_page ConfigPage 56 29
+check_page ConfigPage 7 0
 
 # SettingsPage owns these controls, so LauncherFrame must not touch them.
 # A stale field read here crashed 启动游戏 with a NullPointerException in 1.2.0.

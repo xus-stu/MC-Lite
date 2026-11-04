@@ -1,5 +1,13 @@
 # MC Lite 更新记录
 
+## v1.2.2（未发布）
+
+- `ConfigPage` 完成控件所有权拆分：账户、游戏目录、Java 下拉和提示都归页面自己持有；`owner.` 调用 56 → 7，控件访问 29 → 0。
+- `LauncherFrame` 从 5288 行降到 5236 行，`ConfigPage` 从 189 行增到 293 行（控件都搬过来了）。
+- `SHA256SUMS.txt` 现在覆盖 `dist/` 全部 7 个可分发产物，不再漏掉 Benchmark 和 PyBridge。
+- 页面所有权 CI 基线同步降到 `ConfigPage <=7 / 0`。
+
+
 ## v1.2.1
 
 - 修复 1.2.0 的启动崩溃：`SettingsPage` 拆分后 `LauncherFrame` 仍引用已搬走的设置控件，点「启动游戏」报 `Cannot invoke "mclite.UI$ValueSlider.getValue()" because "this.memorySlider" is null`。

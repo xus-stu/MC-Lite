@@ -13,18 +13,18 @@ CI 的 `test/run-ci.sh` 会检查：
 InstancesPage owner<=20 controls=0
 SettingsPage  owner<=10 controls=0
 LaunchPage    owner<=45 controls<=17   ← 当前基线
-ConfigPage    owner<=56 controls<=29   ← 当前基线
+ConfigPage    owner<=7  controls=0
 ```
 
-基线只允许下降，不允许上升。下一步应继续把 Launch/Config 的控件搬回各自页面。
+基线只允许下降，不允许上升。下一步只剩 `LaunchPage` 的控件。
 
 ## 已完成
 
 - `SettingsPage`：控件字段已私有化，`owner.config` 通过构造上下文传入，`owner` 调用从 199 降到 10。
 - `InstancesPage`：没有 `owner.<控件>`。
 - 1.2.1：删除 `LauncherFrame` 中 15 个搬走后仍残留的控件字段，启动/启停/退出改走 `SettingsPage`；CI 增加 frame control gate，`LauncherFrame` 再引用设置页控件会直接失败。
+- 1.2.2：`ConfigPage` 自己创建并持有 `gameDirField`、`javaCombo`、`javaHint`、账户控件，只通过构造参数拿 `Config` 和两个回调；`owner.` 56 → 7，控件访问 29 → 0。
 
 ## 未完成
 
 - `LaunchPage` 仍访问 `owner.launchVersion` 等展示控件。
-- `ConfigPage` 仍访问 `owner.javaCombo`、`owner.gameDirField` 等控件。
