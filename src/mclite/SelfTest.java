@@ -26,6 +26,23 @@ public final class SelfTest {
             check(Json.arr(object.get("arr")).size() == 3, "JSON 数组");
             passed += 3;
 
+            Modrinth.Project cacheSample = new Modrinth.Project("id", "slug", "title", "desc",
+                    "author", 1, null, "mod");
+            ContentCache cache = new ContentCache(60_000, 2);
+            ContentCache.Key cacheKey = new ContentCache.Key("modrinth", "mod", "a", "26.1.2",
+                    "", "relevance", 0);
+            cache.put(cacheKey, List.of(cacheSample));
+            check(cache.get(cacheKey) != null && cache.get(cacheKey).size() == 1, "内容缓存命中");
+            ContentCache expired = new ContentCache(0, 2);
+            expired.put(cacheKey, List.of(cacheSample));
+            check(expired.get(cacheKey) == null, "内容缓存过期");
+            cache.put(new ContentCache.Key("modrinth", "mod", "b", "26.1.2", "", "relevance", 0),
+                    List.of(cacheSample));
+            cache.put(new ContentCache.Key("modrinth", "mod", "c", "26.1.2", "", "relevance", 0),
+                    List.of(cacheSample));
+            check(cache.size() == 2, "内容缓存上限");
+            passed += 3;
+
             Rules.Env env = new Rules.Env("osx", "arm64", "15.0", Map.of("has_custom_resolution", true));
             List<Rules.Rule> allowOsx = Rules.Rule.parseList(Json.arr(Json.parse(
                     "[{\"action\":\"allow\",\"os\":{\"name\":\"osx\"}}]")));

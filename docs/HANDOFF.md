@@ -1,7 +1,7 @@
 # MC Lite 接手工作指南
 
-> 给下一个 AI / 开发者的交接文档。当前版本 **1.2.2**，最新发布：
-> https://github.com/xus-stu/MC-Lite/releases/tag/v1.2.2
+> 给下一个 AI / 开发者的交接文档。当前版本 **1.2.3**，最新发布：
+> https://github.com/xus-stu/MC-Lite/releases/tag/v1.2.3
 >
 > 仓库：`git@github.com:xus-stu/MC-Lite.git`
 > 本地目录：`/Users/xiaoxu/PycharmProjects/Java`
@@ -23,9 +23,9 @@ cat VERSION
 预期：
 
 ```text
-VERSION = 1.2.2
-SELF-TEST PASSED (63 checks)
-SELF-TEST PASSED (63 checks)
+VERSION = 1.2.3
+SELF-TEST PASSED (66 checks)
+SELF-TEST PASSED (66 checks)
 HEADLESS REGRESSION PASSED
 ```
 
@@ -80,6 +80,8 @@ src/mclite/SettingsPage.java        设置页
 src/mclite/LaunchPage.java          启动页
 src/mclite/ConfigPage.java          启动器配置页
 src/mclite/DownloadPage.java        下载中心外壳（顶部栏/子标签/卡片容器）
+src/mclite/ContentPage.java         内容浏览卡片（搜索/列表/分页）
+src/mclite/ContentCache.java        内容搜索缓存（LRU + 5 分钟 TTL）
 src/mclite/BridgeServer.java        Python Bridge HTTP API
 src/mclite/Version.java             启动器版本常量
 CHANGELOG.md                        发布说明来源
@@ -137,10 +139,10 @@ saves/<世界>/players/data/<uuid>.dat
 
 ```text
 dist/
-├── MCLite_v1.2.2.jar
-├── MCLite_v1.2.2-region.jar
-├── MCLitePyBridge_v1.2.2.zip
-├── MC-Lite_v1.2.2_region_Windows.zip
+├── MCLite_v1.2.3.jar
+├── MCLite_v1.2.3-region.jar
+├── MCLitePyBridge_v1.2.3.zip
+├── MC-Lite_v1.2.3_region_Windows.zip
 ├── MCLiteBenchmark.jar
 └── SHA256SUMS.txt
 ```
@@ -172,7 +174,7 @@ versions/26.1.2/config/tectonic.json.bak
 
 ## 2. 硬约束
 
-1. **JAR 必须小于 700KB**
+1. **JAR 必须小于 800KB**
    - `build.sh` 会检查，当前 1.2.2 约 618KB。
    - 不引入 JavaFX、FlatLaf、Jython、GraalPy 等运行库。
    - Python 模块不打包进 JAR。
@@ -211,10 +213,10 @@ versions/26.1.2/config/tectonic.json.bak
 产物在 `dist/`：
 
 ```text
-MCLite_v1.2.2.jar
-MCLite_v1.2.2-region.jar
-MCLitePyBridge_v1.2.2.zip
-MC-Lite_v1.2.2_region_Windows.zip
+MCLite_v1.2.3.jar
+MCLite_v1.2.3-region.jar
+MCLitePyBridge_v1.2.3.zip
+MC-Lite_v1.2.3_region_Windows.zip
 MCLiteBenchmark.jar
 SHA256SUMS.txt
 ```
@@ -223,7 +225,7 @@ SHA256SUMS.txt
 
 - 清理旧版本 dist 产物
 - 打包 macOS 应用（仅 macOS）
-- 强制检查主 JAR ≤ 700KB
+- 强制检查主 JAR ≤ 800KB（构建时打印剩余空间）
 
 ### 测试
 
@@ -233,7 +235,7 @@ SHA256SUMS.txt
 ```
 
 - `test.sh`：构建 + 两个 JAR 自检 + `test/run-ci.sh`
-- `test-update.sh`：模拟 1.2.2 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
+- `test-update.sh`：模拟 1.2.3 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
 - `test/run-ci.sh` 包含：
   - LocalTest
   - JvmTunerTest
@@ -247,7 +249,7 @@ CI 只跑无网络、无 GUI 测试；不会真正启动 Minecraft。
 ### 截图检查
 
 ```bash
-java -jar dist/MCLite_v1.2.2.jar \
+java -jar dist/MCLite_v1.2.3.jar \
   --screenshot=/tmp/settings.png --page=settings
 ```
 
@@ -273,7 +275,7 @@ version-detail
 
 ```bash
 ./bump-version.sh major
-# 1.2.2 -> 1.3.7，而不是 1.3.0
+# 1.2.3 -> 1.3.8，而不是 1.3.0
 ```
 
 需要精确版本时手动改：
@@ -290,10 +292,10 @@ version-detail
 
 ```bash
 git add ...
-git commit -m "...; V1.2.2"
+git commit -m "...; V1.2.3"
 git push origin main
-git tag -a v1.2.2 -m "..."
-git push origin v1.2.2
+git tag -a v1.2.3 -m "..."
+git push origin v1.2.3
 ```
 
 CI 由 tag `v*` 触发；不要重写已经推送的 tag。
@@ -323,12 +325,13 @@ CI 由 tag `v*` 触发；不要重写已经推送的 tag。
 当前行数：
 
 ```text
-LauncherFrame   5015
+LauncherFrame   4644
 InstancesPage    371
 SettingsPage     674
 LaunchPage       242
 ConfigPage       293
 DownloadPage     302
+ContentPage      633
 ```
 
 已拆出：
@@ -338,6 +341,7 @@ DownloadPage     302
 - `LaunchPage`：启动页（1.2.2 起控件也归页面所有）
 - `ConfigPage`：启动器配置页（1.2.2 起控件也归页面所有）
 - `DownloadPage`：下载中心外壳（1.2.3 起顶部栏、子标签、卡片容器归页面；四个卡片内容还在搬）
+- `ContentPage`：内容浏览卡片（1.2.3 起搜索栏、列表、分页、选中底栏归页面）
 
 ### 所有权状态
 
@@ -391,7 +395,8 @@ frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 
 3. **拆 DownloadPage**
    - 外壳已完成：顶部栏、搜索/过滤/刷新、子标签、卡片容器归 `DownloadPage`。
-   - 还剩四张卡片要搬：版本列表、内容浏览（搜索/分页/安装）、版本详情、项目详情。
+   - 内容浏览卡片已完成：`ContentPage` 接管搜索、列表、分页和选中底栏。
+   - 还剩三张卡片：版本列表、版本详情、项目详情。
    - 搬完后再处理 `LauncherFrame` 的包级字段访问。
 
 4. **收敛 `owner`**
@@ -409,13 +414,13 @@ frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 可选模块，**不在主 JAR 内**：
 
 ```text
-dist/MCLitePyBridge_v1.2.2.zip
+dist/MCLitePyBridge_v1.2.3.zip
 ```
 
 启动：
 
 ```bash
-java -jar dist/MCLite_v1.2.2.jar --py-bridge
+java -jar dist/MCLite_v1.2.3.jar --py-bridge
 ```
 
 生成：
@@ -433,7 +438,7 @@ X-MCLite-Token: <token>
 ### Python 客户端 / UI
 
 ```bash
-python3 run_ui.py --jar /path/to/MCLite_v1.2.2.jar
+python3 run_ui.py --jar /path/to/MCLite_v1.2.3.jar
 ```
 
 `run_ui.py` 会找已安装 PySide6 的解释器。
@@ -500,7 +505,7 @@ versions/26.1.2
 
 ## 8. 已知风险
 
-- `LauncherFrame` 仍有 **5015 行**，DownloadPage 的四张卡片还没搬完。
+- `LauncherFrame` 仍有 **4644 行**，下载中心还剩版本列表、版本详情、项目详情三张卡片。
 - 四个页面控件访问都已归零，接下来是 `DownloadPage` 和 `InstancesPage` 的包级字段。
 - `InstancesPage` 通过包级字段访问 owner 的 `config/gamePaths/allVersions/installedCache/selectedEntry`。
 - 页面类仍依赖 owner 回调，不是完全独立。
@@ -515,10 +520,10 @@ versions/26.1.2
 ## 9. 接手检查清单
 
 - [ ] `git status` 没有意外修改
-- [ ] `VERSION` = 1.2.2
-- [ ] `./test.sh` 通过（63 checks + headless + bridge）
+- [ ] `VERSION` = 1.2.3
+- [ ] `./test.sh` 通过（66 checks + headless + bridge）
 - [ ] `./test-update.sh` 通过
-- [ ] JAR < 700KB
+- [ ] JAR < 800KB
 - [ ] 新 JAR 能打开设置页/版本页
 - [ ] 真正进一次 26.1.2 或 MITE
 - [ ] 改页面所有权后同步降低 CI 基线

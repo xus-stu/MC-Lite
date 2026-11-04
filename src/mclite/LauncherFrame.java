@@ -118,32 +118,10 @@ public final class LauncherFrame extends JFrame {
     private DownloadPage downloadPage;
     private JPanel sidebar;
     private Ui.AccentButton sidebarToggle;
-    private JTextField contentSearchField;
-    private JTextField contentVersionField;
-    private Ui.DarkCombo<String> contentLoaderCombo;
-    private Ui.DarkCombo<String> contentSourceCombo;
-    private Ui.DarkCombo<String> contentSortCombo;
-    private boolean contentSortUpdating;
-    private DefaultListModel<Modrinth.Project> contentModel;
-    JList<Modrinth.Project> contentList;
-    private Ui.FadePanel contentListFade;
-    private Ui.AccentButton contentInstallButton;
-    private Ui.AccentButton contentSearchButton;
-    private Ui.AccentButton contentRefreshButton;
-    private Ui.AccentButton contentMcmodButton;
-    private Ui.AccentButton contentImportButton;
-    private Ui.AccentButton contentDetailButton;
-    private JLabel contentSelectionLabel;
-    private String contentType = "mod";
+    private ContentPage contentPage;
+    private final ContentCache contentCache = new ContentCache();
     private boolean contentSearching;
-    private int contentPage;
-    private JTextField contentPageLabel;
-    private Ui.AccentButton contentPrevPage;
-    private Ui.AccentButton contentNextPage;
     private int contentGeneration;
-    private boolean contentVersionAuto = true;
-    private boolean contentVersionUpdating;
-    private String lastSearchedContentVersion = "";
     private final java.util.Map<String, String> contentChineseTitles = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<String, java.util.Optional<McMod.Entry>> mcmodLookupCache =
             new java.util.concurrent.ConcurrentHashMap<>();
@@ -495,8 +473,12 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel.setOpaque(false);
         downloadPage = new DownloadPage(this::scheduleSearch, this::setFilter, this::loadManifest,
                 this::openVersionDetail, this::showDownloadTab, () -> RegionGate.showGuide(this));
-        contentCardsPanel.add(downloadPage.build(buildVersionList(), buildContentPage(),
-                buildVersionDetailPage(), buildProjectDetailPage()), "download");
+        contentPage = new ContentPage(this::searchContent, this::openProjectDetail,
+                this::startContentInstall, this::importLocalModpack, this::openMcmod,
+                this::updateContentSelection);
+        contentCardsPanel.add(downloadPage.build(buildVersionList(),
+                contentPage.build(new ContentRenderer()), buildVersionDetailPage(),
+                buildProjectDetailPage()), "download");
         launchPage = new LaunchPage(this, config);
         contentCardsPanel.add(launchPage.build(), "launch");
         instancesPage = new InstancesPage(this);
@@ -582,269 +564,14 @@ public final class LauncherFrame extends JFrame {
         return wrap;
     }
 
-    private JPanel buildContentPage() {
-        JPanel page = new JPanel(new BorderLayout());
-        page.setOpaque(true);
-        page.setBackground(Theme.BG);
-
-        JPanel searchBar = new JPanel(new BorderLayout());
-        searchBar.setBackground(Theme.CARD);
-        searchBar.setBorder(new EmptyBorder(7, 14, 7, 14));
-        JPanel row = new JPanel();
-        row.setOpaque(false);
-        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
-        contentSourceCombo = new Ui.DarkCombo<>();
-        contentSourceCombo.addItem("Modrinth");
-        contentSourceCombo.addItem("CurseForge");
-        contentSourceCombo.setPreferredSize(new Dimension(120, 30));
-        contentSourceCombo.setMaximumSize(new Dimension(120, 30));
-        contentSourceCombo.addActionListener(e -> {
-            updateContentSortOptions();
-            contentModel.clear();
-            searchContent();
-        });
-        contentSortCombo = new Ui.DarkCombo<>();
-        contentSortCombo.setPreferredSize(new Dimension(112, 30));
-        contentSortCombo.setMaximumSize(new Dimension(112, 30));
-        contentSortCombo.addActionListener(e -> {
-            if (!contentSortUpdating) {
-                searchContent();
-            }
-        });
-        contentSearchField = Ui.field("搜索 Modrinth / CurseForge 模组、资源包、整合包…");
-        contentSearchField.setPreferredSize(new Dimension(380, 30));
-        contentSearchField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        contentSearchField.addActionListener(e -> searchContent());
-        contentVersionField = Ui.field("1.20.1", "游戏版本");
-        contentVersionField.setPreferredSize(new Dimension(100, 30));
-        contentVersionField.setMaximumSize(new Dimension(100, 30));
-        contentVersionField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                if (!contentVersionUpdating) {
-                    contentVersionAuto = false;
-                }
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                if (!contentVersionUpdating) {
-                    contentVersionAuto = false;
-                }
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                if (!contentVersionUpdating) {
-                    contentVersionAuto = false;
-                }
-            }
-        });
-        contentLoaderCombo = new Ui.DarkCombo<>();
-        contentLoaderCombo.addItem("自动");
-        contentLoaderCombo.addItem("Fabric");
-        contentLoaderCombo.addItem("Forge");
-        contentLoaderCombo.addItem("NeoForge");
-        contentLoaderCombo.addItem("Quilt");
-        contentLoaderCombo.setPreferredSize(new Dimension(112, 30));
-        contentLoaderCombo.setMaximumSize(new Dimension(112, 30));
-        contentLoaderCombo.setEnabled(false);
-        contentLoaderCombo.setVisible(false);
-        contentSearchButton = Ui.smallButton("搜索", Ui.AccentButton.Style.SECONDARY);
-        contentSearchButton.setPreferredSize(new Dimension(58, 30));
-        contentSearchButton.setMaximumSize(new Dimension(58, 30));
-        contentSearchButton.addActionListener(e -> searchContent());
-        contentRefreshButton = Ui.smallButton("刷新", Ui.AccentButton.Style.SECONDARY);
-        contentRefreshButton.setPreferredSize(new Dimension(52, 30));
-        contentRefreshButton.setMaximumSize(new Dimension(52, 30));
-        contentRefreshButton.setToolTipText("重新搜索当前内容");
-        contentRefreshButton.addActionListener(e -> searchContent());
-        JPanel searchRow = new JPanel();
-        searchRow.setOpaque(false);
-        searchRow.setLayout(new BoxLayout(searchRow, BoxLayout.X_AXIS));
-        searchRow.add(contentSourceCombo);
-        searchRow.add(Ui.hgap(8));
-        searchRow.add(contentSearchField);
-        searchRow.add(Ui.hgap(8));
-        searchRow.add(contentSearchButton);
-        searchRow.add(Ui.hgap(6));
-        searchRow.add(contentRefreshButton);
-        searchRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        searchRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-
-        JPanel optionsRow = new JPanel();
-        optionsRow.setOpaque(false);
-        optionsRow.setLayout(new BoxLayout(optionsRow, BoxLayout.X_AXIS));
-        optionsRow.add(Ui.label("游戏版本", Theme.TINY, Theme.DIM));
-        optionsRow.add(Ui.hgap(6));
-        optionsRow.add(contentVersionField);
-        optionsRow.add(Ui.hgap(14));
-        optionsRow.add(Ui.label("加载器", Theme.TINY, Theme.DIM));
-        optionsRow.add(Ui.hgap(6));
-        optionsRow.add(contentLoaderCombo);
-        optionsRow.add(Ui.hgap(14));
-        optionsRow.add(Ui.label("排序", Theme.TINY, Theme.DIM));
-        optionsRow.add(Ui.hgap(6));
-        optionsRow.add(contentSortCombo);
-        optionsRow.add(Ui.hgap(10));
-        optionsRow.add(Ui.label("留空版本号时按默认值查询", Theme.MONO, Theme.DIM));
-        optionsRow.add(Box.createHorizontalGlue());
-        optionsRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        optionsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        updateContentSortOptions();
-
-        row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
-        row.add(searchRow);
-        row.add(Ui.vgap(8));
-        row.add(optionsRow);
-        searchBar.add(row, BorderLayout.CENTER);
-        page.add(searchBar, BorderLayout.NORTH);
-
-        contentModel = new DefaultListModel<>();
-        contentList = new JList<>(contentModel);
-        contentList.setBackground(Theme.BG);
-        contentList.setSelectionBackground(Theme.BG);
-        contentList.setSelectionForeground(Theme.TEXT);
-        contentList.setFixedCellHeight(64);
-        contentList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
-        contentList.setCellRenderer(new ContentRenderer());
-        contentList.setBorder(new EmptyBorder(4, 8, 14, 8));
-        contentList.addListSelectionListener(e -> updateContentSelection());
-        contentList.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-            @Override
-            public void mouseMoved(java.awt.event.MouseEvent e) {
-                int index = contentList.locationToIndex(e.getPoint());
-                contentList.putClientProperty("hoverIndex", index);
-                contentList.repaint();
-            }
-        });
-        contentList.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseExited(java.awt.event.MouseEvent e) {
-                contentList.putClientProperty("hoverIndex", -1);
-                contentList.repaint();
-            }
-        });
-        contentList.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    openProjectDetail();
-                }
-            }
-        });
-        contentListFade = new Ui.FadePanel(new BorderLayout());
-        contentListFade.add(Ui.scrollDark(contentList), BorderLayout.CENTER);
-        JPanel listArea = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintChildren(Graphics g) {
-                super.paintChildren(g);
-                int height = Math.min(26, getHeight());
-                if (height <= 0) {
-                    return;
-                }
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setPaint(new java.awt.GradientPaint(0, getHeight() - height,
-                        new Color(Theme.BG.getRed(), Theme.BG.getGreen(), Theme.BG.getBlue(), 0),
-                        0, getHeight(), Theme.BG));
-                g2.fillRect(0, getHeight() - height, getWidth(), height);
-                g2.dispose();
-            }
-        };
-        listArea.setOpaque(false);
-        listArea.add(contentListFade, BorderLayout.CENTER);
-        page.add(listArea, BorderLayout.CENTER);
-
-        JPanel bottom = new JPanel(new BorderLayout(12, 0));
-        bottom.setOpaque(true);
-        bottom.setBackground(Theme.CARD);
-        bottom.setBorder(BorderFactory.createCompoundBorder(
-                new MatteBorder(1, 0, 0, 0, Theme.BORDER),
-                new EmptyBorder(7, 14, 7, 14)));
-        contentSelectionLabel = Ui.label("搜索 Modrinth 内容", Theme.MONO, Theme.DIM);
-        bottom.add(contentSelectionLabel, BorderLayout.CENTER);
-        contentInstallButton = Ui.smallButton("安装所选", Ui.AccentButton.Style.PRIMARY);
-        contentInstallButton.setPreferredSize(new Dimension(96, 30));
-        contentInstallButton.setMaximumSize(new Dimension(96, 30));
-        contentInstallButton.setEnabled(false);
-        contentInstallButton.addActionListener(e -> startContentInstall());
-        contentImportButton = Ui.smallButton("导入整合包 ZIP", Ui.AccentButton.Style.GHOST);
-        contentImportButton.setToolTipText("支持 Modrinth .mrpack 和 CurseForge 整合包 zip");
-        contentImportButton.addActionListener(e -> importLocalModpack());
-        contentImportButton.setVisible(false);
-        contentDetailButton = Ui.smallButton("版本 / 详情", Ui.AccentButton.Style.SECONDARY);
-        contentDetailButton.setPreferredSize(new Dimension(96, 30));
-        contentDetailButton.setMaximumSize(new Dimension(96, 30));
-        contentDetailButton.setEnabled(false);
-        contentDetailButton.addActionListener(e -> openProjectDetail());
-        contentMcmodButton = Ui.smallButton("MC百科", Ui.AccentButton.Style.GHOST);
-        contentMcmodButton.setPreferredSize(new Dimension(68, 30));
-        contentMcmodButton.setMaximumSize(new Dimension(68, 30));
-        contentMcmodButton.setVisible(false);
-        contentMcmodButton.addActionListener(e -> openMcmod(contentList.getSelectedValue()));
-        contentPrevPage = Ui.smallButton("<", Ui.AccentButton.Style.GHOST);
-        contentPrevPage.setPreferredSize(new Dimension(28, 30));
-        contentPrevPage.setMaximumSize(new Dimension(28, 30));
-        contentPrevPage.addActionListener(e -> {
-            if (contentPage > 0) {
-                contentPage--;
-                runContentSearch();
-            }
-        });
-        contentNextPage = Ui.smallButton(">", Ui.AccentButton.Style.GHOST);
-        contentNextPage.setPreferredSize(new Dimension(28, 30));
-        contentNextPage.setMaximumSize(new Dimension(28, 30));
-        contentNextPage.addActionListener(e -> {
-            contentPage++;
-            runContentSearch();
-        });
-        contentPageLabel = new JTextField("1");
-        contentPageLabel.setFont(Theme.MONO);
-        contentPageLabel.setForeground(Theme.DIM);
-        contentPageLabel.setBackground(Theme.CARD_ALT);
-        contentPageLabel.setCaretColor(Theme.ACCENT);
-        contentPageLabel.setHorizontalAlignment(JTextField.CENTER);
-        contentPageLabel.setBorder(new EmptyBorder(2, 2, 2, 2));
-        contentPageLabel.setPreferredSize(new Dimension(42, 28));
-        contentPageLabel.setMaximumSize(new Dimension(42, 28));
-        contentPageLabel.setToolTipText("输入页码后按回车跳转");
-        contentPageLabel.addActionListener(e -> applyContentPageInput());
-        contentPageLabel.addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override
-            public void focusLost(java.awt.event.FocusEvent e) {
-                contentPageLabel.setText(Integer.toString(contentPage + 1));
-            }
-        });
-        contentPrevPage.setEnabled(false);
-        contentNextPage.setEnabled(false);
-        JPanel actions = new JPanel();
-        actions.setOpaque(false);
-        actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
-        actions.add(contentPrevPage);
-        actions.add(contentPageLabel);
-        actions.add(contentNextPage);
-        actions.add(Ui.hgap(10));
-        actions.add(contentMcmodButton);
-        actions.add(Ui.hgap(8));
-        actions.add(contentImportButton);
-        actions.add(Ui.hgap(8));
-        actions.add(contentDetailButton);
-        actions.add(Ui.hgap(8));
-        actions.add(contentInstallButton);
-        bottom.add(actions, BorderLayout.EAST);
-        page.add(bottom, BorderLayout.SOUTH);
-        page.setComponentZOrder(bottom, 0);
-        return page;
-    }
-
     int selectedMemoryMb() {
         return selectedMeta != null ? config.effectiveMemoryMb(selectedMeta)
                 : config.effectiveMemoryMb(selectedEntry == null ? null : selectedEntry.id());
     }
 
     void refreshContentVisuals() {
-        if (contentList != null) {
-            contentList.repaint();
+        if (contentPage != null && contentPage.list() != null) {
+            contentPage.list().repaint();
         }
     }
 
@@ -985,7 +712,7 @@ public final class LauncherFrame extends JFrame {
             downloadPage.showCard("content");
             updateBackButton();
             downloadPage.setSubtabsVisible(true);
-            downloadPage.setTitle(switch (contentType) {
+            downloadPage.setTitle(switch (contentPage.type()) {
                 case "mod" -> "模组下载";
                 case "resourcepack" -> "资源包";
                 case "shader" -> "光影下载";
@@ -1883,10 +1610,10 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void openProjectDetail() {
-        if (contentList == null || contentList.getSelectedValue() == null) {
+        if (contentPage.list() == null || contentPage.list().getSelectedValue() == null) {
             return;
         }
-        showProjectDetail(contentList.getSelectedValue());
+        showProjectDetail(contentPage.list().getSelectedValue());
     }
 
     private void showProjectDetail(Modrinth.Project project) {
@@ -1923,9 +1650,9 @@ public final class LauncherFrame extends JFrame {
         projectInstallButton.setEnabled(false);
         statusLabel.setText("正在读取文件版本…");
         statusLabel.setForeground(Theme.DIM);
-        String gameVersion = contentVersionField.getText().trim();
+        String gameVersion = contentPage.versionField().getText().trim();
         String loader = "mod".equals(detailProject.projectType())
-                ? contentLoaderValue() : null;
+                ? contentPage.loader() : null;
         if ("mod".equals(detailProject.projectType()) && loader == null) {
             loader = detectLoader();
         }
@@ -2133,8 +1860,8 @@ public final class LauncherFrame extends JFrame {
             RegionGate.showGuide(this);
             return;
         }
-        String gameVersion = contentVersionField.getText().trim();
-        String loader = "mod".equals(detailProject.projectType()) ? contentLoaderValue() : null;
+        String gameVersion = contentPage.versionField().getText().trim();
+        String loader = "mod".equals(detailProject.projectType()) ? contentPage.loader() : null;
         String finalLoader = loader;
         Config installConfig = config.copyForGameDir(config.effectiveGameDir(
                 selectedEntry == null ? "" : selectedEntry.id()));
@@ -2356,25 +2083,22 @@ public final class LauncherFrame extends JFrame {
     private void showDownloadTab(String type) {
         boolean versions = "versions".equals(type);
         downloadPage.setSubtabsVisible(true);
-        String previousType = contentType;
-        contentType = versions ? "versions" : type;
+        String previousType = contentPage.type();
+        contentPage.setType(versions ? "versions" : type);
         boolean contentChanged = !versions && !type.equals(previousType);
         if (contentChanged) {
-            contentModel.clear();
-            contentPage = 0;
-            lastSearchedContentVersion = "";
+            contentPage.clearResults();
+            contentPage.setPageIndex(0);
+            contentPage.setLastSearchedVersion("");
         }
         currentDownloadCard = versions ? "versions" : "content";
         downloadPage.showCard(versions ? "versions" : "content");
         updateBackButton();
         downloadPage.setToolsVisible(versions);
         downloadPage.selectTab(type);
-        contentLoaderCombo.setVisible("mod".equals(type));
-        contentLoaderCombo.setEnabled("mod".equals(type));
-        if (contentImportButton != null) {
-            contentImportButton.setVisible("modpack".equals(type));
-        }
-        contentInstallButton.setText(switch (type) {
+        contentPage.setLoaderVisible("mod".equals(type));
+        contentPage.setImportVisible("modpack".equals(type));
+        contentPage.installButton().setText(switch (type) {
             case "mod" -> "安装模组";
             case "resourcepack" -> "安装资源包";
             case "modpack" -> "安装整合包";
@@ -2400,33 +2124,27 @@ public final class LauncherFrame extends JFrame {
             default -> "整合包";
         });
         downloadPage.setSubtitle("来自 Modrinth · 自动补齐必需前置 · SHA-1 校验");
-        String contentVersionBefore = contentVersionField.getText().trim();
+        String contentVersionBefore = contentPage.versionField().getText().trim();
         updateContentVersionIfNeeded();
-        String contentVersionAfter = contentVersionField.getText().trim();
-        if ((contentChanged || contentModel.isEmpty()
+        String contentVersionAfter = contentPage.versionField().getText().trim();
+        if ((contentChanged || contentPage.model().isEmpty()
                 || !contentVersionBefore.equals(contentVersionAfter)
-                || !contentVersionAfter.equals(lastSearchedContentVersion))
+                || !contentVersionAfter.equals(contentPage.lastSearchedVersion()))
                 && !contentSearching) {
             searchContent();
         }
     }
 
     private void updateContentVersionIfNeeded() {
-        if (contentVersionField == null || !contentVersionAuto
-                || contentVersionField.hasFocus()) {
+        if (!contentPage.versionAuto() || contentPage.versionHasFocus()) {
             return;
         }
         String version = baseGameVersion();
         if (version == null || version.isBlank()
-                || version.equals(contentVersionField.getText().trim())) {
+                || version.equals(contentPage.versionText())) {
             return;
         }
-        contentVersionUpdating = true;
-        try {
-            contentVersionField.setText(version);
-        } finally {
-            contentVersionUpdating = false;
-        }
+        contentPage.setVersionText(version);
     }
 
     private String baseGameVersion() {
@@ -2599,54 +2317,6 @@ public final class LauncherFrame extends JFrame {
                 && (left.contains(right) || right.contains(left));
     }
 
-    private String contentSource() {
-        Object selected = contentSourceCombo == null ? null : contentSourceCombo.getSelectedItem();
-        return "CurseForge".equals(selected) ? "curseforge" : "modrinth";
-    }
-
-    private void updateContentSortOptions() {
-        if (contentSortCombo == null) {
-            return;
-        }
-        contentSortUpdating = true;
-        try {
-            contentSortCombo.removeAllItems();
-            if ("curseforge".equals(contentSource())) {
-                contentSortCombo.addItem("推荐");
-                contentSortCombo.addItem("热门");
-                contentSortCombo.addItem("最近更新");
-                contentSortCombo.addItem("名称");
-            } else {
-                contentSortCombo.addItem("相关度");
-                contentSortCombo.addItem("下载量");
-                contentSortCombo.addItem("关注量");
-                contentSortCombo.addItem("最新发布");
-                contentSortCombo.addItem("最近更新");
-            }
-        } finally {
-            contentSortUpdating = false;
-        }
-    }
-
-    private String contentSortValue() {
-        int index = contentSortCombo == null ? 0 : Math.max(0, contentSortCombo.getSelectedIndex());
-        if ("curseforge".equals(contentSource())) {
-            return switch (index) {
-                case 1 -> "popularity";
-                case 2 -> "updated";
-                case 3 -> "name";
-                default -> "featured";
-            };
-        }
-        return switch (index) {
-            case 1 -> "downloads";
-            case 2 -> "follows";
-            case 3 -> "newest";
-            case 4 -> "updated";
-            default -> "relevance";
-        };
-    }
-
     private List<Modrinth.Project> searchProjects(String source, String query, String type,
                                                   String gameVersion, String loader, String sort)
             throws IOException {
@@ -2664,14 +2334,6 @@ public final class LauncherFrame extends JFrame {
         }
         return new Modrinth(ProgressSink.NOOP, new CancellationToken())
                 .search(query, type, gameVersion, loader, offset, 20, sort);
-    }
-
-    private String contentLoaderValue() {
-        Object selected = contentLoaderCombo.getSelectedItem();
-        if (selected == null || "自动".equals(selected)) {
-            return null;
-        }
-        return selected.toString().toLowerCase(java.util.Locale.ROOT);
     }
 
     private String detectLoader() {
@@ -2708,65 +2370,45 @@ public final class LauncherFrame extends JFrame {
         return null;
     }
 
-    private void applyContentPageInput() {
-        if (contentPageLabel == null) {
-            return;
-        }
-        String text = contentPageLabel.getText().trim();
-        int page;
-        try {
-            page = Integer.parseInt(text);
-        } catch (NumberFormatException ex) {
-            contentPageLabel.setText(Integer.toString(contentPage + 1));
-            return;
-        }
-        page = Math.max(1, page);
-        if (page - 1 == contentPage) {
-            contentPageLabel.setText(Integer.toString(contentPage + 1));
-            return;
-        }
-        contentPage = page - 1;
-        contentPageLabel.setText(Integer.toString(page));
-        runContentSearch();
-    }
-
     private void searchContent() {
-        contentPage = 0;
+        contentPage.setPageIndex(0);
         runContentSearch();
     }
 
     private void runContentSearch() {
-        if (contentModel == null) {
+        if (contentPage.model() == null) {
             return;
         }
         contentSearching = true;
         int generation = ++contentGeneration;
-        final int pageNumber = contentPage;
-        final int pageOffset = contentPage * 20;
-        if (contentPageLabel != null && !contentPageLabel.hasFocus()) {
-            contentPageLabel.setText(Integer.toString(pageNumber + 1));
+        final int pageNumber = contentPage.pageIndex();
+        final int pageOffset = pageNumber * 20;
+        if (!contentPage.pageLabelHasFocus()) {
+            contentPage.setPageLabel(pageNumber + 1);
         }
-        if (contentPrevPage != null) {
-            contentPrevPage.setEnabled(pageNumber > 0);
-        }
-        if (contentNextPage != null) {
-            contentNextPage.setEnabled(true);
-        }
+        contentPage.setPageButtonsEnabled(pageNumber > 0, true);
         contentChineseTitles.clear();
-        contentModel.clear();
-        contentSelectionLabel.setText("正在搜索 " + ("curseforge".equals(contentSource())
+        contentPage.clearResults();
+        contentPage.setSelectionText("正在搜索 " + ("curseforge".equals(contentPage.source())
                 ? "CurseForge" : "Modrinth") + "…");
-        contentInstallButton.setEnabled(false);
-        String query = contentSearchField.getText().trim();
-        String gameVersion = contentVersionField.getText().trim();
-        lastSearchedContentVersion = gameVersion;
-        String loader = "mod".equals(contentType) ? contentLoaderValue() : null;
+        contentPage.setInstallEnabled(false);
+        String query = contentPage.query();
+        String gameVersion = contentPage.versionText();
+        contentPage.setLastSearchedVersion(gameVersion);
+        final String contentType = contentPage.type();
+        String loader = "mod".equals(contentType) ? contentPage.loader() : null;
         saveCurseForgeKey();
-        String source = contentSource();
-        String sort = contentSortValue();
+        String source = contentPage.source();
+        String sort = contentPage.sortValue();
         new SwingWorker<List<Modrinth.Project>, Void>() {
             @Override
             protected List<Modrinth.Project> doInBackground() throws Exception {
+                ContentCache.Key cacheKey = new ContentCache.Key(source, contentType, query,
+                        gameVersion, loader == null ? "" : loader, sort, pageNumber);
+                List<Modrinth.Project> cached = contentCache.get(cacheKey);
+                if (cached != null) {
+                    return cached;
+                }
                 boolean cjkQuery = containsCjk(query);
                 List<Modrinth.Project> projects = cjkQuery ? new ArrayList<>()
                         : new ArrayList<>(searchProjects(source, query, contentType,
@@ -2882,6 +2524,7 @@ public final class LauncherFrame extends JFrame {
                         pool.shutdownNow();
                     }
                 }
+                contentCache.put(cacheKey, enriched);
                 return enriched;
             }
 
@@ -2894,57 +2537,52 @@ public final class LauncherFrame extends JFrame {
                 try {
                     List<Modrinth.Project> projects = get();
                     for (Modrinth.Project project : projects) {
-                        contentModel.addElement(project);
+                        contentPage.model().addElement(project);
                     }
-                    if (contentListFade != null) {
-                        contentListFade.fadeIn();
+                    if (contentPage.listFade() != null) {
+                        contentPage.listFade().fadeIn();
                     }
-                    contentSelectionLabel.setText(projects.isEmpty()
+                    contentPage.selectionLabel().setText(projects.isEmpty()
                             ? "没有找到内容" : projects.size() + " 个结果 · 选择后安装");
-                    if (contentPageLabel != null && !contentPageLabel.hasFocus()) {
-                        contentPageLabel.setText(Integer.toString(pageNumber + 1));
+                    if (!contentPage.pageLabelHasFocus()) {
+                        contentPage.setPageLabel(pageNumber + 1);
                     }
-                    if (contentPrevPage != null) {
-                        contentPrevPage.setEnabled(pageNumber > 0);
-                    }
-                    if (contentNextPage != null) {
-                        contentNextPage.setEnabled(projects.size() >= 20);
-                    }
+                    contentPage.setPageButtonsEnabled(pageNumber > 0, projects.size() >= 20);
                     if (!projects.isEmpty()) {
-                        contentList.setSelectedIndex(0);
+                        contentPage.list().setSelectedIndex(0);
                     }
                 } catch (Exception ex) {
                     Throwable cause = unwrap(ex);
                     Log.warn("Modrinth 搜索失败: " + messageOf(cause, ""));
-                    contentSelectionLabel.setText("搜索失败 · " + messageOf(cause, ""));
+                    contentPage.selectionLabel().setText("搜索失败 · " + messageOf(cause, ""));
                 }
             }
         }.execute();
     }
 
     private void updateContentSelection() {
-        if (contentList == null || contentInstallButton == null) {
+        if (contentPage.list() == null) {
             return;
         }
-        Modrinth.Project project = contentList.getSelectedValue();
+        Modrinth.Project project = contentPage.list().getSelectedValue();
         boolean selected = project != null;
-        int selectedCount = contentList.getSelectedIndices().length;
-        contentInstallButton.setEnabled(selected);
-        contentInstallButton.setText(selectedCount > 1 ? "安装 " + selectedCount + " 个"
-                : switch (contentType) {
+        int selectedCount = contentPage.list().getSelectedIndices().length;
+        contentPage.installButton().setEnabled(selected);
+        contentPage.installButton().setText(selectedCount > 1 ? "安装 " + selectedCount + " 个"
+                : switch (contentPage.type()) {
                     case "mod" -> "安装模组";
                     case "resourcepack" -> "安装资源包";
                     case "modpack" -> "安装整合包";
                     case "shader" -> "安装光影";
                     default -> "安装所选";
                 });
-        contentMcmodButton.setVisible(selected && project.mcmodUrl() != null
+        contentPage.mcmodButton().setVisible(selected && project.mcmodUrl() != null
                 && !project.mcmodUrl().isBlank());
         if (selected) {
             if (selectedCount > 1) {
-                contentSelectionLabel.setText("已选择 " + selectedCount
+                contentPage.selectionLabel().setText("已选择 " + selectedCount
                         + " 个内容 · 最多 3 个并发下载");
-                contentSelectionLabel.setToolTipText("按住 Command 或 Ctrl 可多选");
+                contentPage.selectionLabel().setToolTipText("按住 Command 或 Ctrl 可多选");
                 return;
             }
             String summary = project.summaryZh() == null ? project.description() : project.summaryZh();
@@ -2954,13 +2592,13 @@ public final class LauncherFrame extends JFrame {
             String installed = installedContent(project);
             String base = summary == null || summary.isBlank()
                     ? project.title() : "MC百科：" + summary;
-            contentSelectionLabel.setText(installed == null ? base
+            contentPage.selectionLabel().setText(installed == null ? base
                     : base + "  ·  已安装：" + installed);
-            contentSelectionLabel.setToolTipText((project.mcmodUrl() == null
+            contentPage.selectionLabel().setToolTipText((project.mcmodUrl() == null
                     ? project.description() : project.summaryZh() + "\n" + project.mcmodUrl())
                     + (installed == null ? "" : "\n已安装文件：" + installed));
         } else {
-            contentSelectionLabel.setText("选择一个项目");
+            contentPage.selectionLabel().setText("选择一个项目");
         }
     }
 
@@ -2969,8 +2607,8 @@ public final class LauncherFrame extends JFrame {
             enqueueInstall(this::startContentInstall);
             return;
         }
-        java.util.List<Modrinth.Project> projects = contentList == null
-                ? java.util.List.of() : new java.util.ArrayList<>(contentList.getSelectedValuesList());
+        java.util.List<Modrinth.Project> projects = contentPage.list() == null
+                ? java.util.List.of() : new java.util.ArrayList<>(contentPage.list().getSelectedValuesList());
         if (projects.isEmpty()) {
             return;
         }
@@ -2985,12 +2623,13 @@ public final class LauncherFrame extends JFrame {
             RegionGate.showGuide(this);
             return;
         }
-        String gameVersion = contentVersionField.getText().trim();
+        String gameVersion = contentPage.versionField().getText().trim();
         if (gameVersion.isEmpty()) {
             showError("缺少游戏版本", "请填写该内容对应的 Minecraft 版本，例如 1.20.1。");
             return;
         }
-        String loader = "mod".equals(contentType) ? contentLoaderValue() : null;
+        String contentType = contentPage.type();
+        String loader = "mod".equals(contentType) ? contentPage.loader() : null;
         if ("mod".equals(contentType) && loader == null) {
             loader = detectLoader();
         }
@@ -3174,7 +2813,7 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         if ("projectDetail".equals(currentDownloadCard)) {
-            showDownloadTab(contentType);
+            showDownloadTab(contentPage.type());
             return;
         }
         if ("content".equals(currentDownloadCard)) {
@@ -3193,8 +2832,8 @@ public final class LauncherFrame extends JFrame {
     }
 
     public void openFirstProjectForScreenshot() {
-        if (contentModel != null && !contentModel.isEmpty()) {
-            contentList.setSelectedIndex(0);
+        if (contentPage.model() != null && !contentPage.model().isEmpty()) {
+            contentPage.list().setSelectedIndex(0);
             openProjectDetail();
         }
     }
@@ -3750,10 +3389,8 @@ public final class LauncherFrame extends JFrame {
                 : "启动游戏", hasSelection && !busy && manifest != null);
         launchPage.setBusy(busy);
         downloadPage.setDetailEnabled(hasSelection && !busy);
-        if (contentInstallButton != null) {
-            contentInstallButton.setEnabled(contentList != null
-                    && contentList.getSelectedValue() != null);
-        }
+        contentPage.setInstallEnabled(contentPage.list() != null
+                && contentPage.list().getSelectedValue() != null);
     }
 
     void startInstall(boolean thenLaunch) {
@@ -4223,8 +3860,8 @@ public final class LauncherFrame extends JFrame {
         if ("download".equals(currentTop)
                 && ("content".equals(currentDownloadCard)
                 || "projectDetail".equals(currentDownloadCard))) {
-            String source = "curseforge".equals(contentSource()) ? "CurseForge" : "Modrinth";
-            String version = contentVersionField == null ? "" : contentVersionField.getText().trim();
+            String source = "curseforge".equals(contentPage.source()) ? "CurseForge" : "Modrinth";
+            String version = contentPage.versionText();
             return source + (version.isEmpty() ? "" : " · MC " + version);
         }
         if ("versionDetail".equals(currentDownloadCard)) {
@@ -4340,24 +3977,9 @@ public final class LauncherFrame extends JFrame {
         configPage.setControlsEnabled(enabled);
         settingsPage.setControlsEnabled(enabled);
         downloadPage.setFiltersEnabled(enabled);
-        if (contentSearchField != null) {
-            // 下载过程中仍允许浏览、搜索和翻页，只有安装按钮受 busy 限制。
-            contentSearchField.setEnabled(true);
-            contentVersionField.setEnabled(true);
-            contentSourceCombo.setEnabled(true);
-            if (contentSortCombo != null) {
-                contentSortCombo.setEnabled(true);
-            }
-            contentLoaderCombo.setVisible("mod".equals(contentType));
-            contentLoaderCombo.setEnabled("mod".equals(contentType));
-            contentSearchButton.setEnabled(true);
-            contentRefreshButton.setEnabled(true);
-            contentList.setEnabled(true);
-            contentDetailButton.setEnabled(contentList.getSelectedValue() != null);
-            if (contentInstallButton != null) {
-                contentInstallButton.setEnabled(contentList.getSelectedValue() != null);
-            }
-        }
+        // 下载过程中仍允许浏览、搜索和翻页，只有安装按钮受 busy 限制。
+        contentPage.setControlsEnabled(enabled);
+        contentPage.setLoaderVisible("mod".equals(contentPage.type()));
     }
 
     boolean applyGameDirFromField() {
