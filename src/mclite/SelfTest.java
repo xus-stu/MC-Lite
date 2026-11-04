@@ -492,6 +492,15 @@ public final class SelfTest {
         check(InstanceMeta.load(work).containsKey("inst-d"), "实例备注跟随重命名");
         passed += 4;
 
+        check(!LaunchDiagnostics.analyze("UnsupportedClassVersionError: 65").isEmpty(),
+                "诊断 Java 版本");
+        check("memory".equals(LaunchDiagnostics.analyze("java.lang.OutOfMemoryError: Java heap space")
+                        .get(0).kind()), "诊断内存不足");
+        check("mod-dependency".equals(LaunchDiagnostics.analyze(
+                        "Mod X requires Y which is missing").get(0).kind()), "诊断缺少前置");
+        check(LaunchDiagnostics.analyze("all good, no errors here").isEmpty(), "诊断正常日志不误报");
+        passed += 4;
+
         return passed;
     }
 
