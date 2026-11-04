@@ -52,7 +52,7 @@ final class InstanceMeta {
         return result;
     }
 
-    static void save(Path gameDir, Map<String, Entry> entries) {
+    static boolean save(Path gameDir, Map<String, Entry> entries) {
         Path file = file(gameDir);
         try {
             Files.createDirectories(file.getParent());
@@ -76,8 +76,10 @@ final class InstanceMeta {
             } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
                 Files.move(temp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
+            return true;
         } catch (IOException ex) {
             Log.warn("保存实例备注失败: " + ex.getMessage());
+            return false;
         }
     }
 
@@ -87,6 +89,7 @@ final class InstanceMeta {
             Log.warn("实例备注文件损坏，跳过写入以避免覆盖: " + file(gameDir));
             return;
         }
+        // 保存失败由调用方提示；这里不静默吞掉
         String cleanGroup = group == null ? "" : group.trim();
         String cleanNote = note == null ? "" : note.trim();
         if (cleanGroup.isEmpty() && cleanNote.isEmpty()) {
