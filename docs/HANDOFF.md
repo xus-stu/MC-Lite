@@ -74,11 +74,12 @@ usb-speed-sandisk.png
 关键文件：
 
 ```text
-src/mclite/LauncherFrame.java       主窗口，当前 5206 行
+src/mclite/LauncherFrame.java       主窗口，当前 5015 行
 src/mclite/InstancesPage.java       版本列表页
 src/mclite/SettingsPage.java        设置页
 src/mclite/LaunchPage.java          启动页
 src/mclite/ConfigPage.java          启动器配置页
+src/mclite/DownloadPage.java        下载中心外壳（顶部栏/子标签/卡片容器）
 src/mclite/BridgeServer.java        Python Bridge HTTP API
 src/mclite/Version.java             启动器版本常量
 CHANGELOG.md                        发布说明来源
@@ -322,11 +323,12 @@ CI 由 tag `v*` 触发；不要重写已经推送的 tag。
 当前行数：
 
 ```text
-LauncherFrame   5206
+LauncherFrame   5015
 InstancesPage    371
 SettingsPage     674
 LaunchPage       242
 ConfigPage       293
+DownloadPage     302
 ```
 
 已拆出：
@@ -335,6 +337,7 @@ ConfigPage       293
 - `SettingsPage`：设置页
 - `LaunchPage`：启动页（1.2.2 起控件也归页面所有）
 - `ConfigPage`：启动器配置页（1.2.2 起控件也归页面所有）
+- `DownloadPage`：下载中心外壳（1.2.3 起顶部栏、子标签、卡片容器归页面；四个卡片内容还在搬）
 
 ### 所有权状态
 
@@ -387,9 +390,9 @@ frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
    - 每搬一个，降低 CI 基线，不能只改文件位置。
 
 3. **拆 DownloadPage**
-   - 这是 `LauncherFrame` 里最大的剩余部分。
-   - 包含下载中心、内容搜索、分页、项目详情、安装队列。
-   - 拆完后再处理 `LauncherFrame` 的包级字段访问。
+   - 外壳已完成：顶部栏、搜索/过滤/刷新、子标签、卡片容器归 `DownloadPage`。
+   - 还剩四张卡片要搬：版本列表、内容浏览（搜索/分页/安装）、版本详情、项目详情。
+   - 搬完后再处理 `LauncherFrame` 的包级字段访问。
 
 4. **收敛 `owner`**
    - 页面只拿窄上下文：`Config`、`TaskCenter`、少量回调。
@@ -497,7 +500,7 @@ versions/26.1.2
 
 ## 8. 已知风险
 
-- `LauncherFrame` 仍有 **5206 行**，DownloadPage 未拆。
+- `LauncherFrame` 仍有 **5015 行**，DownloadPage 的四张卡片还没搬完。
 - 四个页面控件访问都已归零，接下来是 `DownloadPage` 和 `InstancesPage` 的包级字段。
 - `InstancesPage` 通过包级字段访问 owner 的 `config/gamePaths/allVersions/installedCache/selectedEntry`。
 - 页面类仍依赖 owner 回调，不是完全独立。
