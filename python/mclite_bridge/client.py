@@ -120,6 +120,9 @@ class BridgeClient:
     def config(self) -> dict[str, Any]:
         return self._request("GET", "/api/config")
 
+    def config_schema(self) -> list[dict[str, Any]]:
+        return self._request("GET", "/api/config/schema")
+
     def update_config(self, **values: Any) -> dict[str, Any]:
         return self._request("PUT", "/api/config", values)
 

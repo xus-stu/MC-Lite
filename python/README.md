@@ -13,7 +13,7 @@ python3 -m pip install -r requirements-ui.txt
 ## 启动 Java Bridge
 
 ```bash
-java -jar MCLite_v1.3.11.jar --py-bridge
+java -jar MCLite_v1.3.12.jar --py-bridge
 ```
 
 启动后会生成：
@@ -51,14 +51,26 @@ print(client.search("Sodium", "mod", "26.1.2", "fabric"))
 `python/examples/api_tour.py`：每一行都有中文注释，按顺序覆盖 health/info/capabilities/versions/instances/content/tasks/config/java/datapacks/logs，安装和启动调用默认注释掉。
 
 ```bash
-java -jar MCLite_v1.3.11.jar --py-bridge
+java -jar MCLite_v1.3.12.jar --py-bridge
 PYTHONPATH=python python3 python/examples/api_tour.py
 ```
+
+## 用外部 UI 增加设置界面
+
+Bridge 暴露 `GET /api/config/schema`，返回可编辑设置的 `key/label/type/min/max/value`；外部 UI（例如 PySide6）据此渲染控件，再用 `PUT /api/config` 写回，**不需要改启动器**。
+
+```python
+for field in client.config_schema():
+    print(field["key"], field["type"], field["value"])
+client.update_config(memoryMb=8192, autoMemory=False)
+```
+
+`ui_pyside6.py` 的「扩展设置」标签页就是按这个协议动态生成的。
 
 ## PySide6 前端
 
 ```bash
-python3 run_ui.py --jar /path/to/MCLite_v1.3.11.jar
+python3 run_ui.py --jar /path/to/MCLite_v1.3.12.jar
 ```
 
 `run_ui.py` 会自动寻找安装了 PySide6 的 Python（优先 `python3.14` / `python3.13`）。

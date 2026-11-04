@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # 逐行注释版 Bridge API 示例：把启动器能通过 HTTP 暴露的能力全部走一遍。
 # 每一行代码后面的注释说明这一行在干什么、对应哪个 API。
-# 运行前先启动 Bridge：java -jar MCLite_v1.3.11.jar --py-bridge
+# 运行前先启动 Bridge：java -jar MCLite_v1.3.12.jar --py-bridge
 # Bridge 会在 ~/.mclite/bridge.json 写入 url 和临时 token。
 
 import json  # 标准库：把返回的 JSON 打印得好看一点
@@ -27,7 +27,7 @@ def main():  # 主流程：所有 API 调用都写在这里
         client = BridgeClient.from_file()  # 从 ~/.mclite/bridge.json 读取 url 和 token 并连接
     except FileNotFoundError:  # 没找到 bridge.json：Bridge 没启动
         print("Bridge 没有在运行：~/.mclite/bridge.json 不存在。", file=sys.stderr)  # 说明失败原因
-        print("先保持一个终端运行：java -jar \"/你的路径/MCLite_v1.3.11.jar\" --py-bridge", file=sys.stderr)  # 给出启动命令
+        print("先保持一个终端运行：java -jar \"/你的路径/MCLite_v1.3.12.jar\" --py-bridge", file=sys.stderr)  # 给出启动命令
         print("然后不要关那个终端，再重新运行本脚本。", file=sys.stderr)  # 提醒 Bridge 要常驻
         raise SystemExit(1)  # 直接退出
     show("health", client.health())  # GET /api/health：健康检查，无需 token
