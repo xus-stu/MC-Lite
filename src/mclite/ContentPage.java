@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 /** Content browser card: search bar, result list, selection footer and pagination. */
 final class ContentPage {
     private final Runnable onSearch;
+    private final Runnable onRefresh;
     private final Runnable onDetail;
     private final Runnable onInstall;
     private final Runnable onImport;
@@ -52,16 +53,16 @@ final class ContentPage {
     private Ui.AccentButton prevPage;
     private Ui.AccentButton nextPage;
     private int pageIndex;
-    private boolean searching;
     private String type = "mod";
     private boolean versionAuto = true;
     private boolean versionUpdating;
     private String lastSearchedVersion = "";
 
-    ContentPage(Runnable onSearch, Runnable onDetail, Runnable onInstall, Runnable onImport,
-                Consumer<Modrinth.Project> onMcmod, Runnable onSelectionChanged,
+    ContentPage(Runnable onSearch, Runnable onRefresh, Runnable onDetail, Runnable onInstall,
+                Runnable onImport, Consumer<Modrinth.Project> onMcmod, Runnable onSelectionChanged,
                 Runnable onPageChanged) {
         this.onSearch = onSearch;
+        this.onRefresh = onRefresh;
         this.onDetail = onDetail;
         this.onInstall = onInstall;
         this.onImport = onImport;
@@ -148,7 +149,7 @@ final class ContentPage {
         refreshButton.setPreferredSize(new Dimension(52, 30));
         refreshButton.setMaximumSize(new Dimension(52, 30));
         refreshButton.setToolTipText("重新搜索当前内容");
-        refreshButton.addActionListener(e -> searchFromFirstPage());
+        refreshButton.addActionListener(e -> refreshFromFirstPage());
         JPanel searchRow = new JPanel();
         searchRow.setOpaque(false);
         searchRow.setLayout(new BoxLayout(searchRow, BoxLayout.X_AXIS));
@@ -337,6 +338,12 @@ final class ContentPage {
         onSearch.run();
     }
 
+    /** Refresh must bypass the cache, otherwise a bad/empty result sticks for the TTL. */
+    private void refreshFromFirstPage() {
+        pageIndex = 0;
+        onRefresh.run();
+    }
+
     private void applyPageInput() {
         String text = pageLabel.getText().trim();
         int page;
@@ -459,14 +466,6 @@ final class ContentPage {
         this.lastSearchedVersion = version == null ? "" : version;
     }
 
-    boolean searching() {
-        return searching;
-    }
-
-    void setSearching(boolean value) {
-        this.searching = value;
-    }
-
     int pageIndex() {
         return pageIndex;
     }
@@ -579,17 +578,35 @@ final class ContentPage {
     }
 
     void setControlsEnabled(boolean enabled) {
-        // 浏览、搜索、翻页始终可用；安装按钮由选中状态单独控制。
-        if (searchField != null) {
-            searchField.setEnabled(true);
+        // 浏览、搜索、翻页始终可用；安装按钮由选中状态单独控制，详情按钮不受 busy 影响。
+        if (searchField == null) {
+            return;
+        }
+        searchField.setEnabled(true);
+        if (versionField != null) {
             versionField.setEnabled(true);
+        }
+        if (sourceCombo != null) {
             sourceCombo.setEnabled(true);
+        }
+        if (sortCombo != null) {
             sortCombo.setEnabled(true);
+        }
+        if (searchButton != null) {
             searchButton.setEnabled(true);
+        }
+        if (refreshButton != null) {
             refreshButton.setEnabled(true);
+        }
+        if (list != null) {
             list.setEnabled(true);
-            detailButton.setEnabled(list.getSelectedValue() != null && enabled);
-            installButton.setEnabled(list.getSelectedValue() != null && enabled);
+        }
+        boolean hasSelection = list != null && list.getSelectedValue() != null;
+        if (detailButton != null) {
+            detailButton.setEnabled(hasSelection);
+        }
+        if (installButton != null) {
+            installButton.setEnabled(hasSelection && enabled);
         }
     }
 
