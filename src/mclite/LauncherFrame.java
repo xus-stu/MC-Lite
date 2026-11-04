@@ -89,18 +89,7 @@ public final class LauncherFrame extends JFrame {
 
     private JTextField searchField;
     JTextField gameDirField;
-    JTextField jvmArgsField;
-    Ui.ValueSlider memorySlider;
-    Ui.ToggleChip autoMemoryToggle;
-    Ui.ToggleChip autoJvmToggle;
     Ui.ToggleChip autoJavaToggle;
-    Ui.ToggleChip metalToggle;
-    Ui.ToggleChip autoUpdateToggle;
-    Ui.ToggleChip removeRegionLimitsToggle;
-    Ui.ValueSlider widthSlider;
-    Ui.ValueSlider heightSlider;
-    JToggleButton assetsToggle;
-    JToggleButton mirrorToggle;
     private Ui.SegmentButton releaseFilter;
     private Ui.SegmentButton snapshotFilter;
     private Ui.SegmentButton allFilter;
@@ -157,9 +146,6 @@ public final class LauncherFrame extends JFrame {
     private Ui.DarkCombo<String> contentSourceCombo;
     private Ui.DarkCombo<String> contentSortCombo;
     private boolean contentSortUpdating;
-    JTextField curseForgeKeyField;
-    JTextArea uiCssArea;
-    Ui.DarkCombo<FontCatalog.Choice> fontCombo;
     private DefaultListModel<Modrinth.Project> contentModel;
     JList<Modrinth.Project> contentList;
     private Ui.FadePanel contentListFade;
@@ -193,7 +179,6 @@ public final class LauncherFrame extends JFrame {
     private Ui.AccentButton versionInstallButton;
     private JPanel recommendationPanel;
     private final java.util.List<RecommendationRow> recommendationRows = new java.util.ArrayList<>();
-    Ui.ToggleChip recommendToggle;
 
     private record RecommendationRow(Recommendations.Item item, Ui.ToggleChip toggle) {
     }
@@ -1044,17 +1029,7 @@ public final class LauncherFrame extends JFrame {
     }
 
     void updateAutoMemoryControls() {
-        if (autoMemoryToggle == null || memorySlider == null) {
-            return;
-        }
-        String versionId = selectedEntry == null ? null : selectedEntry.id();
-        int memory = selectedMeta != null ? config.effectiveMemoryMb(selectedMeta)
-                : config.effectiveMemoryMb(versionId);
-        autoMemoryToggle.setText("自动分配内存（推荐 " + memory + " MB）");
-        memorySlider.setEnabled(!config.autoMemory());
-        if (config.autoMemory()) {
-            memorySlider.setValue(memory);
-        }
+        settingsPage.updateAutoMemoryControls();
     }
 
     void updateLaunchInfo() {
@@ -3517,19 +3492,7 @@ public final class LauncherFrame extends JFrame {
     }
 
     void saveCurseForgeKey() {
-        if (curseForgeKeyField != null) {
-            config.curseForgeApiKey(curseForgeKeyField.getText());
-            config.save();
-        }
-    }
-
-    void saveJvmArgs() {
-        if (jvmArgsField == null) {
-            return;
-        }
-        config.jvmArgs(jvmArgsField.getText());
-        config.save();
-        updateLaunchInfo();
+        settingsPage.saveCurseForgeKey();
     }
 
     void openLogsDirectory() {
@@ -4130,13 +4093,7 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         config.username(username);
-        config.memoryMb(memorySlider.getValue());
-        config.downloadAssets(assetsToggle.isSelected());
-        config.autoMirror(mirrorToggle.isSelected());
-        config.jvmArgs(jvmArgsField.getText());
-        config.curseForgeApiKey(curseForgeKeyField.getText());
-        config.windowWidth(widthSlider.getValue());
-        config.windowHeight(heightSlider.getValue());
+        settingsPage.persistControls();
         JavaChoice javaChoice = (JavaChoice) javaCombo.getSelectedItem();
         config.javaPath(javaChoice == null || javaChoice.path() == null ? "" : javaChoice.path().toString());
         config.save();
@@ -4640,16 +4597,7 @@ public final class LauncherFrame extends JFrame {
         refreshButton.setEnabled(enabled && !manifestLoading);
         gameDirField.setEnabled(enabled);
         javaCombo.setEnabled(enabled);
-        memorySlider.setEnabled(enabled && !config.autoMemory());
-        assetsToggle.setEnabled(enabled);
-        mirrorToggle.setEnabled(enabled);
-        jvmArgsField.setEnabled(enabled);
-        curseForgeKeyField.setEnabled(enabled);
-        if (autoJvmToggle != null) {
-            autoJvmToggle.setEnabled(enabled);
-        }
-        widthSlider.setEnabled(enabled);
-        heightSlider.setEnabled(enabled);
+        settingsPage.setControlsEnabled(enabled);
         releaseFilter.setEnabled(enabled);
         snapshotFilter.setEnabled(enabled);
         allFilter.setEnabled(enabled);
@@ -4963,27 +4911,7 @@ public final class LauncherFrame extends JFrame {
             }
             taskToken.cancel();
         }
-        if (memorySlider != null) {
-            config.memoryMb(memorySlider.getValue());
-        }
-        if (assetsToggle != null) {
-            config.downloadAssets(assetsToggle.isSelected());
-        }
-        if (mirrorToggle != null) {
-            config.autoMirror(mirrorToggle.isSelected());
-        }
-        if (jvmArgsField != null) {
-            config.jvmArgs(jvmArgsField.getText());
-        }
-        if (curseForgeKeyField != null) {
-            config.curseForgeApiKey(curseForgeKeyField.getText());
-        }
-        if (widthSlider != null) {
-            config.windowWidth(widthSlider.getValue());
-        }
-        if (heightSlider != null) {
-            config.windowHeight(heightSlider.getValue());
-        }
+        settingsPage.persistControls();
         if (gameDirField != null) {
             applyGameDirFromField();
         }

@@ -1,7 +1,7 @@
 # MC Lite 接手工作指南
 
-> 给下一个 AI / 开发者的交接文档。当前版本 **1.2.0**，最新发布：
-> https://github.com/xus-stu/MC-Lite/releases/tag/v1.2.0
+> 给下一个 AI / 开发者的交接文档。当前版本 **1.2.1**，最新发布：
+> https://github.com/xus-stu/MC-Lite/releases/tag/v1.2.1
 >
 > 仓库：`git@github.com:xus-stu/MC-Lite.git`
 > 本地目录：`/Users/xiaoxu/PycharmProjects/Java`
@@ -23,7 +23,7 @@ cat VERSION
 预期：
 
 ```text
-VERSION = 1.2.0
+VERSION = 1.2.1
 SELF-TEST PASSED (63 checks)
 SELF-TEST PASSED (63 checks)
 HEADLESS REGRESSION PASSED
@@ -46,7 +46,7 @@ FlowMini/
 diskbench/
 math_exam_8a_bnu/
 usb-speed-sandisk.png
-运行会加油稿/
+运动会加油稿/
 ```
 
 ---
@@ -136,10 +136,10 @@ saves/<世界>/players/data/<uuid>.dat
 
 ```text
 dist/
-├── MCLite_v1.2.0.jar
-├── MCLite_v1.2.0-region.jar
-├── MCLitePyBridge_v1.2.0.zip
-├── MC-Lite_v1.2.0_region_Windows.zip
+├── MCLite_v1.2.1.jar
+├── MCLite_v1.2.1-region.jar
+├── MCLitePyBridge_v1.2.1.zip
+├── MC-Lite_v1.2.1_region_Windows.zip
 ├── MCLiteBenchmark.jar
 └── SHA256SUMS.txt
 ```
@@ -172,13 +172,13 @@ versions/26.1.2/config/tectonic.json.bak
 ## 2. 硬约束
 
 1. **JAR 必须小于 700KB**
-   - `build.sh` 会检查，当前 1.2.0 约 618KB。
+   - `build.sh` 会检查，当前 1.2.1 约 618KB。
    - 不引入 JavaFX、FlatLaf、Jython、GraalPy 等运行库。
    - Python 模块不打包进 JAR。
 
 2. **不要为了“版本号推进”连续发版**
-   - 1.2.0 是页面拆分阶段收尾，当前处于冻结期。
-   - 新功能、重构、发版都要先得到用户明确要求。
+   - 1.2.x 是页面拆分阶段收尾，当前处于冻结期。
+   - 冻结期只接受修复类补丁（如 1.2.1 的启动崩溃）；新功能、重构、发版都要先得到用户明确要求。
 
 3. **发布必须是真实 Release**
    - 有版本 tag、JAR、macOS/Windows 包、`SHA256SUMS.txt`。
@@ -208,10 +208,10 @@ versions/26.1.2/config/tectonic.json.bak
 产物在 `dist/`：
 
 ```text
-MCLite_v1.2.0.jar
-MCLite_v1.2.0-region.jar
-MCLitePyBridge_v1.2.0.zip
-MC-Lite_v1.2.0_region_Windows.zip
+MCLite_v1.2.1.jar
+MCLite_v1.2.1-region.jar
+MCLitePyBridge_v1.2.1.zip
+MC-Lite_v1.2.1_region_Windows.zip
 MCLiteBenchmark.jar
 SHA256SUMS.txt
 ```
@@ -230,7 +230,7 @@ SHA256SUMS.txt
 ```
 
 - `test.sh`：构建 + 两个 JAR 自检 + `test/run-ci.sh`
-- `test-update.sh`：模拟 1.2.0 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
+- `test-update.sh`：模拟 1.2.1 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
 - `test/run-ci.sh` 包含：
   - LocalTest
   - JvmTunerTest
@@ -244,7 +244,7 @@ CI 只跑无网络、无 GUI 测试；不会真正启动 Minecraft。
 ### 截图检查
 
 ```bash
-java -jar dist/MCLite_v1.2.0.jar \
+java -jar dist/MCLite_v1.2.1.jar \
   --screenshot=/tmp/settings.png --page=settings
 ```
 
@@ -270,7 +270,7 @@ version-detail
 
 ```bash
 ./bump-version.sh major
-# 1.2.0 -> 1.3.5，而不是 1.3.0
+# 1.2.1 -> 1.3.6，而不是 1.3.0
 ```
 
 需要精确版本时手动改：
@@ -287,10 +287,10 @@ version-detail
 
 ```bash
 git add ...
-git commit -m "...; V1.2.0"
+git commit -m "...; V1.2.1"
 git push origin main
-git tag -a v1.2.0 -m "..."
-git push origin v1.2.0
+git tag -a v1.2.1 -m "..."
+git push origin v1.2.1
 ```
 
 CI 由 tag `v*` 触发；不要重写已经推送的 tag。
@@ -358,6 +358,7 @@ InstancesPage <=20 / 0
 SettingsPage  <=10 / 0
 LaunchPage    <=45 / 17
 ConfigPage    <=56 / 29
+frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 ```
 
 **基线只允许下降，不允许上升。**
@@ -371,9 +372,10 @@ ConfigPage    <=56 / 29
 按优先级：
 
 1. **先 dogfooding**
-   - 用 1.2.0 的 JAR 真正启动一局 26.1.2 或 MITE。
-   - 检查是否进入主菜单、是否崩溃、日志是否有异常。
-   - 目前 1.2.0 只做了启动器页面截图，没有真正进游戏验证。
+   - 1.2.0 的「启动游戏」会崩在 `memorySlider` NPE，1.2.1 已修；先在真实窗口点一次启动确认。
+   - 26.1.2 在 2026-11-03 已能启动进世界，但 22:54 在皮肤预览界面崩溃：`show-me-your-skin 2.0.3` 是对着 owo 0.13.0 编译的（`braid/widgets/object/EntityWidget`），实例里装的 0.13.1 把类移到了 `object/entity/`。
+   - 处理：`mods/owo-lib-0.13.1+26.1.jar` 已备份到 `versions/26.1.2/mods-backup-20261104-owo/`，改为 `owo-lib-0.13.0+26.1.jar`。
+   - 仍需验证：进世界后打开皮肤/角色预览界面不再崩。
 
 2. **继续所有权拆分**
    - `LaunchPage`：把 `launchVersion`、`launchMeta`、`launchJava`、按钮等控件搬进页面。
@@ -400,13 +402,13 @@ ConfigPage    <=56 / 29
 可选模块，**不在主 JAR 内**：
 
 ```text
-dist/MCLitePyBridge_v1.2.0.zip
+dist/MCLitePyBridge_v1.2.1.zip
 ```
 
 启动：
 
 ```bash
-java -jar dist/MCLite_v1.2.0.jar --py-bridge
+java -jar dist/MCLite_v1.2.1.jar --py-bridge
 ```
 
 生成：
@@ -424,7 +426,7 @@ X-MCLite-Token: <token>
 ### Python 客户端 / UI
 
 ```bash
-python3 run_ui.py --jar /path/to/MCLite_v1.2.0.jar
+python3 run_ui.py --jar /path/to/MCLite_v1.2.1.jar
 ```
 
 `run_ui.py` 会找已安装 PySide6 的解释器。
@@ -496,7 +498,7 @@ versions/26.1.2
 - `InstancesPage` 通过包级字段访问 owner 的 `config/gamePaths/allVersions/installedCache/selectedEntry`。
 - 页面类仍依赖 owner 回调，不是完全独立。
 - GUI 主要靠截图和手动检查，CI 不启动真实 Minecraft。
-- 1.2.0 没有完成真机进游戏 dogfooding。
+- 真机进游戏只验证到「启动进世界」；皮肤/角色预览界面在 owo 降级后尚未复测。
 - Python Bridge 新方法需要 1.1.98+ 服务端；旧方法兼容。
 - `bump-version.sh major` 不符合标准 semver。
 - macOS app 更新测试只在 macOS 跑；Linux CI 会跳过 app 部分。
@@ -506,7 +508,7 @@ versions/26.1.2
 ## 9. 接手检查清单
 
 - [ ] `git status` 没有意外修改
-- [ ] `VERSION` = 1.2.0
+- [ ] `VERSION` = 1.2.1
 - [ ] `./test.sh` 通过（63 checks + headless + bridge）
 - [ ] `./test-update.sh` 通过
 - [ ] JAR < 700KB

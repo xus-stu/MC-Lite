@@ -22,6 +22,7 @@ ConfigPage    owner<=56 controls<=29   ← 当前基线
 
 - `SettingsPage`：控件字段已私有化，`owner.config` 通过构造上下文传入，`owner` 调用从 199 降到 10。
 - `InstancesPage`：没有 `owner.<控件>`。
+- 1.2.1：删除 `LauncherFrame` 中 15 个搬走后仍残留的控件字段，启动/启停/退出改走 `SettingsPage`；CI 增加 frame control gate，`LauncherFrame` 再引用设置页控件会直接失败。
 
 ## 未完成
 
