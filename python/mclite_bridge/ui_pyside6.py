@@ -32,6 +32,8 @@ class MainWindow(QtWidgets.QMainWindow if QtWidgets else object):
         tabs.addTab(self._tasks_tab(), "任务")
         tabs.addTab(self._datapacks_tab(), "数据包")
         tabs.addTab(self._logs_tab(), "日志")
+        tabs.addTab(self._accounts_tab(), "账户")
+        tabs.addTab(self._diagnostics_tab(), "诊断")
         self.setCentralWidget(tabs)
 
         self.timer = QtCore.QTimer(self)
@@ -40,6 +42,8 @@ class MainWindow(QtWidgets.QMainWindow if QtWidgets else object):
         self.timer.start(1500)
         self.refresh_versions()
         self.refresh_tasks()
+        self.refresh_accounts()
+        self.refresh_diagnostics()
 
     def _versions_tab(self):
         page = QtWidgets.QWidget()
@@ -135,6 +139,59 @@ class MainWindow(QtWidgets.QMainWindow if QtWidgets else object):
         self.logs.setReadOnly(True)
         layout.addWidget(self.logs)
         return page
+
+    def _accounts_tab(self):
+        page = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(page)
+        bar = QtWidgets.QHBoxLayout()
+        refresh = QtWidgets.QPushButton("刷新账户")
+        refresh.clicked.connect(self.refresh_accounts)
+        bar.addWidget(refresh)
+        bar.addStretch(1)
+        layout.addLayout(bar)
+        self.accounts_list = QtWidgets.QListWidget()
+        layout.addWidget(self.accounts_list)
+        return page
+
+    def _diagnostics_tab(self):
+        page = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(page)
+        bar = QtWidgets.QHBoxLayout()
+        self.diag_instance = QtWidgets.QLineEdit()
+        self.diag_instance.setPlaceholderText("实例 id（留空使用最近版本）")
+        analyze = QtWidgets.QPushButton("分析崩溃")
+        analyze.clicked.connect(self.refresh_diagnostics)
+        bar.addWidget(self.diag_instance)
+        bar.addWidget(analyze)
+        layout.addLayout(bar)
+        self.diag_text = QtWidgets.QPlainTextEdit()
+        self.diag_text.setReadOnly(True)
+        layout.addWidget(self.diag_text)
+        return page
+
+    def refresh_accounts(self) -> None:
+        try:
+            accounts = self.client.accounts()
+            self.accounts_list.clear()
+            for item in accounts:
+                mark = " · 当前" if item.get("selected") else ""
+                self.accounts_list.addItem(f"{item.get('name', '')}{mark}  [{item.get('id', '')}]")
+        except BridgeError:
+            pass
+
+    def refresh_diagnostics(self) -> None:
+        try:
+            data = self.client.diagnostics(self.diag_instance.text().strip())
+            lines = [f"实例：{data.get('instance') or '（最近版本）'}",
+                     f"报告：{data.get('report') or '未找到崩溃报告'}"]
+            findings = data.get("findings") or []
+            if not findings:
+                lines.append("没有发现可分类的问题。")
+            for finding in findings:
+                lines.append(f"\n[{finding.get('kind')}] {finding.get('summary')}\n建议：{finding.get('action')}")
+            self.diag_text.setPlainText("\n".join(lines))
+        except BridgeError:
+            pass
 
     def fail(self, error: Exception) -> None:
         QtWidgets.QMessageBox.warning(self, "MC Lite Bridge", str(error))
