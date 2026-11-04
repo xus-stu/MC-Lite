@@ -1,5 +1,12 @@
 # MC Lite 更新记录
 
+## v1.3.8
+
+- `mclite_bridge` 现在随 JAR 一起打包，设置页新增「安装 Python 模块…」：选择解释器即可离线 pip 安装，PyCharm 里可直接 `import mclite_bridge`。
+- 新增 `python/pyproject.toml`，支持 `pip install -e python`；PyBridge ZIP 一并附带。
+- `api_tour.py` 在模块缺失时给出安装提示，不再只报 ImportError；README 增加 PyCharm 配置说明。
+
+
 ## v1.3.7
 
 - 实例页的分组下拉改用主题化的 `Ui.DarkCombo`，去掉系统默认的黑边，和搜索/排序下拉一致的圆角与配色。

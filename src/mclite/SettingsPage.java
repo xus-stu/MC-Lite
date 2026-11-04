@@ -146,6 +146,11 @@ final class SettingsPage {
         settingsActions.setOpaque(false);
         settingsActions.setLayout(new BoxLayout(settingsActions, BoxLayout.X_AXIS));
         settingsActions.add(openLogs);
+        Ui.AccentButton installPython = Ui.smallButton("安装 Python 模块…",
+                Ui.AccentButton.Style.GHOST);
+        installPython.setToolTipText("把 Bridge 的 Python 客户端安装到指定解释器，PyCharm 里可直接 import");
+        installPython.addActionListener(e -> installPythonModule());
+        settingsActions.add(installPython);
         settingsActions.add(Ui.hgap(6));
         Ui.AccentButton checkUpdate = Ui.smallButton("检查更新", Ui.AccentButton.Style.GHOST);
         checkUpdate.addActionListener(e -> Updater.checkNow(config, owner,
@@ -650,6 +655,38 @@ final class SettingsPage {
         Theme.setFontFamily(family);
         Theme.install();
         restartFrame();
+    }
+
+    private void installPythonModule() {
+        java.nio.file.Path python = Ui.chooseFile(owner, "选择 Python 解释器",
+                java.nio.file.Path.of("/usr/bin/python3"));
+        if (python == null) {
+            return;
+        }
+        if (!java.nio.file.Files.isRegularFile(python)) {
+            ModernDialogs.message(owner, "Python 模块", "选择的文件不可用：" + python);
+            return;
+        }
+        new javax.swing.SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() {
+                try {
+                    PythonModuleInstaller.install(python);
+                    return "已安装到 " + python + "\n\n在 PyCharm 里重新加载解释器后即可 import mclite_bridge。";
+                } catch (Exception ex) {
+                    return "安装失败：" + (ex.getMessage() == null ? ex.toString() : ex.getMessage());
+                }
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ModernDialogs.message(owner, "Python 模块", get());
+                } catch (Exception ex) {
+                    ModernDialogs.message(owner, "Python 模块", "安装失败：" + ex.getMessage());
+                }
+            }
+        }.execute();
     }
 
     private void restartFrame() {

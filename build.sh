@@ -44,6 +44,11 @@ if [ -d src/META-INF/services ]; then
   mkdir -p build/classes/META-INF/services
   cp src/META-INF/services/* build/classes/META-INF/services/
 fi
+# Python 模块同时打进 JAR 资源，启动器可离线安装到用户选择的解释器
+rm -rf build/classes/mclite/pybridge
+mkdir -p build/classes/mclite/pybridge/mclite_bridge
+cp python/pyproject.toml build/classes/mclite/pybridge/
+cp python/mclite_bridge/*.py build/classes/mclite/pybridge/mclite_bridge/
 printf 'version=%s\n' "$VERSION" > build/classes/mclite/version.properties
 : > build/region-marker/mclite/region.lock
 
@@ -63,7 +68,7 @@ done
 
 echo "[2/4] 打包可选 Python Bridge…"
 rm -f "dist/${PY_ZIP}"
-(cd python && zip -qr "../dist/${PY_ZIP}" mclite_bridge README.md requirements-ui.txt run_ui.py -x "*/__pycache__/*" "*.pyc")
+(cd python && zip -qr "../dist/${PY_ZIP}" mclite_bridge pyproject.toml README.md requirements-ui.txt run_ui.py -x "*/__pycache__/*" "*.pyc")
 echo "  ${PY_ZIP}"
 
 echo "[2/4] 打包可选跑分模块…"

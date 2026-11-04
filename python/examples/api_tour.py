@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
 # 逐行注释版 Bridge API 示例：把启动器能通过 HTTP 暴露的能力全部走一遍。
 # 每一行代码后面的注释说明这一行在干什么、对应哪个 API。
-# 运行前先启动 Bridge：java -jar MCLite_v1.3.7.jar --py-bridge
+# 运行前先启动 Bridge：java -jar MCLite_v1.3.8.jar --py-bridge
 # Bridge 会在 ~/.mclite/bridge.json 写入 url 和临时 token。
 
 import json  # 标准库：把返回的 JSON 打印得好看一点
 from pathlib import Path  # 标准库：定位仓库里的 mclite_bridge 包
 import sys  # 标准库：加入模块搜索路径，并用于失败时的退出码
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 让脚本能直接找到 python/mclite_bridge
-from mclite_bridge import BridgeClient  # 导入随启动器分发的 Python 客户端
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 优先用仓库里的 python/mclite_bridge（复制到别处时会失败）
+try:  # 先尝试正常导入
+    from mclite_bridge import BridgeClient  # 导入 Python 客户端（pip 安装或仓库路径可用）
+except ModuleNotFoundError:  # 复制到 PyCharm 项目里、又没安装模块时会走到这里
+    print("找不到 mclite_bridge：请用启动器「设置 → 安装 Python 模块…」安装到当前解释器，\n"
+          "或在命令行执行：<你的 python> -m pip install -e <仓库>/python", file=sys.stderr)  # 给出两种修复方式
+    raise SystemExit(1)  # 缺少依赖直接退出
 
 
 def show(title, value):  # 定义一个打印函数，统一输出格式
@@ -71,5 +76,5 @@ if __name__ == "__main__":  # 只有直接运行脚本时才执行
         main()  # 调用主流程
     except Exception as error:  # Bridge 未启动 / token 失效 / 端口被占用都会到这里
         print("API 示例运行失败：", error, file=sys.stderr)  # 打印错误到 stderr
-        print("请先运行：java -jar MCLite_v1.3.7.jar --py-bridge", file=sys.stderr)  # 提示启动 Bridge
+        print("请先运行：java -jar MCLite_v1.3.8.jar --py-bridge", file=sys.stderr)  # 提示启动 Bridge
         sys.exit(1)  # 用非零退出码表示失败
