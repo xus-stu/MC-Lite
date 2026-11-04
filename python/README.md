@@ -13,7 +13,7 @@ python3 -m pip install -r requirements-ui.txt
 ## 启动 Java Bridge
 
 ```bash
-java -jar MCLite_v1.3.9.jar --py-bridge
+java -jar MCLite_v1.3.10.jar --py-bridge
 ```
 
 启动后会生成：
@@ -32,7 +32,7 @@ X-MCLite-Token: <token>
 
 脚本被复制到 PyCharm 项目里时，PyCharm 找不到 `mclite_bridge` 是正常的——包不在项目里。两种解法：
 
-1. **启动器安装（推荐）**：设置页点「安装 Python 模块…」，选择 PyCharm 正在使用的 Python 解释器；安装完成后在 PyCharm 里刷新解释器缓存即可 `import mclite_bridge`。
+1. **启动器安装（推荐）**：设置页点「安装 Python 模块…」，列表只显示 `~/PycharmProjects/*/.venv` 里的环境（如 `WelcomeScreen · Python 3.14`）；选中即安装，找不到就点「选择 PyCharm 项目文件夹…」。
 2. **命令行安装**：`<你的 python> -m pip install -e /path/to/repo/python`。
 
 ## Python 客户端
@@ -51,14 +51,14 @@ print(client.search("Sodium", "mod", "26.1.2", "fabric"))
 `python/examples/api_tour.py`：每一行都有中文注释，按顺序覆盖 health/info/capabilities/versions/instances/content/tasks/config/java/datapacks/logs，安装和启动调用默认注释掉。
 
 ```bash
-java -jar MCLite_v1.3.9.jar --py-bridge
+java -jar MCLite_v1.3.10.jar --py-bridge
 PYTHONPATH=python python3 python/examples/api_tour.py
 ```
 
 ## PySide6 前端
 
 ```bash
-python3 run_ui.py --jar /path/to/MCLite_v1.3.9.jar
+python3 run_ui.py --jar /path/to/MCLite_v1.3.10.jar
 ```
 
 `run_ui.py` 会自动寻找安装了 PySide6 的 Python（优先 `python3.14` / `python3.13`）。

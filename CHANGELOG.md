@@ -1,5 +1,10 @@
 # MC Lite 更新记录
 
+## v1.3.10
+
+- 「安装 Python 模块」默认只列 `~/PycharmProjects/*/.venv|venv|env` 里的 PyCharm 环境（带项目名与 Python 版本），不再混入系统 Python；找不到时可选「选择 PyCharm 项目文件夹…」自动定位 .venv。
+
+
 ## v1.3.9
 
 - 「安装 Python 模块」改为自动检测解释器：扫描 PATH、Homebrew/系统目录、pyenv/conda，以及 `~/PycharmProjects/*/.venv|venv|env`，列出带版本号的候选；仍保留「浏览可执行文件…」兜底。

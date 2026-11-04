@@ -6,7 +6,7 @@
 
 ```bash
 # 终端 1：启动 Bridge
-java -jar MCLite_v1.3.9.jar --py-bridge
+java -jar MCLite_v1.3.10.jar --py-bridge
 
 # 终端 2：运行示例
 PYTHONPATH=python python3 python/examples/api_tour.py

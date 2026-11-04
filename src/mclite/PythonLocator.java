@@ -12,13 +12,64 @@ import java.util.concurrent.TimeUnit;
 
 /** Finds Python interpreters from PATH, common install locations and PyCharm venvs. */
 final class PythonLocator {
-    record Interpreter(Path path, String version) {
-        String label() {
-            return "Python " + version + "  ·  " + path;
-        }
+    record Interpreter(Path path, String version, String label) {
     }
 
     private PythonLocator() {
+    }
+
+    /** Venvs under ~/PycharmProjects, labelled with their project name (system Pythons excluded). */
+    static List<Interpreter> detectPycharm() {
+        List<Interpreter> result = new ArrayList<>();
+        Path root = Path.of(System.getProperty("user.home"), "PycharmProjects");
+        if (!Files.isDirectory(root)) {
+            return result;
+        }
+        try (var walk = Files.walk(root, 4)) {
+            for (Path file : walk.toList()) {
+                String name = file.getFileName().toString();
+                if (!name.equals("python") || !Files.isRegularFile(file)
+                        || !Files.isExecutable(file)) {
+                    continue;
+                }
+                Path bin = file.getParent();
+                Path venv = bin == null ? null : bin.getParent();
+                if (venv == null || bin == null || !"bin".equals(bin.getFileName().toString())) {
+                    continue;
+                }
+                String venvName = venv.getFileName().toString();
+                if (!venvName.equals(".venv") && !venvName.equals("venv")
+                        && !venvName.equals("env")) {
+                    continue;
+                }
+                String version = probe(file);
+                if (version == null) {
+                    continue;
+                }
+                Path project = venv.getParent();
+                String label = "PyCharm · " + (project == null ? venvName : project.getFileName())
+                        + " · Python " + version + "  ·  " + file;
+                result.add(new Interpreter(file, version, label));
+            }
+        } catch (IOException ignored) {
+        }
+        return result;
+    }
+
+    /** A .venv/.venv/bin/python inside a user-picked project folder. */
+    static Interpreter findInProject(Path project) {
+        for (String venv : new String[]{".venv", "venv", "env"}) {
+            Path python = project.resolve(venv).resolve("bin").resolve("python");
+            if (Files.isRegularFile(python) && Files.isExecutable(python)) {
+                String version = probe(python);
+                if (version != null) {
+                    return new Interpreter(python, version,
+                            "PyCharm · " + project.getFileName() + " · Python " + version
+                                    + "  ·  " + python);
+                }
+            }
+        }
+        return null;
     }
 
     static List<Interpreter> detect() {
@@ -44,7 +95,7 @@ final class PythonLocator {
         for (Path path : candidates.values()) {
             String version = probe(path);
             if (version != null) {
-                result.add(new Interpreter(path, version));
+                result.add(new Interpreter(path, version, "Python " + version + "  ·  " + path));
             }
         }
         return result;
