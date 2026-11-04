@@ -1,5 +1,6 @@
 package mclite;
 
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JLabel;
@@ -61,9 +62,6 @@ final class InstancesPage {
             owner.refreshInstalledCache();
             refresh();
         });
-        JPanel headerActions = new JPanel();
-        headerActions.setOpaque(false);
-        headerActions.setLayout(new BoxLayout(headerActions, BoxLayout.X_AXIS));
         Ui.AccentButton launch = Ui.smallButton("启动所选实例", Ui.AccentButton.Style.PRIMARY);
         launch.addActionListener(e -> {
             VersionManifest.VersionEntry entry = selected();
@@ -106,31 +104,58 @@ final class InstancesPage {
                 refresh();
             }
         });
-        headerActions.add(groupFilter);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(launch);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(update);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(rename);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(delete);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(zip);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(datapack);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(copy);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(export);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(importZip);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(meta);
-        headerActions.add(Ui.hgap(8));
-        headerActions.add(refresh);
-        page.add(LauncherLayout.pageHeader("版本列表", "查看并启动游戏文件夹中的版本、模组和资源包",
-                headerActions), BorderLayout.NORTH);
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(true);
+        header.setBackground(Theme.BG);
+        header.add(LauncherLayout.pageHeader("版本列表",
+                "查看并启动游戏文件夹中的版本、模组和资源包", null), BorderLayout.NORTH);
+
+        JPanel toolbarCard = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 12);
+        toolbarCard.setLayout(new BoxLayout(toolbarCard, BoxLayout.Y_AXIS));
+        toolbarCard.setBorder(new EmptyBorder(8, 12, 8, 12));
+        JPanel row1 = new JPanel();
+        row1.setOpaque(false);
+        row1.setLayout(new BoxLayout(row1, BoxLayout.X_AXIS));
+        row1.add(groupFilter);
+        row1.add(Ui.hgap(8));
+        row1.add(launch);
+        row1.add(Ui.hgap(8));
+        row1.add(update);
+        row1.add(Ui.hgap(8));
+        row1.add(rename);
+        row1.add(Ui.hgap(8));
+        row1.add(delete);
+        row1.add(Ui.hgap(8));
+        row1.add(zip);
+        row1.add(Box.createHorizontalGlue());
+        row1.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        JPanel row2 = new JPanel();
+        row2.setOpaque(false);
+        row2.setLayout(new BoxLayout(row2, BoxLayout.X_AXIS));
+        row2.add(datapack);
+        row2.add(Ui.hgap(8));
+        row2.add(copy);
+        row2.add(Ui.hgap(8));
+        row2.add(export);
+        row2.add(Ui.hgap(8));
+        row2.add(importZip);
+        row2.add(Ui.hgap(8));
+        row2.add(meta);
+        row2.add(Ui.hgap(8));
+        row2.add(refresh);
+        row2.add(Box.createHorizontalGlue());
+        row2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        toolbarCard.add(row1);
+        toolbarCard.add(Box.createVerticalStrut(6));
+        toolbarCard.add(row2);
+
+        JPanel toolbarWrap = new JPanel(new BorderLayout());
+        toolbarWrap.setOpaque(true);
+        toolbarWrap.setBackground(Theme.BG);
+        toolbarWrap.setBorder(new EmptyBorder(8, 14, 0, 14));
+        toolbarWrap.add(toolbarCard, BorderLayout.CENTER);
+        header.add(toolbarWrap, BorderLayout.CENTER);
+        page.add(header, BorderLayout.NORTH);
 
         JPanel body = new JPanel(new BorderLayout(14, 0));
         body.setOpaque(false);

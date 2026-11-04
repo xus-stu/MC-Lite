@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "backend": "native",
+  "rasterEngine": "libreoffice",
+  "source": "saved",
+  "inputPath": "/Users/xiaoxu/PycharmProjects/Java/运动会加油稿300则.docx",
+  "sourceSha256": "0ff5ffe720223ca604173697ca0e8b25947a4e510ea564cdb3b29d9983ea28c3",
+  "dpi": 144,
+  "pageCount": 16,
+  "images": [
+    {
+      "index": 1,
+      "page": 1,
+      "path": "/Users/xiaoxu/PycharmProjects/Java/cheer_docx/.dsh-office.FRo9O0B2/render/page-0001.png",
+      "width": 1191,
+      "height": 1684,
+      "rectangle": {
+        "x": 0,
+        "y": 0,
+        "width": 793.7333333333333,
+        "height": 1122.5333333333333
+      },
+      "byteLength": 326882
+    },
+    {
+      "index": 2,
+      "page": 16,
+      "path": "/Users/xiaoxu/PycharmProjects/Java/cheer_docx/.dsh-office.FRo9O0B2/render/page-0002.png",
+      "width": 1191,
+      "height": 1684,
+      "rectangle": {
+        "x": 0,
+        "y": 0,
+        "width": 793.7333333333333,
+        "height": 1122.5333333333333
+      },
+      "byteLength": 199545
+    }
+  ],
+  "missingFonts": [
+    "黑体",
+    "宋体",
+    "楷体"
+  ]
+}
