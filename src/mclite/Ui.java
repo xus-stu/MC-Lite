@@ -270,6 +270,72 @@ public final class Ui {
         return showFileDialog(parent, title, initial, false, extensions);
     }
 
+    /** Save dialog: unlike {@link #chooseFile}, it lets the user type a new file name. */
+    public static Path chooseSaveFile(Component parent, String title, Path initial) {
+        if (isMac()) {
+            return macSaveDialog(title, initial);
+        }
+        FileDialog picker;
+        if (parent instanceof Frame frame) {
+            picker = new FileDialog(frame, title == null ? "保存" : title, FileDialog.SAVE);
+        } else if (parent instanceof Dialog dialog) {
+            picker = new FileDialog(dialog, title == null ? "保存" : title, FileDialog.SAVE);
+        } else {
+            picker = new FileDialog((Frame) null, title == null ? "保存" : title, FileDialog.SAVE);
+        }
+        if (initial != null) {
+            Path parentDir = java.nio.file.Files.isDirectory(initial) ? initial : initial.getParent();
+            if (parentDir != null) {
+                picker.setDirectory(parentDir.toAbsolutePath().normalize().toString());
+            }
+            if (!java.nio.file.Files.isDirectory(initial)) {
+                picker.setFile(initial.getFileName().toString());
+            }
+        }
+        picker.setVisible(true);
+        String file = picker.getFile();
+        if (file == null || file.isBlank()) {
+            return null;
+        }
+        Path base = picker.getDirectory() == null ? Path.of("") : Path.of(picker.getDirectory());
+        return base.resolve(file).toAbsolutePath().normalize();
+    }
+
+    private static Path macSaveDialog(String title, Path initial) {
+        String prompt = escapeAppleScript(title == null ? "保存" : title);
+        StringBuilder script = new StringBuilder();
+        script.append("set p to choose file name with prompt \"").append(prompt).append("\"");
+        if (initial != null) {
+            Path parent = java.nio.file.Files.isDirectory(initial) ? initial : initial.getParent();
+            if (parent != null && java.nio.file.Files.exists(parent)) {
+                script.append(" default location (POSIX file \"")
+                        .append(escapeAppleScript(parent.toString())).append("\")");
+            }
+            if (!java.nio.file.Files.isDirectory(initial)) {
+                script.append(" default name \"")
+                        .append(escapeAppleScript(initial.getFileName().toString())).append("\"");
+            }
+        }
+        script.append("\nreturn POSIX path of p");
+        try {
+            Process process = new ProcessBuilder("/usr/bin/osascript", "-e", script.toString())
+                    .redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).trim();
+            if (!process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return null;
+            }
+            if (process.exitValue() != 0 || output.isEmpty()) {
+                return null;
+            }
+            return Path.of(output).toAbsolutePath().normalize();
+        } catch (Exception ex) {
+            Log.warn("macOS 保存窗口失败: " + ex.getMessage());
+            return null;
+        }
+    }
+
     private static Path showFileDialog(Component parent, String title, Path initial,
                                        boolean directory, String[] extensions) {
         if (isMac()) {
