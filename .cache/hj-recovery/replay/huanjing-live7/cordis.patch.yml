@@ -1,0 +1,3 @@
+- insert:
+    - id: huanjing
+      name: '@local/dsh-plugin-huanjing'

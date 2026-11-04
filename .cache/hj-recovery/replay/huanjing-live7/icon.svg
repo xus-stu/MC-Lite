@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="画境">
+  <defs>
+    <linearGradient id="hj-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f2b20"/>
+      <stop offset="1" stop-color="#1f6b4a"/>
+    </linearGradient>
+    <linearGradient id="hj-leaf" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#b9f5cf"/>
+      <stop offset="1" stop-color="#46c98a"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#hj-bg)"/>
+  <circle cx="45" cy="19" r="6" fill="#e8ffe9" opacity="0.92"/>
+  <path d="M15 43c7-1 13-5 18-12 2 7 6 11 15 13-6 4-12 5-17 5-6 0-11-2-16-6Z" fill="url(#hj-leaf)"/>
+  <path d="M20 46c6-8 12-13 20-17" fill="none" stroke="#0f2b20" stroke-width="2.2" stroke-linecap="round" opacity="0.55"/>
+  <path d="M13 50h38" stroke="#b9f5cf" stroke-width="1.6" stroke-linecap="round" opacity="0.45"/>
+</svg>

@@ -1,0 +1,16 @@
+root[round]: 主页
+a: 产品
+b: 方案
+c: 价格
+a1: 功能
+a2: 案例
+b1: 标准版
+b2: 旗舰版
+
+root -> a
+root -> b
+root -> c
+a -> a1
+a -> a2
+b -> b1
+b -> b2

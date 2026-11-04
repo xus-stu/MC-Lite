@@ -1,0 +1,17 @@
+# 左边改文字，右边立刻出图；所有内容只保存在本机。
+# 连线    a -> b        加标签   a -> b: 是
+# 形状    a[round]: 开始   (box / round / pill / diamond / circle / hex)
+
+start[round]: 开始
+collect: 收集需求
+review[diamond]: 需要评审？
+doc: 写设计文档
+code: 直接编码
+done[round]: 交付上线
+
+start -> collect
+collect -> review
+review -> doc: 需要
+review -> code: 不需要
+doc -> done
+code -> done

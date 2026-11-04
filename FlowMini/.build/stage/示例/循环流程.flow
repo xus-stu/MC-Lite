@@ -1,0 +1,16 @@
+begin[round]: 收到请求
+check[diamond]: 参数合法？
+fix: 返回错误
+work: 处理业务
+save[hex]: 写入数据库
+back[diamond]: 需要重试？
+end[round]: 响应
+
+begin -> check
+check -> fix: 否
+check -> work: 是
+work -> save
+save -> back
+back -> work: 是
+back -> end: 否
+fix -> end
