@@ -79,6 +79,8 @@ public final class JavaDialog extends JDialog {
         download.addActionListener(e -> downloadRuntime());
         Ui.AccentButton remove = Ui.smallButton("移除手动添加", Ui.AccentButton.Style.GHOST);
         remove.addActionListener(e -> removeSelected());
+        Ui.AccentButton test = Ui.smallButton("测试运行", Ui.AccentButton.Style.GHOST);
+        test.addActionListener(e -> testSelected());
         Ui.AccentButton use = Ui.smallButton("使用此 Java", Ui.AccentButton.Style.PRIMARY);
         use.addActionListener(e -> useSelected());
         actions.add(add);
@@ -86,6 +88,8 @@ public final class JavaDialog extends JDialog {
         actions.add(download);
         actions.add(Ui.hgap(8));
         actions.add(remove);
+        actions.add(Ui.hgap(8));
+        actions.add(test);
         actions.add(javax.swing.Box.createHorizontalGlue());
         actions.add(use);
         root.add(actions, BorderLayout.SOUTH);
@@ -252,6 +256,23 @@ public final class JavaDialog extends JDialog {
             }
         }.execute();
         busy.setVisible(true);
+    }
+
+    private void testSelected() {
+        JavaManager.JavaInfo selected = list.getSelectedValue();
+        if (selected == null) {
+            ModernDialogs.message(this, "测试 Java", "请先选择一个 Java 运行时。");
+            return;
+        }
+        JavaManager.Probe probe = JavaManager.probe(selected.path());
+        if (probe.major() <= 0) {
+            ModernDialogs.message(this, "测试 Java",
+                    "无法运行这个 Java：\n" + selected.path());
+            return;
+        }
+        ModernDialogs.message(this, "测试 Java",
+                "Java " + probe.major() + " · " + probe.vendor() + "\n\n"
+                        + selected.path() + "\n\n" + probe.firstLine());
     }
 
     private void removeSelected() {
