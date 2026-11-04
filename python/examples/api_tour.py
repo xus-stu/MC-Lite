@@ -6,8 +6,7 @@
 
 import json  # 标准库：把返回的 JSON 打印得好看一点
 from pathlib import Path  # 标准库：定位仓库里的 mclite_bridge 包
-import sys  # 标准库：把 python/ 加入模块搜索路径
-import sys  # 标准库：出错时用非零退出码结束脚本
+import sys  # 标准库：加入模块搜索路径，并用于失败时的退出码
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 让脚本能直接找到 python/mclite_bridge
 from mclite_bridge import BridgeClient  # 导入随启动器分发的 Python 客户端
