@@ -30,7 +30,7 @@ public final class BridgeServer {
             "health", "info", "capabilities", "versions", "instances", "content.search",
             "content.project", "content.install", "tasks", "tasks.cancel", "tasks.clear",
             "config", "datapacks", "datapacks.install", "datapacks.sync",
-            "logs", "launch", "java");
+            "logs", "launch", "java", "accounts", "diagnostics");
     private final Config config;
     private final String token;
     private final HttpServer server;
@@ -246,6 +246,15 @@ public final class BridgeServer {
             send(exchange, 200, javaList());
             return;
         }
+        if ("/api/accounts".equals(path)) {
+            send(exchange, 200, accounts());
+            return;
+        }
+        if ("/api/diagnostics".equals(path)) {
+            String instance = query.getOrDefault("instance", config.lastVersion());
+            send(exchange, 200, diagnostics(instance));
+            return;
+        }
         if ("/api/launch".equals(path) && "POST".equals(method)) {
             send(exchange, 200, launch(readJson(exchange)));
             return;
@@ -260,6 +269,41 @@ public final class BridgeServer {
             ids.add(entry.id());
         }
         return ids;
+    }
+
+    private List<Object> accounts() {
+        List<Object> result = new ArrayList<>();
+        AccountStore.Data data = AccountStore.load(config.accountsDir());
+        for (AccountStore.Account account : data.accounts()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("id", account.id());
+            map.put("name", account.name());
+            map.put("type", account.type());
+            map.put("selected", account.id().equals(config.accountId()));
+            result.add(map);
+        }
+        return result;
+    }
+
+    private Map<String, Object> diagnostics(String instance) {
+        Path dir = instance == null || instance.isBlank()
+                ? config.gameDir() : config.gameDir().resolve("versions").resolve(instance);
+        Path report = LaunchDiagnostics.latestCrashReport(dir);
+        List<Object> findings = new ArrayList<>();
+        if (report != null) {
+            for (LaunchDiagnostics.Finding finding : LaunchDiagnostics.analyzeReport(report)) {
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("kind", finding.kind());
+                map.put("summary", finding.summary());
+                map.put("action", finding.action());
+                findings.add(map);
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("instance", instance == null ? "" : instance);
+        result.put("report", report == null ? "" : report.toString());
+        result.put("findings", findings);
+        return result;
     }
 
     private List<Object> javaList() {

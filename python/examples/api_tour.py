@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # 逐行注释版 Bridge API 示例：把启动器能通过 HTTP 暴露的能力全部走一遍。
 # 每一行代码后面的注释说明这一行在干什么、对应哪个 API。
-# 运行前先启动 Bridge：java -jar MCLite_v1.3.2.jar --py-bridge
+# 运行前先启动 Bridge：java -jar MCLite_v1.3.3.jar --py-bridge
 # Bridge 会在 ~/.mclite/bridge.json 写入 url 和临时 token。
 
 import json  # 标准库：把返回的 JSON 打印得好看一点
@@ -42,6 +42,8 @@ def main():  # 主流程：所有 API 调用都写在这里
         show("project", client.project(project_id))  # GET /api/content/project/{id}：项目详情
         show("project versions", client.project_versions(project_id, "26.1.2", "fabric")[:2])  # GET .../versions：文件版本
 
+    show("accounts", client.accounts())  # GET /api/accounts：账户列表与当前选中项
+    show("diagnostics", client.diagnostics())  # GET /api/diagnostics：最近一次崩溃的分类建议
     show("java", client.java())  # GET /api/java：已安装的 Java 运行时
     show("config", client.config())  # GET /api/config：当前启动器配置
     # client.update_config(memoryMb=6144)  # PUT /api/config：会真的改配置，默认注释
@@ -70,5 +72,5 @@ if __name__ == "__main__":  # 只有直接运行脚本时才执行
         main()  # 调用主流程
     except Exception as error:  # Bridge 未启动 / token 失效 / 端口被占用都会到这里
         print("API 示例运行失败：", error, file=sys.stderr)  # 打印错误到 stderr
-        print("请先运行：java -jar MCLite_v1.3.2.jar --py-bridge", file=sys.stderr)  # 提示启动 Bridge
+        print("请先运行：java -jar MCLite_v1.3.3.jar --py-bridge", file=sys.stderr)  # 提示启动 Bridge
         sys.exit(1)  # 用非零退出码表示失败

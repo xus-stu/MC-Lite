@@ -143,6 +143,13 @@ class BridgeClient:
     def content_sources(self) -> list[dict[str, Any]]:
         return self._request("GET", "/api/content/sources")
 
+    def accounts(self) -> list[dict[str, Any]]:
+        return self._request("GET", "/api/accounts")
+
+    def diagnostics(self, instance: str = "") -> dict[str, Any]:
+        suffix = f"?instance={urllib.parse.quote(instance)}" if instance else ""
+        return self._request("GET", f"/api/diagnostics{suffix}")
+
     def logs(self, tail: int = 200) -> str:
         return self._request("GET", "/api/logs?tail=" + str(tail)).get("text", "")
 

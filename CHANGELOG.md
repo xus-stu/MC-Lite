@@ -1,5 +1,12 @@
 # MC Lite 更新记录
 
+## v1.3.3
+
+- Bridge 新增 `GET /api/accounts`（账户列表与当前选中账户）和 `GET /api/diagnostics?instance=`（最近崩溃分类建议）。
+- Python 客户端新增 `accounts()` / `diagnostics()`；`api_tour.py` 覆盖这两个接口。
+- 能力列表同步加入 `accounts`、`diagnostics`，旧路径与旧函数不变。
+
+
 ## v1.3.2
 
 - 新增自绘皮肤编辑器（`SkinEditorDialog`）：64×64 画布、画笔/橡皮/填充/吸管、20 步撤销、导入 PNG、保存即应用到当前账户。
