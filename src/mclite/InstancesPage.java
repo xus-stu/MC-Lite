@@ -39,7 +39,7 @@ final class InstancesPage {
     private JLabel packsHeader;
     private DefaultListModel<String> modsModel;
     private DefaultListModel<String> packsModel;
-    private javax.swing.JComboBox<String> groupFilter;
+    private Ui.DarkCombo<String> groupFilter;
     private boolean updatingGroupFilter;
 
     InstancesPage(LauncherFrame owner, Runnable onCopy, Runnable onExport, Runnable onImport,
@@ -96,7 +96,7 @@ final class InstancesPage {
         Ui.AccentButton meta = Ui.smallButton("备注/分组", Ui.AccentButton.Style.GHOST);
         meta.setToolTipText("给所选实例设置分组和备注");
         meta.addActionListener(e -> onMeta.run());
-        groupFilter = new javax.swing.JComboBox<>();
+        groupFilter = new Ui.DarkCombo<>();
         groupFilter.setPreferredSize(new Dimension(132, 30));
         groupFilter.setMaximumSize(new Dimension(132, 30));
         groupFilter.addActionListener(e -> {
