@@ -83,6 +83,7 @@ src/mclite/DownloadPage.java        下载中心外壳（顶部栏/子标签/卡
 src/mclite/ContentPage.java         内容浏览卡片（搜索/列表/分页）
 src/mclite/ContentCache.java        内容搜索缓存（LRU + 5 分钟 TTL）
 src/mclite/VersionDetailPage.java    版本安装卡片（加载器/版本号/安装）
+src/mclite/VersionListCard.java     版本列表卡片（筛选结果/空状态/选中）
 src/mclite/ProjectDetailPage.java    项目详情卡片（文件版本/前置模组）
 src/mclite/BridgeServer.java        Python Bridge HTTP API
 src/mclite/Version.java             启动器版本常量
@@ -327,7 +328,7 @@ CI 由 tag `v*` 触发；不要重写已经推送的 tag。
 当前行数：
 
 ```text
-LauncherFrame   4477
+LauncherFrame   4434
 InstancesPage    371
 SettingsPage     674
 LaunchPage       242
@@ -336,6 +337,7 @@ DownloadPage     302
 ContentPage      650
 VersionDetailPage 191
 ProjectDetailPage 263
+VersionListCard  185
 ```
 
 已拆出：
@@ -347,6 +349,7 @@ ProjectDetailPage 263
 - `DownloadPage`：下载中心外壳（1.2.3 起顶部栏、子标签、卡片容器归页面；四个卡片内容还在搬）
 - `ContentPage`：内容浏览卡片（1.2.3 起搜索栏、列表、分页、选中底栏归页面）
 - `VersionDetailPage` / `ProjectDetailPage`：两张详情卡片（1.3.0 起控件归页面）
+- `VersionListCard`：版本列表卡片（1.3.1 起控件归页面，下载中心四张卡片全部搬完）
 
 ### 所有权状态
 
@@ -402,7 +405,7 @@ frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
    - 外壳已完成：顶部栏、搜索/过滤/刷新、子标签、卡片容器归 `DownloadPage`。
    - 内容浏览卡片已完成：`ContentPage` 接管搜索、列表、分页和选中底栏。
    - 版本详情、项目详情已完成：`VersionDetailPage` / `ProjectDetailPage`。
-   - 只剩版本列表卡片（v1.3.1）。
+   - 版本列表卡片已完成：下载中心四张卡片全部搬出 `LauncherFrame`。
    - 搬完后再处理 `LauncherFrame` 的包级字段访问。
 
 4. **收敛 `owner`**
@@ -511,7 +514,7 @@ versions/26.1.2
 
 ## 8. 已知风险
 
-- `LauncherFrame` 仍有 **4477 行**，下载中心只剩版本列表卡片。
+- `LauncherFrame` 仍有 **4434 行**，下载中心四张卡片已全部搬完；下一步是实例复制/导出/分组备注。
 - 1.2.3 审查遗留（P2，未修）：窗口最大化状态不持久化；manifest 为空时 `updateVersionPicker` 会在 EDT 扫 versions；busy 时从实例页点「启动所选实例」会静默丢弃 `pendingLaunch`。
 - `ContentPage` 仍向 `LauncherFrame` 暴露 `list()/model()/installButton()` 等访问器（所有权是名义上的），下一步改成 `appendResults/selectFirst/setStatusText` 这类窄方法。
 - 1.3.0 审查遗留（P2，未修）：整合包安装只写 `modpack.properties`，内容页「仅未安装」对整合包无效；筛选首次判定会逐项读 `content.properties`（慢盘可感知）；`TasksDialog` 取消后台更新/跑分任务不生效；`cancelTask` 不清 `installQueue`；启动进度期间关窗只检查 `busy`。
