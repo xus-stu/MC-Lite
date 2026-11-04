@@ -1,5 +1,11 @@
 # MC Lite 更新记录
 
+## v1.3.11
+
+- 设置页新增「启动 Python Bridge」：后台拉起 `--py-bridge`，自动生成 `~/.mclite/bridge.json`，不用再手敲终端命令。
+- `api_tour.py` 在 Bridge 未运行时给出明确提示（bridge.json 不存在、Bridge 需要常驻），不再只抛出 FileNotFoundError。
+
+
 ## v1.3.10
 
 - 「安装 Python 模块」默认只列 `~/PycharmProjects/*/.venv|venv|env` 里的 PyCharm 环境（带项目名与 Python 版本），不再混入系统 Python；找不到时可选「选择 PyCharm 项目文件夹…」自动定位 .venv。
