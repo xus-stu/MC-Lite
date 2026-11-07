@@ -4,7 +4,7 @@
 仓库：`/Users/xiaoxu/PycharmProjects/Java`
 当前 HEAD：`e62fc8c` 之后（`V1.4.21`，插件独立发布 + B 站头像/封面）
 启动器版本：`1.4.21`
-模组版本：`0.3.5`
+模组版本：`0.3.6`
 
 ## 1. 背景与用户目标
 
@@ -119,7 +119,7 @@ git push origin main && git push origin v<版本>
 
 - 最新反馈：灵动岛仍觉得不圆/不好看，歌词有错配（已收紧匹配，未复验）。
 - 下一步优先级：
-  1. 让用户启动 0.3.5（已直接装进 `~/Desktop/MC/versions/26.1.2/mods`）看新播放器 + B 站头像/封面，要一张实机截图；GUI Scale=3、约 160 FPS、islandScale=0.9。如果 B 站头像仍不显示，先看 `latest.log` 里 `[mclite-island] B 站图片` 报错，再用 `curl` 验证 i2.hdslb.com 是否可达。
+  1. 让用户启动 0.3.6（已直接装进 `~/Desktop/MC/versions/26.1.2/mods`）看新播放器 + B 站头像/封面，要一张实机截图；GUI Scale=3、约 160 FPS、islandScale=0.9。如果 B 站头像仍不显示，先看 `latest.log` 里 `[mclite-island] B 站图片` 报错，再用 `curl` 验证 i2.hdslb.com 是否可达。
   2. 若玩家嫌面板太满，可把 `PLAYER_W/H` 从 740x490 降到 720x470，或做按屏幕宽度自适应缩放。
   2. 修 `island` workflow 失败（本地跑 `island.yml` 两条命令）。
   3. 让用户列一首“歌词错配”的歌（文件名/标题/艺术家），按实际 LRCLIB 返回调整匹配或加文件名优先策略。
