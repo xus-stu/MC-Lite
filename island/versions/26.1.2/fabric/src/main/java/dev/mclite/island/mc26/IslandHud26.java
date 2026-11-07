@@ -95,7 +95,7 @@ final class IslandHud26 {
 
         UISurface26.Surface backdrop = UISurface26.get(
                 (art ? "hud/player/" : "hud/idle/") + h, w, h,
-                art ? PAINT_PLAYER : PAINT_IDLE);
+                art ? PAINT_PLAYER : PAINT_IDLE, UiScale26.current());
         UISurface26.draw(extractor, backdrop, 0, 0);
 
         if (!art) {

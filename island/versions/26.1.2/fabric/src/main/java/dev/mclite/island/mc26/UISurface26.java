@@ -73,10 +73,19 @@ final class UISurface26 {
      * 会自动向左上偏移 {@link #PAD}，以便把柔和投影一起画出来。
      */
     static Surface get(String key, int pageW, int pageH, Painter painter) {
+        return get(key, pageW, pageH, painter, 1);
+    }
+
+    /**
+     * @param renderScale 底图按几倍分辨率烘焙。小控件（胶囊/圆形按钮）传 GUI Scale，
+     *                    让圆角在 3x GUI 下也是 1:1 像素；大页面仍用 1 省显存。
+     */
+    static Surface get(String key, int pageW, int pageH, Painter painter, int renderScale) {
         if (pageW <= 0 || pageH <= 0) {
             return null;
         }
-        String cacheKey = key + "@" + pageW + "x" + pageH;
+        int scale = Math.max(1, Math.min(3, renderScale));
+        String cacheKey = key + "@" + pageW + "x" + pageH + "s" + scale;
         Surface existing = CACHE.get(cacheKey);
         if (existing != null) {
             if (!existing.view().isClosed()) {
@@ -84,7 +93,7 @@ final class UISurface26 {
             }
             CACHE.remove(cacheKey);
         }
-        Surface baked = bake(cacheKey, pageW, pageH, painter);
+        Surface baked = bake(cacheKey, pageW, pageH, painter, scale);
         if (baked != null) {
             CACHE.put(cacheKey, baked);
             trim();
@@ -105,14 +114,16 @@ final class UISurface26 {
                 0f, 1f, 0f, 1f);
     }
 
-    private static Surface bake(String key, int pageW, int pageH, Painter painter) {
+    private static Surface bake(String key, int pageW, int pageH, Painter painter,
+                                int renderScale) {
         try {
-            int surfaceW = pageW + PAD * 2;
-            int surfaceH = pageH + PAD * 2;
+            int surfaceW = (pageW + PAD * 2) * renderScale;
+            int surfaceH = (pageH + PAD * 2) * renderScale;
             BufferedImage image = new BufferedImage(surfaceW, surfaceH,
                     BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = image.createGraphics();
             try {
+                g.scale(renderScale, renderScale);
                 g.translate(PAD, PAD);
                 painter.paint(g, pageW, pageH);
             } finally {
@@ -135,7 +146,7 @@ final class UISurface26 {
             DynamicTexture texture = new DynamicTexture(
                     () -> "mclite-island ui " + key, nativeImage);
             Minecraft.getInstance().getTextureManager().register(id, texture);
-            return new Surface(surfaceW, surfaceH, PAD, id, texture);
+            return new Surface(pageW + PAD * 2, pageH + PAD * 2, PAD, id, texture);
         } catch (Throwable failure) {
             if (!warned) {
                 warned = true;
