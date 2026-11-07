@@ -1,5 +1,10 @@
 # MC Lite 更新记录
 
+## v1.4.10
+
+- 插件的清单、简介和 mod jar 全部支持多下载源：优先 `ghfast.top` / `gh-proxy.com` 镜像，再回退 GitHub 直连与备用镜像，解决 `HttpConnectTimeoutException`。
+- 镜像内容仍通过 SHA-256 校验；简介拉取失败显示内置文案。
+
 ## v1.4.9
 
 - 启动器插件详情页：简介改为 Markdown 渲染（标题/列表/代码/链接），不再显示原始 Markdown 源码。
