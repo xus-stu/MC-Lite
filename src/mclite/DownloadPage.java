@@ -41,6 +41,7 @@ final class DownloadPage {
     private Ui.SegmentButton packsTab;
     private Ui.SegmentButton modpacksTab;
     private Ui.SegmentButton shadersTab;
+    private Ui.SegmentButton pluginsTab;
     private JTextField searchField;
     private Ui.SegmentButton releaseFilter;
     private Ui.SegmentButton snapshotFilter;
@@ -60,7 +61,7 @@ final class DownloadPage {
     }
 
     JPanel build(JPanel versionsCard, JPanel contentCard, JPanel versionDetailCard,
-                 JPanel projectDetailCard) {
+                 JPanel projectDetailCard, JPanel pluginsCard) {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
@@ -77,6 +78,7 @@ final class DownloadPage {
         cards.add(contentCard, "content");
         cards.add(versionDetailCard, "versionDetail");
         cards.add(projectDetailCard, "projectDetail");
+        cards.add(pluginsCard, "plugins");
         middle.add(cards, BorderLayout.CENTER);
         page.add(middle, BorderLayout.CENTER);
         return page;
@@ -126,6 +128,7 @@ final class DownloadPage {
         packsTab.setSelected("resourcepack".equals(type));
         modpacksTab.setSelected("modpack".equals(type));
         shadersTab.setSelected("shader".equals(type));
+        pluginsTab.setSelected("plugins".equals(type));
     }
 
     void selectFilter(String filter) {
@@ -279,23 +282,27 @@ final class DownloadPage {
         packsTab = new Ui.SegmentButton("资源包");
         modpacksTab = new Ui.SegmentButton("整合包");
         shadersTab = new Ui.SegmentButton("光影");
+        pluginsTab = new Ui.SegmentButton("启动器插件");
         ButtonGroup group = new ButtonGroup();
         group.add(versionsTab);
         group.add(modsTab);
         group.add(packsTab);
         group.add(modpacksTab);
         group.add(shadersTab);
+        group.add(pluginsTab);
         versionsTab.setSelected(true);
         versionsTab.addActionListener(e -> onTab.accept("versions"));
         modsTab.addActionListener(e -> onTab.accept("mod"));
         packsTab.addActionListener(e -> onTab.accept("resourcepack"));
         modpacksTab.addActionListener(e -> onTab.accept("modpack"));
         shadersTab.addActionListener(e -> onTab.accept("shader"));
+        pluginsTab.addActionListener(e -> onTab.accept("plugins"));
         tabs.add(versionsTab);
         tabs.add(modsTab);
         tabs.add(packsTab);
         tabs.add(modpacksTab);
         tabs.add(shadersTab);
+        tabs.add(pluginsTab);
         bar.add(tabs, BorderLayout.WEST);
         return bar;
     }

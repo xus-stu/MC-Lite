@@ -6,7 +6,6 @@ import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -17,20 +16,17 @@ import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Dialog.ModalityType;
-import java.awt.Window;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.Component;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
 /**
- * 「扩展组件」对话框：从 release 清单里挑一个 MCLite 岛构建，装进选中实例。
+ * 下载中心「启动器插件」页：从 release 清单里挑构建，装进选中实例。
  *
  * <p>启动器本身不包含任何 mod jar；这里只做可选的联网下载 + 校验 + 安装。
  */
-public final class IslandInstallDialog extends JDialog {
+public final class LauncherPluginsPanel extends JPanel {
 
     private final Config config;
     private final GamePaths paths;
@@ -48,15 +44,18 @@ public final class IslandInstallDialog extends JDialog {
     private boolean busy;
     private boolean manifestFailed;
 
-    public IslandInstallDialog(Window owner, Config config, GamePaths paths) {
-        super(owner, "扩展组件 · MCLite 岛", ModalityType.APPLICATION_MODAL);
+    private final JPanel root;
+
+    public LauncherPluginsPanel(Config config, GamePaths paths) {
         this.config = config;
         this.paths = paths;
+        setOpaque(false);
+        setLayout(new BorderLayout());
 
-        JPanel root = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 18);
+        root = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 18);
         root.setLayout(new BorderLayout(0, 12));
         root.setBorder(new EmptyBorder(18, 18, 16, 18));
-        setContentPane(root);
+        add(root, BorderLayout.CENTER);
 
         JPanel header = new JPanel();
         header.setOpaque(false);
@@ -113,7 +112,6 @@ public final class IslandInstallDialog extends JDialog {
         uninstallButton = Ui.smallButton("卸载", Ui.AccentButton.Style.DANGER);
         refreshButton = Ui.smallButton("刷新清单", Ui.AccentButton.Style.GHOST);
         JButton openMusic = Ui.smallButton("打开音乐目录", Ui.AccentButton.Style.GHOST);
-        JButton close = Ui.smallButton("关闭", Ui.AccentButton.Style.SECONDARY);
 
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         footer.setOpaque(false);
@@ -121,7 +119,6 @@ public final class IslandInstallDialog extends JDialog {
         footer.add(openMusic);
         footer.add(uninstallButton);
         footer.add(installButton);
-        footer.add(close);
         root.add(footer, BorderLayout.SOUTH);
 
         for (InstalledInstance instance : InstalledInstance.scan(paths)) {
@@ -134,20 +131,17 @@ public final class IslandInstallDialog extends JDialog {
         uninstallButton.addActionListener(e -> uninstallSelected());
         refreshButton.addActionListener(e -> loadManifest());
         openMusic.addActionListener(e -> openMusicFolder());
-        close.addActionListener(e -> dispose());
-
-        addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowOpened(WindowEvent e) {
-                loadManifest();
-            }
-        });
-
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setSize(580, 430);
-        setMinimumSize(new Dimension(520, 380));
-        setLocationRelativeTo(owner);
         updateButtons();
+    }
+
+    private boolean loaded;
+
+    /** 切到「启动器插件」页时调用；只拉一次清单。 */
+    public void ensureLoaded() {
+        if (!loaded) {
+            loaded = true;
+            loadManifest();
+        }
     }
 
     private void selectDefaultInstance() {
