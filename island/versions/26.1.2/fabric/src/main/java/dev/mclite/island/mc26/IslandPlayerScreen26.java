@@ -119,26 +119,6 @@ final class IslandPlayerScreen26 extends Screen {
         int currentIndex = service.playlist().index();
         scroll = Math.max(0, currentIndex - 2);
 
-        navs.clear();
-        String[] labels = {"B站", "设置", "导入歌词", "打开目录", "关闭"};
-        Runnable[] actions = {
-                () -> Minecraft.getInstance().setScreen(
-                        new BiliBrowseScreen26(client, service, config)),
-                () -> Minecraft.getInstance().setScreen(
-                        new IslandConfigScreen26(client, service, config, saveConfig)),
-                () -> Minecraft.getInstance().setScreen(
-                        new LrcImportScreen26(service, saveConfig)),
-                () -> openFolder(service.musicDir()),
-                this::onClose
-        };
-        int cursor = panelX + UiPaint26.PLAYER_W - 24;
-        for (int i = labels.length - 1; i >= 0; i--) {
-            int w = font.width(labels[i]);
-            cursor -= w;
-            navs.add(0, new Nav(labels[i], cursor, w, panelY + 20, 18, actions[i]));
-            cursor -= 16;
-        }
-
         refreshX = cardX + cardW - 54;
         refreshY = cardY + 9;
 
@@ -270,6 +250,7 @@ final class IslandPlayerScreen26 extends Screen {
         extractor.fill(panelX + UiPaint26.PLAYER_W - 1, panelY,
                 panelX + UiPaint26.PLAYER_W, panelY + UiPaint26.PLAYER_H, frame);
 
+        layout();
         updateVolumeText();
         drawHeader(extractor, font, mouseX, mouseY);
         drawQueue(extractor, font, mouseX, mouseY, snapshot);
@@ -279,7 +260,23 @@ final class IslandPlayerScreen26 extends Screen {
         super.extractRenderState(extractor, mouseX, mouseY, delta);
     }
 
+    private void layout() {
+        panelX = Math.max(4, (width - UiPaint26.PLAYER_W) / 2);
+        panelY = Math.max(4, (height - UiPaint26.PLAYER_H) / 2);
+        cardX = panelX + UiPaint26.PLAYER_LEFT_X;
+        cardY = panelY + UiPaint26.PLAYER_LEFT_Y;
+        cardW = UiPaint26.PLAYER_LEFT_W;
+        cardH = UiPaint26.PLAYER_LEFT_H;
+        listX = cardX + 10;
+        listW = cardW - 20;
+        listTop = cardY + UiPaint26.PLAYER_QUEUE_HEADER + 8;
+        listBottom = cardY + cardH - 10;
+        refreshX = cardX + cardW - 54;
+        refreshY = cardY + 9;
+    }
+
     private void drawHeader(GuiGraphicsExtractor extractor, Font font, int mouseX, int mouseY) {
+        rebuildNavs(font);
         drawScaledText(extractor, font, "MCLite Island", panelX + 28, panelY + 12,
                 1.35f, TEXT, true);
         extractor.text(font, "本地音乐 · B站 · 歌词", panelX + 28, panelY + 35, 0xFFD7DEE8, false);
@@ -290,6 +287,28 @@ final class IslandPlayerScreen26 extends Screen {
             if (hover) {
                 extractor.fill(nav.x, nav.y + 13, nav.x + nav.w, nav.y + 14, ACCENT);
             }
+        }
+    }
+
+    private void rebuildNavs(Font font) {
+        navs.clear();
+        String[] labels = {"B站", "设置", "导入歌词", "打开目录", "关闭"};
+        Runnable[] actions = {
+                () -> Minecraft.getInstance().setScreen(
+                        new BiliBrowseScreen26(client, service, config)),
+                () -> Minecraft.getInstance().setScreen(
+                        new IslandConfigScreen26(client, service, config, saveConfig)),
+                () -> Minecraft.getInstance().setScreen(
+                        new LrcImportScreen26(service, saveConfig)),
+                () -> openFolder(service.musicDir()),
+                this::onClose
+        };
+        int cursor = panelX + UiPaint26.PLAYER_W - 24;
+        for (int i = labels.length - 1; i >= 0; i--) {
+            int w = font.width(labels[i]);
+            cursor -= w;
+            navs.add(0, new Nav(labels[i], cursor, panelY + 20, w, 18, actions[i]));
+            cursor -= 16;
         }
     }
 

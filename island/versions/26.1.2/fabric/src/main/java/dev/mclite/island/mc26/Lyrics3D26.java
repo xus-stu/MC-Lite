@@ -21,6 +21,7 @@ import org.joml.Matrix4f;
 final class Lyrics3D26 {
 
     private static final int LIGHT = 0xF000F0;
+    private static boolean logged;
 
     private Lyrics3D26() {
     }
@@ -60,6 +61,10 @@ final class Lyrics3D26 {
         pose.scale(-scale, -scale, scale);
         Matrix4f matrix = pose.last().pose();
 
+        if (!logged) {
+            logged = true;
+            System.out.println("[mclite-island] 3D lyrics active: " + text);
+        }
         Font font = client.font;
         MultiBufferSource buffer = context.bufferSource();
         int color = config.lyricsColor;
