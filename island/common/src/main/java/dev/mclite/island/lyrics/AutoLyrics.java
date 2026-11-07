@@ -33,6 +33,10 @@ public final class AutoLyrics {
 
     /** @return 命中的同步歌词；没有返回 null。 */
     public static Result fetch(Track track) throws IOException {
+        return fetch(track, track.durationMs());
+    }
+
+    public static Result fetch(Track track, long knownDurationMs) throws IOException {
         if (track.isRemote()) {
             return null;
         }
@@ -54,7 +58,7 @@ public final class AutoLyrics {
             if (synced.isBlank()) {
                 continue;
             }
-            double score = score(track, item);
+            double score = score(track, item, knownDurationMs);
             if (score > bestScore) {
                 best = item;
                 bestScore = score;
@@ -67,31 +71,44 @@ public final class AutoLyrics {
         return new Result(lrc, "LRCLIB");
     }
 
-    private static double score(Track track, JsonObject item) {
+    private static double score(Track track, JsonObject item, long knownDurationMs) {
         String title = str(item, "trackName");
         String artist = str(item, "artistName");
-        double score = 0;
         String want = normalize(track.title());
         String got = normalize(title);
-        if (want.equals(got)) {
-            score += 0.6;
-        } else if (got.contains(want) || want.contains(got)) {
-            score += 0.35;
-        } else {
+        if (want.isEmpty() || got.isEmpty()) {
             return 0;
         }
-        if (track.artist() != null && !track.artist().isBlank()
-                && normalize(track.artist()).equals(normalize(artist))) {
+        boolean titleExact = want.equals(got);
+        boolean titleContains = got.contains(want) || want.contains(got);
+        if (!titleExact && !titleContains) {
+            return 0;
+        }
+        String wantArtist = normalize(track.artist());
+        String gotArtist = normalize(artist);
+        boolean artistKnown = !wantArtist.isEmpty();
+        boolean artistMatches = artistKnown && (gotArtist.equals(wantArtist)
+                || gotArtist.contains(wantArtist) || wantArtist.contains(gotArtist));
+        // 有艺术家信息时必须匹配，防止同名翻唱/中文填词错配
+        if (artistKnown && !artistMatches) {
+            return 0;
+        }
+        double score = titleExact ? 0.6 : 0.25;
+        if (artistMatches) {
             score += 0.2;
         }
         double duration = item.has("duration") && !item.get("duration").isJsonNull()
                 ? item.get("duration").getAsDouble() : 0;
-        if (track.durationMs() > 0 && duration > 0) {
-            double diff = Math.abs(track.durationMs() / 1000.0 - duration);
-            if (diff > 5) {
+        long durationMs = knownDurationMs > 0 ? knownDurationMs : track.durationMs();
+        if (duration > 0 && durationMs > 0) {
+            double diff = Math.abs(durationMs / 1000.0 - duration);
+            if (diff > 3.0) {
                 return 0;
             }
-            score += 0.2 * (1 - diff / 5.0);
+            score += 0.2 * (1 - diff / 3.0);
+        } else if (!artistKnown && !titleExact) {
+            // 既没有艺术家也没有时长：宁可不出歌词，也不要挂错
+            return 0;
         }
         return score;
     }
@@ -102,8 +119,13 @@ public final class AutoLyrics {
     }
 
     private static String normalize(String value) {
-        return value == null ? "" : value.toLowerCase(java.util.Locale.ROOT)
-                .replaceAll("[\\s\\-_/\\\\()\\[\\]{}'\\\".,!?，。！？、]", "");
+        if (value == null) {
+            return "";
+        }
+        String cleaned = value.toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("\\[hi[- ]?res]|hi[- ]?res|高音质|无损|完整版|mv|lyrics?|动态歌词", "")
+                .replaceAll("\\([^)]*\\)|\\[[^]]*]|【[^】]*】", "");
+        return cleaned.replaceAll("[\\s\\-_/\\\\()\\[\\]{}'\\\".,!?，。！？、]", "");
     }
 
     private static String sha1(String value) {

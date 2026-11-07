@@ -69,6 +69,22 @@ final class IslandHud26 {
         draw(extractor, font, layout, snapshot, x, y, 1f);
     }
 
+    private static void paintPill(java.awt.Graphics2D g, int w, int h) {
+        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        int radius = h;
+        g.setColor(new java.awt.Color(0, 0, 0, 70));
+        g.fillRoundRect(0, 2, w, h, radius, radius);
+        java.awt.GradientPaint gradient = new java.awt.GradientPaint(
+                0, 0, new java.awt.Color(22, 28, 36, 232),
+                0, h, new java.awt.Color(12, 16, 21, 238));
+        g.setPaint(gradient);
+        g.fillRoundRect(0, 0, w, h, radius, radius);
+        g.setColor(new java.awt.Color(255, 255, 255, 34));
+        g.setStroke(new java.awt.BasicStroke(1f));
+        g.drawRoundRect(0, 0, w - 1, h - 1, radius, radius);
+    }
+
     private static void draw(GuiGraphicsExtractor extractor, Font font, Layout layout,
                              IslandSnapshot snapshot, int x, int y, float scale) {
         var pose = extractor.pose();
@@ -78,10 +94,9 @@ final class IslandHud26 {
         int w = layout.width;
         int h = layout.height;
 
-        // 略压一点 alpha，保留“半透明胶囊”的感觉
-        UiDraw26.panelTinted(extractor, UiDraw26.DARK, 0, 0, w, h, 0xE6FFFFFF);
-        // 顶部一条极淡的高光，让胶囊边缘不是死黑
-        extractor.fill(14, 1, w - 14, 2, 0x18FFFFFF);
+        // Java2D 烘焙的胶囊底图：真正的圆角(radius = h/2) + 渐变 + 细描边 + 阴影
+        UISurface26.Surface backdrop = UISurface26.get("hud", w, h, IslandHud26::paintPill);
+        UISurface26.draw(extractor, backdrop, 0, 0);
 
         int y1 = h == HEIGHT_LYRIC ? 6 : 3;
         int y2 = h == HEIGHT_LYRIC ? 18 : 13;
