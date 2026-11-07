@@ -49,16 +49,35 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Cache Gradle
+        uses: actions/cache@v4
         with:
-          gradle-version: '9.6.1'
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-island-2612-${{ runner.os }}-${{ hashFiles('island/versions/26.1.2/fabric/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-island-2612-${{ runner.os }}-
       - name: Build 26.1.2
+        working-directory: island/versions/26.1.2/fabric
         run: |
-          set -euo pipefail
-          cd island/versions/26.1.2/fabric
-          gradle bundledJar --no-daemon --stacktrace
-          mkdir -p "$GITHUB_WORKSPACE/dist"
-          cp build/libs/mclite-island-26.1.2-fabric-*-bundled.jar "$GITHUB_WORKSPACE/dist/"
+          set -o pipefail
+          chmod +x gradlew
+          for attempt in 1 2 3; do
+            if ./gradlew bundledJar --no-daemon --stacktrace 2>&1 | tee /tmp/gradle-26.log; then
+              mkdir -p "$GITHUB_WORKSPACE/dist"
+              cp build/libs/mclite-island-26.1.2-fabric-*-bundled.jar "$GITHUB_WORKSPACE/dist/"
+              exit 0
+            fi
+            echo "attempt ${attempt} failed; retrying in 15s" >&2
+            sleep 15
+          done
+          {
+            echo '### 26.1.2 build failed'
+            echo '```'
+            tail -120 /tmp/gradle-26.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: island-2612

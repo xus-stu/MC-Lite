@@ -16,9 +16,8 @@ final class UiIconButton26 extends AbstractWidget {
 
     enum Icon { PREV, PLAY, PAUSE, NEXT }
 
-    private static final int ACCENT = 0xFFFF7FB8;
-    private static final int ACCENT_HOVER = 0xFFFFB3D1;
-    private static final int PLAIN = 0xFFE8EDF3;
+    // 参考 Music Player / 画境：图标本身保持中性白，主题色只用于进度和选中态。
+    private static final int PLAIN = 0xFFD7DEE8;
     private static final int PLAIN_HOVER = 0xFFFFFFFF;
 
     private final Runnable action;
@@ -53,22 +52,22 @@ final class UiIconButton26 extends AbstractWidget {
     protected void extractWidgetRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY,
                                             float delta) {
         boolean hover = isHovered() && active;
-        int color = primary ? (hover ? ACCENT_HOVER : ACCENT) : (hover ? PLAIN_HOVER : PLAIN);
+        int color = hover ? PLAIN_HOVER : PLAIN;
         int cx = getX() + getWidth() / 2;
         int cy = getY() + getHeight() / 2;
         switch (icon) {
-            case PLAY -> triangle(extractor, cx - 7, cy, 15, 19, color);
+            case PLAY -> triangle(extractor, cx - 5, cy, 11, 14, color);
             case PAUSE -> {
-                extractor.fill(cx - 6, cy - 9, cx - 2, cy + 9, color);
-                extractor.fill(cx + 2, cy - 9, cx + 6, cy + 9, color);
+                extractor.fill(cx - 5, cy - 7, cx - 2, cy + 7, color);
+                extractor.fill(cx + 2, cy - 7, cx + 5, cy + 7, color);
             }
             case PREV -> {
-                extractor.fill(cx - 10, cy - 8, cx - 8, cy + 8, color);
-                triangleLeft(extractor, cx + 6, cy, 14, 17, color);
+                extractor.fill(cx - 8, cy - 6, cx - 6, cy + 6, color);
+                triangleLeft(extractor, cx + 5, cy, 11, 13, color);
             }
             case NEXT -> {
-                triangle(extractor, cx - 6, cy, 14, 17, color);
-                extractor.fill(cx + 8, cy - 8, cx + 10, cy + 8, color);
+                triangle(extractor, cx - 5, cy, 11, 13, color);
+                extractor.fill(cx + 6, cy - 6, cx + 8, cy + 6, color);
             }
         }
     }
