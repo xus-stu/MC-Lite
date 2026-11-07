@@ -66,6 +66,8 @@ public final class PlaybackService {
 
     /** 重新扫描音乐目录；尽量保留当前曲目。 */
     public List<Track> reloadLibrary() {
+        // 歌词文件可能刚被拖进去：清缓存，下次播放/刷新重新读
+        lyricCache.clear();
         Path musicDir = config.resolveMusicDir(gameDir);
         List<Track> scanned = MediaScanner.scan(musicDir);
         Track current = playlist.current();
@@ -75,6 +77,7 @@ public final class PlaybackService {
             if (index >= 0) {
                 playlist.index(index);
             }
+            currentLyrics = lyricsFor(current);
         }
         return scanned;
     }
