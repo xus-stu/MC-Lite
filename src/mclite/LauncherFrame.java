@@ -112,6 +112,7 @@ public final class LauncherFrame extends JFrame {
     private String currentTop = "download";
     private String currentDownloadCard = "versions";
     private DownloadPage downloadPage;
+    private LauncherPluginsPanel launcherPluginsPanel;
     private JPanel sidebar;
     private Ui.AccentButton sidebarToggle;
     private ContentPage contentPage;
@@ -465,9 +466,11 @@ public final class LauncherFrame extends JFrame {
                 this::openMcmod, this::updateContentSelection, this::runContentSearch,
                 this::isProjectInstalled);
         versionListCard = new VersionListCard(this::onVersionSelected, this::openVersionDetail);
+        launcherPluginsPanel = new LauncherPluginsPanel(config, gamePaths);
         contentCardsPanel.add(downloadPage.build(versionListCard.build(new VersionRenderer()),
                 contentPage.build(new ContentRenderer()), versionDetailPage.build(),
-                projectDetailPage.build(new ProjectVersionRenderer())), "download");
+                projectDetailPage.build(new ProjectVersionRenderer()),
+                launcherPluginsPanel), "download");
         launchPage = new LaunchPage(this, config);
         contentCardsPanel.add(launchPage.build(), "launch");
         instancesPage = new InstancesPage(this, this::copySelectedInstance,
@@ -2051,6 +2054,18 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void showDownloadTab(String type) {
+        if ("plugins".equals(type)) {
+            downloadPage.setSubtabsVisible(true);
+            downloadPage.setToolsVisible(false);
+            downloadPage.setTitle("启动器插件");
+            downloadPage.setSubtitle("MCLite 岛等可选组件 · 按实例/加载器匹配 · SHA-256 校验");
+            currentDownloadCard = "plugins";
+            downloadPage.showCard("plugins");
+            downloadPage.selectTab("plugins");
+            updateBackButton();
+            launcherPluginsPanel.ensureLoaded();
+            return;
+        }
         boolean versions = "versions".equals(type);
         downloadPage.setSubtabsVisible(true);
         String previousType = contentPage.type();
