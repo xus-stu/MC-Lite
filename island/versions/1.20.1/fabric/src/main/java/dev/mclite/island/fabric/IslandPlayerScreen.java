@@ -30,6 +30,7 @@ final class IslandPlayerScreen extends Screen {
     private int listBottom;
     private int rowHeight = 14;
     private String status = "";
+    private int refreshTicks;
     private Button playButton;
     private Button modeButton;
     private Button lyricsButton;
@@ -164,7 +165,10 @@ final class IslandPlayerScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
-        tracks = service.playlist().tracks();
+        if (--refreshTicks <= 0) {
+            tracks = service.playlist().tracks();
+            refreshTicks = 20;
+        }
         var font = Minecraft.getInstance().font;
 
         graphics.drawString(font, "MCLite Island · 本地音乐", 12, 10, 0xFFFFFFFF, false);

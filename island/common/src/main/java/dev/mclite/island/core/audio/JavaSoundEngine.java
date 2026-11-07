@@ -5,113 +5,126 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.FloatControl;
 import javax.sound.sampled.SourceDataLine;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Java Sound 播放引擎。独立于 Minecraft 的声音引擎，
  * 这样 1.20.1 ~ 26.x 的音频代码不用各写一份。
+ *
+ * <p>并发约定：打开解码器/音频设备这类可能阻塞的操作绝不在锁内做，
+ * 停播也不 join 工作线程——关闭 line/source 让阻塞的读写自然抛错退出。
  */
 public final class JavaSoundEngine implements AudioEngine {
 
     private static final int BUFFER_BYTES = 8 * 1024;
 
-    private final Object lock = new Object();
-    private SourceDataLine line;
-    private PcmSource source;
-    private Thread worker;
-    private volatile boolean stopped = true;
-    private volatile boolean paused;
-    private volatile long positionBytes;
-    private volatile long durationMs = -1L;
-    private volatile boolean ended;
-    private volatile float volume = 0.7f;
-    private volatile Runnable onEnd;
-    private Path currentFile;
+    /** 一次播放的会话；工作线程只操作自己的会话。 */
+    private static final class Session {
+        final PcmSource source;
+        final SourceDataLine line;
+        final long durationMs;
+        Thread worker;
+        volatile boolean stopRequested;
+        volatile boolean paused;
+        volatile boolean ended;
+        volatile long positionBytes;
 
-    @Override
-    public void play(Path file, long startMs) throws Exception {
-        synchronized (lock) {
-            stopLocked();
-            PcmSource opened = AudioDecoders.open(file, Math.max(0L, startMs));
-            AudioFormat format = opened.format();
-            long effectiveStart = opened.canSeek() ? Math.max(0L, startMs) : 0L;
-            SourceDataLine newLine;
-            try {
-                newLine = AudioSystem.getSourceDataLine(format);
-                newLine.open(format);
-            } catch (Exception ex) {
-                opened.close();
-                throw new IllegalStateException("无法打开音频设备: " + format, ex);
-            }
-            newLine.start();
-            applyVolume(newLine, volume);
-
-            this.source = opened;
-            this.line = newLine;
-            this.currentFile = file;
-            this.stopped = false;
-            this.paused = false;
-            this.ended = false;
-            this.durationMs = opened.durationMs();
-            long frameSize = Math.max(1, format.getFrameSize());
-            float frameRate = format.getFrameRate();
-            this.positionBytes = frameRate > 0
-                    ? (long) (effectiveStart / 1000.0 * frameRate * frameSize)
-                    : 0L;
-
-            Runnable body = () -> runPlayback(opened, newLine);
-            Thread thread = new Thread(body, "mclite-island-audio");
-            thread.setDaemon(true);
-            this.worker = thread;
-            thread.start();
+        Session(PcmSource source, SourceDataLine line, long durationMs) {
+            this.source = source;
+            this.line = line;
+            this.durationMs = durationMs;
         }
     }
 
-    private void runPlayback(PcmSource opened, SourceDataLine line) {
-        byte[] buffer = new byte[BUFFER_BYTES];
+    private final Object lock = new Object();
+    private final AtomicLong generation = new AtomicLong();
+    private volatile Session session;
+    private volatile float volume = 0.7f;
+    private volatile Runnable onEnd;
+
+    @Override
+    public void play(Path file, long startMs) throws Exception {
+        long requestGeneration = generation.incrementAndGet();
+        lastFile = file;
+
+        // 可能阻塞：解码器初始化、设备打开。放在锁外。
+        PcmSource opened = AudioDecoders.open(file, Math.max(0L, startMs));
+        AudioFormat format = opened.format();
+        long effectiveStart = opened.canSeek() ? Math.max(0L, startMs) : 0L;
+        SourceDataLine line;
         try {
-            while (!stopped) {
-                if (paused) {
+            line = AudioSystem.getSourceDataLine(format);
+            line.open(format);
+        } catch (Exception ex) {
+            opened.close();
+            throw new IllegalStateException("无法打开音频设备: " + format, ex);
+        }
+        applyVolume(line, volume);
+        line.start();
+
+        Session next = new Session(opened, line, opened.durationMs());
+        long frameSize = Math.max(1, format.getFrameSize());
+        float frameRate = format.getFrameRate();
+        next.positionBytes = frameRate > 0
+                ? (long) (effectiveStart / 1000.0 * frameRate * frameSize)
+                : 0L;
+
+        Session previous;
+        synchronized (lock) {
+            if (requestGeneration != generation.get()) {
+                // 打开设备期间用户已经切歌，这次结果作废
+                closeQuietly(line);
+                closeQuietly(opened);
+                return;
+            }
+            previous = session;
+            session = next;
+        }
+        if (previous != null) {
+            retire(previous);
+        }
+        Thread worker = new Thread(() -> runSession(requestGeneration, next),
+                "mclite-island-audio");
+        worker.setDaemon(true);
+        next.worker = worker;
+        worker.start();
+    }
+
+    private void runSession(long requestGeneration, Session own) {
+        byte[] buffer = new byte[BUFFER_BYTES];
+        boolean naturalEnd = false;
+        try {
+            while (!own.stopRequested && requestGeneration == generation.get()) {
+                if (own.paused) {
                     Thread.sleep(20L);
                     continue;
                 }
-                int read = opened.read(buffer);
+                int read = own.source.read(buffer);
                 if (read < 0) {
-                    ended = true;
+                    own.ended = true;
+                    naturalEnd = true;
                     break;
                 }
                 if (read == 0) {
                     continue;
                 }
-                line.write(buffer, 0, read);
-                positionBytes += read;
+                own.line.write(buffer, 0, read);
+                own.positionBytes += read;
             }
         } catch (Exception ignored) {
-            // 解码/设备错误按播放结束处理，界面会显示状态
+            // 关闭设备/解码失败都按结束处理
         } finally {
-            boolean naturalEnd = !stopped;
-            try {
-                line.drain();
-            } catch (Exception ignored) {
-                // 设备已关闭
-            }
-            try {
-                line.stop();
-                line.close();
-            } catch (Exception ignored) {
-                // 设备已关闭
-            }
-            try {
-                opened.close();
-            } catch (Exception ignored) {
-                // 已关闭
-            }
+            closeQuietly(own.line);
+            closeQuietly(own.source);
+            boolean notify;
             synchronized (lock) {
-                if (this.line == line) {
-                    this.line = null;
-                    this.source = null;
+                notify = naturalEnd && !own.stopRequested
+                        && requestGeneration == generation.get() && session == own;
+                if (session == own) {
+                    session = null;
                 }
             }
-            if (naturalEnd) {
+            if (notify) {
                 Runnable listener = onEnd;
                 if (listener != null) {
                     listener.run();
@@ -120,33 +133,47 @@ public final class JavaSoundEngine implements AudioEngine {
         }
     }
 
+    private void retire(Session old) {
+        old.stopRequested = true;
+        closeQuietly(old.line);
+        closeQuietly(old.source);
+        Thread worker = old.worker;
+        if (worker != null) {
+            worker.interrupt();
+        }
+    }
+
     @Override
     public void pause() {
-        if (paused || stopped) {
+        Session current = session;
+        if (current == null || current.paused) {
             return;
         }
-        paused = true;
-        SourceDataLine current = line;
-        if (current != null) {
-            current.stop();
+        current.paused = true;
+        try {
+            current.line.stop();
+        } catch (Exception ignored) {
+            // 设备已关闭
         }
     }
 
     @Override
     public void resume() {
-        if (!paused) {
+        Session current = session;
+        if (current == null || !current.paused) {
             return;
         }
-        paused = false;
-        SourceDataLine current = line;
-        if (current != null) {
-            current.start();
+        current.paused = false;
+        try {
+            current.line.start();
+        } catch (Exception ignored) {
+            // 设备已关闭
         }
     }
 
     @Override
     public void togglePause() {
-        if (paused) {
+        if (isPaused()) {
             resume();
         } else {
             pause();
@@ -155,47 +182,35 @@ public final class JavaSoundEngine implements AudioEngine {
 
     @Override
     public void stop() {
-        synchronized (lock) {
-            stopLocked();
-        }
+        retireCurrent();
     }
 
-    private void stopLocked() {
-        stopped = true;
-        paused = false;
-        ended = false;
-        durationMs = -1L;
-        Thread current = worker;
-        if (current != null && current != Thread.currentThread()) {
-            current.interrupt();
-            try {
-                current.join(500L);
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-            }
+    private void retireCurrent() {
+        generation.incrementAndGet();
+        Session current;
+        synchronized (lock) {
+            current = session;
+            session = null;
         }
-        worker = null;
-        SourceDataLine currentLine = line;
-        line = null;
-        source = null;
-        if (currentLine != null) {
-            try {
-                currentLine.stop();
-                currentLine.close();
-            } catch (Exception ignored) {
-                // 已关闭
-            }
+        if (current != null) {
+            retire(current);
         }
     }
 
     @Override
     public void seek(long positionMs) {
-        Path file = currentFile;
-        if (file == null || stopped || source == null) {
+        Session current = session;
+        if (current == null || current.stopRequested) {
             return;
         }
-        boolean wasPaused = paused;
+        boolean wasPaused = current.paused;
+        // play() 会作废旧会话；路径与文件名需要从旧解码器无法取得，
+        // 因此由 PlaybackService 在切歌时负责；这里只处理同一会话的重新定位。
         try {
+            Path file = currentFileName();
+            if (file == null) {
+                return;
+            }
             play(file, Math.max(0L, positionMs));
             if (wasPaused) {
                 pause();
@@ -205,12 +220,18 @@ public final class JavaSoundEngine implements AudioEngine {
         }
     }
 
+    private volatile Path lastFile;
+
+    private Path currentFileName() {
+        return lastFile;
+    }
+
     @Override
     public void setVolume(float value) {
         volume = Math.max(0f, Math.min(1f, value));
-        SourceDataLine current = line;
+        Session current = session;
         if (current != null) {
-            applyVolume(current, volume);
+            applyVolume(current.line, volume);
         }
     }
 
@@ -227,37 +248,50 @@ public final class JavaSoundEngine implements AudioEngine {
 
     @Override
     public boolean isPlaying() {
-        return !stopped && !ended;
+        Session current = session;
+        return current != null && !current.ended;
     }
 
     @Override
     public boolean isPaused() {
-        return paused;
+        Session current = session;
+        return current != null && current.paused;
     }
 
     @Override
     public long positionMs() {
-        PcmSource current = source;
-        SourceDataLine currentLine = line;
-        if (current == null || currentLine == null) {
+        Session current = session;
+        if (current == null) {
             return 0L;
         }
-        AudioFormat format = current.format();
+        AudioFormat format = current.source.format();
         float frameRate = format.getFrameRate();
         int frameSize = Math.max(1, format.getFrameSize());
         if (frameRate <= 0) {
             return 0L;
         }
-        return (long) (positionBytes / (frameSize * (double) frameRate) * 1000.0);
+        return (long) (current.positionBytes / (frameSize * (double) frameRate) * 1000.0);
     }
 
     @Override
     public long durationMs() {
-        return durationMs;
+        Session current = session;
+        return current == null ? -1L : current.durationMs;
     }
 
     @Override
     public void setOnEnd(Runnable listener) {
         this.onEnd = listener;
+    }
+
+    private static void closeQuietly(AutoCloseable closeable) {
+        if (closeable == null) {
+            return;
+        }
+        try {
+            closeable.close();
+        } catch (Exception ignored) {
+            // 已关闭
+        }
     }
 }
