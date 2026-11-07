@@ -19,11 +19,11 @@ final class IslandHud26 {
     private static final String IDLE_TITLE = "MCLite Island";
     private static final String HINT = "M 打开播放器";
 
-    private static final int MIN_WIDTH = 132;
-    private static final int MAX_WIDTH = 300;
-    private static final int HEIGHT = 26;
-    private static final int TEXT_X = 28;
-    private static final int PAD_RIGHT = 12;
+    private static final int MIN_WIDTH = 118;
+    private static final int MAX_WIDTH = 262;
+    private static final int HEIGHT = 22;
+    private static final int TEXT_X = 24;
+    private static final int PAD_RIGHT = 10;
 
     private static final int TEXT = 0xFFF3F5F8;
     private static final int TEXT_DIM = 0xFFAAB3BE;
@@ -33,7 +33,7 @@ final class IslandHud26 {
     private static final int EQ_BARS = 3;
     private static final int EQ_BAR_W = 2;
     private static final int EQ_GAP = 2;
-    private static final int EQ_MAX_H = 11;
+    private static final int EQ_MAX_H = 9;
 
     private static final UISurface26.Painter PAINT =
             (g, w, h) -> HudPaint26.pill(g, w, h);
@@ -96,7 +96,7 @@ final class IslandHud26 {
                                       int h) {
         int total = EQ_BARS * EQ_BAR_W + (EQ_BARS - 1) * EQ_GAP;
         int startX = (TEXT_X - total) / 2;
-        int baseline = h / 2 + 5;
+        int baseline = h / 2 + 4;
         boolean animate = snapshot.playing() && !snapshot.paused();
         float phase = animate ? (System.currentTimeMillis() % 1600L) / 1600f : 0f;
         int color = animate ? ACCENT : EQ_DIM;

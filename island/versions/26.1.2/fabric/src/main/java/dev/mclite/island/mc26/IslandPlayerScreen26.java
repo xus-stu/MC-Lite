@@ -245,13 +245,13 @@ final class IslandPlayerScreen26 extends Screen {
     }
 
     /**
-     * 背景完全透明：只让 Minecraft 自带的菜单模糊把世界虚化，不再画任何底色/玻璃板。
-     * 这样没有大面板圆角，也就没有放大后的锯齿。
+     * 背景完全透明：不画底色，也不调用菜单模糊——模糊会把上一帧的 HUD/文字
+     * 一起糊进来，出现奇怪的残影。世界保持原样，文字靠 shadow 保证可读。
      */
     @Override
     public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY,
                                   float delta) {
-        extractBlurredBackground(extractor);
+        // 故意留空
     }
 
     @Override
