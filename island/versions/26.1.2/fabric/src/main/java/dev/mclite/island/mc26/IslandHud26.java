@@ -14,9 +14,9 @@ final class IslandHud26 {
     private static final int TEXT = 0xFFFFFFFF;
     private static final int DIM = 0xFF9AA4B0;
     private static final int ACCENT = 0xFF7CC7FF;
-    private static final int BASE_WIDTH = 260;
-    private static final int BASE_HEIGHT = 30;
-    private static final int RADIUS = 14;
+    private static final int BASE_WIDTH = 200;
+    private static final int BASE_HEIGHT = 24;
+    private static final int RADIUS = 12;
 
     private IslandHud26() {
     }
@@ -41,8 +41,7 @@ final class IslandHud26 {
         pose.translate(x, y);
         pose.scale(config.islandScale, config.islandScale);
 
-        UiDraw26.fillRounded(extractor, 0, 0, width, height, RADIUS, 0xE60E1216);
-        UiDraw26.fillRounded(extractor, 1, 1, width - 2, height - 2, RADIUS - 1, 0xE612171D);
+        UiDraw26.panel(extractor, UiDraw26.DARK, 0, 0, width, height);
 
         var font = client.font;
         String line1;
@@ -68,17 +67,17 @@ final class IslandHud26 {
         String shown1 = trim(font, line1, innerWidth);
         String shown2 = trim(font, line2, innerWidth);
         int color2 = snapshot.hasTrack() ? ACCENT : DIM;
-        extractor.text(font, shown1, (width - font.width(shown1)) / 2, 5, TEXT, false);
-        extractor.text(font, shown2, (width - font.width(shown2)) / 2, 16, color2, false);
+        extractor.text(font, shown1, (width - font.width(shown1)) / 2, 3, TEXT, false);
+        extractor.text(font, shown2, (width - font.width(shown2)) / 2, 13, color2, false);
 
         if (snapshot.hasTrack()) {
             long duration = snapshot.durationMs();
             if (duration > 0L) {
-                int barWidth = (int) ((width - 40) * Math.min(1f,
+                int barWidth = (int) ((width - 32) * Math.min(1f,
                         snapshot.positionMs() / (float) duration));
                 if (barWidth > 0) {
-                    int barY = height - 5;
-                    int barX = 20;
+                    int barY = height - 4;
+                    int barX = 16;
                     extractor.fill(barX, barY, barX + barWidth, barY + 2, ACCENT);
                 }
             }
