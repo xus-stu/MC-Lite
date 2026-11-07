@@ -82,3 +82,22 @@ jobs:
 
             启动器「下载中心 → 启动器插件」会读取这里的 `island-manifest.json`；
             该 release 标记为 prerelease，不会占用启动器的 latest release。
+
+      - name: Remove stale jar assets
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          keep="$(cd dist && ls mclite-island-*.jar)"
+          gh release view island-latest --json assets --jq '.assets[].name' |
+          while read -r name; do
+            case "$name" in
+              mclite-island-*)
+                if ! printf '%s\n' "$keep" | grep -qx "$name"; then
+                  echo "删除旧资产 $name"
+                  gh release delete-asset island-latest "$name" -y
+                fi
+                ;;
+            esac
+          done
