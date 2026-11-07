@@ -467,6 +467,7 @@ public final class LauncherFrame extends JFrame {
                 this::isProjectInstalled);
         versionListCard = new VersionListCard(this::onVersionSelected, this::openVersionDetail);
         launcherPluginsPanel = new LauncherPluginsPanel(config, gamePaths);
+        launcherPluginsPanel.setTaskCenter(taskCenter);
         contentCardsPanel.add(downloadPage.build(versionListCard.build(new VersionRenderer()),
                 contentPage.build(new ContentRenderer()), versionDetailPage.build(),
                 projectDetailPage.build(new ProjectVersionRenderer()),

@@ -50,6 +50,7 @@ public final class LauncherPluginsPanel extends JPanel {
 
     private IslandCatalog.Manifest manifest = IslandCatalog.Manifest.EMPTY;
     private boolean manifestLoading;
+    private TaskCenter taskCenter;
     private boolean manifestLoaded;
 
     // 岛详情页控件
@@ -60,6 +61,10 @@ public final class LauncherPluginsPanel extends JPanel {
     private final JLabel installedLabel = new JLabel(" ");
     private final JButton installButton;
     private final JButton uninstallButton;
+
+    void setTaskCenter(TaskCenter taskCenter) {
+        this.taskCenter = taskCenter;
+    }
 
     public LauncherPluginsPanel(Config config, GamePaths paths) {
         this.config = config;
@@ -536,20 +541,41 @@ public final class LauncherPluginsPanel extends JPanel {
         }
         installButton.setEnabled(false);
         islandStatus.setText("正在下载 " + build.displayName() + " …");
+
+        DownloadTask task = taskCenter == null ? null
+                : taskCenter.start("MCLite 岛 " + build.version(), "GitHub Releases");
+        TaskProgress progress = new TaskProgress();
+        progress.stage("测速选择镜像…");
+        javax.swing.Timer timer = new javax.swing.Timer(100, event -> {
+            if (taskCenter != null && task != null) {
+                taskCenter.update(task, progress);
+            }
+        });
+        timer.start();
+
         new SwingWorker<Path, Void>() {
             @Override
             protected Path doInBackground() throws Exception {
-                Net net = new Net(ProgressSink.NOOP, new CancellationToken());
-                return IslandInstaller.install(net, config, instance, build);
+                Net net = new Net(progress, new CancellationToken());
+                return IslandInstaller.install(net, config, instance, build, progress);
             }
 
             @Override
             protected void done() {
+                timer.stop();
                 try {
                     Path jar = get();
                     islandStatus.setText("已安装：" + jar.getFileName() + "（重启游戏生效）");
+                    if (taskCenter != null && task != null) {
+                        progress.stage("安装完成");
+                        taskCenter.update(task, progress);
+                        taskCenter.finish(task);
+                    }
                 } catch (Exception ex) {
                     islandStatus.setText("安装失败：" + ex.getMessage());
+                    if (taskCenter != null && task != null) {
+                        taskCenter.fail(task, ex.getMessage() == null ? "安装失败" : ex.getMessage());
+                    }
                 }
                 refreshForInstance();
             }

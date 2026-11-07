@@ -141,6 +141,66 @@ public final class Net {
         return fetchBytesChecked(url, expectedSha1, expectedSize, label, true);
     }
 
+    /**
+     * 小文件（清单/配置）快速抓取：只尝试一次，超时短，避免镜像挂起把界面卡几分钟。
+     */
+    public byte[] getUnverifiedBytesQuick(String url, String label, int timeoutSeconds)
+            throws IOException {
+        return fetchBytesChecked(url, null, -1, label, false, java.util.Map.of(),
+                1, Duration.ofSeconds(Math.max(3, timeoutSeconds)));
+    }
+
+    /**
+     * 并行探测多个下载源，返回实测最快的那个 URL；全都失败时返回第一个。
+     * 探测在守护线程池里跑，不阻塞界面，也不会留下线程。
+     */
+    public String pickFastest(List<String> urls, String label) {
+        if (urls == null || urls.isEmpty()) {
+            return "";
+        }
+        if (urls.size() == 1) {
+            return urls.get(0);
+        }
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(
+                Math.min(6, urls.size()), runnable -> {
+                    Thread thread = new Thread(runnable, "mclite-probe");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        try {
+            List<java.util.concurrent.Future<Probe>> futures = new java.util.ArrayList<>();
+            for (String url : urls) {
+                futures.add(pool.submit(() -> probeSpeed(url)));
+            }
+            String bestUrl = urls.get(0);
+            double bestSpeed = -1;
+            long deadline = System.nanoTime() + 12_000_000_000L;
+            for (int i = 0; i < futures.size(); i++) {
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    break;
+                }
+                try {
+                    Probe probe = futures.get(i).get(
+                            Math.max(1, remaining / 1_000_000L), java.util.concurrent.TimeUnit.MILLISECONDS);
+                    if (probe != null && probe.bytesPerSecond() > bestSpeed) {
+                        bestSpeed = probe.bytesPerSecond();
+                        bestUrl = urls.get(i);
+                    }
+                } catch (Exception ignored) {
+                    // 单个镜像测速失败不影响其他候选
+                }
+            }
+            if (bestSpeed > 0) {
+                Log.info("插件下载测速：" + label + " 选择 " + bestUrl
+                        + "（" + Math.round(bestSpeed / 1024) + " KB/s）");
+            }
+            return bestUrl;
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
     private byte[] fetchBytesChecked(String url, String expectedSha1, long expectedSize,
                                      String label, boolean requireChecksum) throws IOException {
         return fetchBytesChecked(url, expectedSha1, expectedSize, label, requireChecksum,
@@ -150,12 +210,22 @@ public final class Net {
     private byte[] fetchBytesChecked(String url, String expectedSha1, long expectedSize,
                                      String label, boolean requireChecksum,
                                      java.util.Map<String, String> headers) throws IOException {
+        return fetchBytesChecked(url, expectedSha1, expectedSize, label, requireChecksum,
+                headers, MAX_ATTEMPTS, null);
+    }
+
+    private byte[] fetchBytesChecked(String url, String expectedSha1, long expectedSize,
+                                     String label, boolean requireChecksum,
+                                     java.util.Map<String, String> headers,
+                                     int maxAttempts, Duration requestTimeout) throws IOException {
         IOException last = null;
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             token.check();
             try {
                 progress.stage(label);
-                HttpRequest request = buildRequest(url, headers);
+                HttpRequest request = requestTimeout == null
+                        ? buildRequest(url, headers)
+                        : buildRequest(url, headers, requestTimeout);
                 HttpResponse<InputStream> response = client().send(request,
                         HttpResponse.BodyHandlers.ofInputStream());
                 InputStream body = response.body();
@@ -168,6 +238,11 @@ public final class Net {
                         throw httpError(response.statusCode(), label, url);
                     }
                     checkFinalUri(response.uri(), request.uri());
+                    long contentLength = response.headers().firstValueAsLong("content-length")
+                            .orElse(expectedSize);
+                    if (contentLength > 0) {
+                        progress.total(contentLength);
+                    }
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
                     MessageDigest digest = sha1();
                     byte[] buffer = new byte[BUFFER_SIZE];
@@ -176,6 +251,7 @@ public final class Net {
                     while ((read = in.read(buffer)) != -1) {
                         token.check();
                         total += read;
+                        progress.add(read);
                         if (total > MAX_METADATA_BYTES) {
                             throw new IOException("元数据文件异常过大：" + label);
                         }
@@ -201,7 +277,7 @@ public final class Net {
                     throw new CancellationToken.CancelledException();
                 }
                 last = ex;
-                if (attempt >= MAX_ATTEMPTS) {
+                if (attempt >= maxAttempts) {
                     break;
                 }
             }

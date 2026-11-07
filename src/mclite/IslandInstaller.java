@@ -26,6 +26,11 @@ final class IslandInstaller {
 
     static Path install(Net net, Config config, InstalledInstance instance,
                         IslandCatalog.Build build) throws IOException {
+        return install(net, config, instance, build, null);
+    }
+
+    static Path install(Net net, Config config, InstalledInstance instance,
+                        IslandCatalog.Build build, TaskProgress progress) throws IOException {
         if (!build.mc().equals(instance.mcVersion())) {
             throw new IOException("组件 MC 版本不匹配: " + build.mc() + " vs " + instance.mcVersion());
         }
@@ -34,9 +39,24 @@ final class IslandInstaller {
         }
         byte[] bytes = null;
         IOException last = null;
-        for (String url : GithubSources.candidates(build.url())) {
+        List<String> urls = new ArrayList<>(GithubSources.candidates(build.url()));
+        String fastest = net.pickFastest(urls, "MCLite 岛 v" + build.version());
+        if (!fastest.isBlank()) {
+            urls.remove(fastest);
+            urls.add(0, fastest);
+        }
+        int attempts = 0;
+        for (String url : urls) {
+            if (++attempts > 6) {
+                break;
+            }
+            if (progress != null) {
+                progress.reset("下载 " + hostOf(url) + " …");
+                progress.total(build.size());
+            }
             try {
-                byte[] candidate = net.getUnverifiedBytes(url, "MCLite 岛 v" + build.version());
+                byte[] candidate = net.getUnverifiedBytesQuick(url,
+                        "MCLite 岛 v" + build.version(), 30);
                 if (candidate.length != build.size()) {
                     last = new IOException("组件大小校验失败: 期望 " + build.size()
                             + "，实际 " + candidate.length);
@@ -78,6 +98,15 @@ final class IslandInstaller {
             // 文件被占用/权限不足时保留旧版本
         }
         return target;
+    }
+
+    private static String hostOf(String url) {
+        try {
+            String host = URI.create(url).getHost();
+            return host == null || host.isBlank() ? "镜像" : host;
+        } catch (Exception ignored) {
+            return "镜像";
+        }
     }
 
     static int uninstall(Config config, InstalledInstance instance) throws IOException {
