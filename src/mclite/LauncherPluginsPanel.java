@@ -10,6 +10,7 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JEditorPane;
 import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
@@ -160,7 +161,7 @@ public final class LauncherPluginsPanel extends JPanel {
         body.setOpaque(false);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
 
-        JTextArea intro = descriptionArea(
+        JScrollPane intro = descriptionPane(
                 "零登录、零联网的本地音乐播放器：歌单、LRC 歌词、3D 歌词与灵动岛。",
                 ISLAND_DESC_URL);
         body.add(intro);
@@ -211,7 +212,9 @@ public final class LauncherPluginsPanel extends JPanel {
         body.add(actions);
 
         JPanel card = (JPanel) detail.getClientProperty("card");
-        card.add(body, BorderLayout.CENTER);
+        JScrollPane bodyScroll = Ui.scroll(body);
+        bodyScroll.setBorder(BorderFactory.createEmptyBorder());
+        card.add(bodyScroll, BorderLayout.CENTER);
         replaceDetail(detail);
         selectDefaultInstance();
         loadManifest();
@@ -224,7 +227,7 @@ public final class LauncherPluginsPanel extends JPanel {
         JPanel body = new JPanel();
         body.setOpaque(false);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.add(descriptionArea(
+        body.add(descriptionPane(
                 "安装 Python 客户端后，PyCharm 可以直接 import mclite_bridge；Bridge 启动后才能调用 API。",
                 PYTHON_DESC_URL));
         body.add(Ui.vgap(12));
@@ -247,7 +250,9 @@ public final class LauncherPluginsPanel extends JPanel {
         actions.add(start);
         body.add(actions);
         JPanel card = (JPanel) detail.getClientProperty("card");
-        card.add(body, BorderLayout.CENTER);
+        JScrollPane bodyScroll = Ui.scroll(body);
+        bodyScroll.setBorder(BorderFactory.createEmptyBorder());
+        card.add(bodyScroll, BorderLayout.CENTER);
         replaceDetail(detail);
     }
 
@@ -284,24 +289,27 @@ public final class LauncherPluginsPanel extends JPanel {
         cards.show(deck, "detail");
     }
 
-    private JTextArea descriptionArea(String fallback, String url) {
-        JTextArea area = new JTextArea(fallback);
+    private JScrollPane descriptionPane(String fallback, String url) {
+        JEditorPane area = new JEditorPane();
+        area.setContentType("text/html");
         area.setEditable(false);
-        area.setLineWrap(true);
-        area.setWrapStyleWord(true);
         area.setOpaque(false);
-        area.setForeground(Theme.MUTED);
-        area.setFont(Theme.SMALL);
-        area.setRows(3);
-        area.setBorder(BorderFactory.createEmptyBorder());
+        area.putClientProperty("Fallback", fallback);
+        area.setText(renderMarkdown(fallback));
+        area.setCaretPosition(0);
+        JScrollPane scroll = Ui.scroll(area);
+        scroll.setPreferredSize(new Dimension(560, 210));
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getViewport().setOpaque(false);
         loadDescription(area, fallback, url);
-        return area;
+        return scroll;
     }
 
-    private void loadDescription(JTextArea area, String fallback, String url) {
+    private void loadDescription(JEditorPane area, String fallback, String url) {
         String cached = DESC_CACHE.get(url);
         if (cached != null) {
-            area.setText(cached);
+            area.setText(renderMarkdown(cached));
+            area.setCaretPosition(0);
             return;
         }
         new SwingWorker<String, Void>() {
@@ -310,10 +318,9 @@ public final class LauncherPluginsPanel extends JPanel {
                 Net net = new Net(ProgressSink.NOOP, new CancellationToken());
                 byte[] bytes = net.getUnverifiedBytes(url, "插件简介");
                 String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-                // 只取正文前几段，避免把整篇 README 塞进详情
                 String trimmed = text.replace("\r", "").trim();
-                if (trimmed.length() > 900) {
-                    trimmed = trimmed.substring(0, 900).trim() + " …";
+                if (trimmed.length() > 1400) {
+                    trimmed = trimmed.substring(0, 1400).trim() + "\n\n…";
                 }
                 return trimmed.isBlank() ? fallback : trimmed;
             }
@@ -323,12 +330,106 @@ public final class LauncherPluginsPanel extends JPanel {
                 try {
                     String text = get();
                     DESC_CACHE.put(url, text);
-                    area.setText(text);
+                    area.setText(renderMarkdown(text));
+                    area.setCaretPosition(0);
                 } catch (Exception ignored) {
-                    area.setText(fallback);
+                    area.setText(renderMarkdown(fallback));
                 }
             }
         }.execute();
+    }
+
+    /** 极简 Markdown → HTML，够详情页把标题/列表/代码/链接显示成人能读的样子。 */
+    private static String renderMarkdown(String markdown) {
+        String color = hex(Theme.TEXT);
+        String muted = hex(Theme.MUTED);
+        String bg = hex(Theme.CARD);
+        StringBuilder html = new StringBuilder(512);
+        html.append("<html><head><style>")
+                .append("body{font-family:sans-serif;font-size:12px;color:").append(color)
+                .append(";background:").append(bg).append(";margin:0;padding:6px;}")
+                .append("h1,h2,h3{color:").append(color).append(";margin:8px 0 4px 0;}")
+                .append("h1{font-size:18px} h2{font-size:15px} h3{font-size:13px}")
+                .append("p{margin:4px 0} li{margin:2px 0} code{font-family:monospace;color:")
+                .append(muted).append(";} pre{font-family:monospace;color:").append(muted)
+                .append(";margin:4px 0;} a{color:").append(hex(Theme.ACCENT)).append(";}")
+                .append("</style></head><body>");
+
+        boolean inCode = false;
+        boolean inList = false;
+        for (String raw : markdown.split("\n", -1)) {
+            String line = raw;
+            if (line.trim().startsWith("```")) {
+                if (inList) {
+                    html.append("</ul>");
+                    inList = false;
+                }
+                html.append(inCode ? "</pre>" : "<pre>");
+                inCode = !inCode;
+                continue;
+            }
+            if (inCode) {
+                html.append(escape(line)).append("\n");
+                continue;
+            }
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                if (inList) {
+                    html.append("</ul>");
+                    inList = false;
+                }
+                html.append("<p></p>");
+                continue;
+            }
+            if (trimmed.startsWith("#")) {
+                if (inList) {
+                    html.append("</ul>");
+                    inList = false;
+                }
+                int level = Math.min(3, trimmed.lastIndexOf('#') + 1);
+                html.append("<h").append(level).append(">")
+                        .append(inline(trimmed.substring(level).trim()))
+                        .append("</h").append(level).append(">");
+                continue;
+            }
+            if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+                if (!inList) {
+                    html.append("<ul>");
+                    inList = true;
+                }
+                html.append("<li>").append(inline(trimmed.substring(2))).append("</li>");
+                continue;
+            }
+            if (inList) {
+                html.append("</ul>");
+                inList = false;
+            }
+            html.append("<p>").append(inline(trimmed)).append("</p>");
+        }
+        if (inList) {
+            html.append("</ul>");
+        }
+        if (inCode) {
+            html.append("</pre>");
+        }
+        html.append("</body></html>");
+        return html.toString();
+    }
+
+    private static String inline(String text) {
+        String escaped = escape(text);
+        escaped = escaped.replaceAll("\\*\\*(.+?)\\*\\*", "<b>$1</b>");
+        escaped = escaped.replaceAll("`([^`]+)`", "<code>$1</code>");
+        escaped = escaped.replaceAll("\\[([^]]+)]\\(([^)]+)\\)", "<a href=\"$2\">$1</a>");
+        return escaped;
+    }
+
+    private static String escape(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private static String hex(java.awt.Color color) {
+        return String.format("#%02x%02x%02x", color.getRed(), color.getGreen(), color.getBlue());
     }
 
     // ---------------------------------------------------------------- 安装逻辑
