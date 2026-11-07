@@ -64,7 +64,10 @@ public final class Net {
             "media.forgecdn.net",
             "wsrv.nl",
             "images.weserv.nl",
-            "mod.mcimirror.top"
+            "mod.mcimirror.top",
+            "github.com",
+            "objects.githubusercontent.com",
+            "release-assets.githubusercontent.com"
     );
     private static final int MAX_METADATA_BYTES = 16 * 1024 * 1024;
     private static final int BUFFER_SIZE = 64 * 1024;

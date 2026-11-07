@@ -1,0 +1,74 @@
+plugins {
+    id 'fabric-loom' version '1.7.4'
+}
+
+base {
+    archivesName = 'mclite-island-1.20.1-fabric'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir rootProject.file('common/src/main/java')
+        }
+    }
+}
+
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+loom {
+    runs {
+        client {
+            client()
+            ideConfigGenerated = true
+        }
+    }
+}
+
+dependencies {
+    minecraft 'com.mojang:minecraft:1.20.1'
+    mappings loom.officialMojangMappings()
+    modImplementation 'net.fabricmc:fabric-loader:0.16.9'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.92.2+1.20.1'
+
+}
+
+// 解码器（JLayer/JOrbis/jFLAC）不是 mod，发布时并进 mod jar。
+configurations {
+    embed
+}
+
+dependencies {
+    implementation 'javazoom:jlayer:1.0.1'
+    implementation 'org.jflac:jflac-codec:1.5.2'
+    implementation 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+
+    embed 'javazoom:jlayer:1.0.1'
+    embed 'org.jflac:jflac-codec:1.5.2'
+    embed 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+}
+
+tasks.register('bundledJar', Jar) {
+    dependsOn tasks.named('remapJar')
+    archiveBaseName = 'mclite-island-1.20.1-fabric'
+    archiveClassifier = 'bundled'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from { zipTree(tasks.named('remapJar').get().archiveFile.get().asFile) }
+    from { configurations.embed.collect { zipTree(it) } }
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'META-INF/MANIFEST.MF'
+}
+
+
+// 把 common 的类并入 mod jar（common 不是独立 mod，不做 JiJ）
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}

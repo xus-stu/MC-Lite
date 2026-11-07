@@ -1,5 +1,13 @@
 # MC Lite 更新记录
 
+## v1.4.0
+
+- 新增可选扩展组件「MCLite 岛」：设置页 →「扩展组件 · MCLite 岛…」，按实例、MC 版本和加载器匹配构建，支持下载、SHA-256 校验、安装与卸载；启动器本身不打包任何 mod jar。
+- 新模组 `mclite-island`：本地音乐播放（mp3/ogg/wav/flac）、歌单与播放模式、LRC 歌词导入、灵动岛 HUD、1.20.1 的 3D 歌词、26.1.2 的 HUD 与播放器界面；零登录、零联网。
+- 启动器新增 release 清单拉取（`island-manifest.json`）、实例加载器识别（Fabric/Forge/NeoForge）、同名旧 jar 清理与下载失败提示；`Net` 增加 GitHub release 主机白名单。
+- 测试与 CI：模组核心 22 项单测（含真实 WAV/MP3/OGG/FLAC 解码冒烟）、启动器自测新增清单/兼容/防穿越/卸载用例；新增 `island` workflow，release 自动构建 1.20.1 与 26.1.2 Fabric 构建并附带清单。
+- 版本矩阵现状：1.20.1 Fabric、26.1.2 Fabric 可用；1.20.1 Forge/NeoForge、1.21.1 与 26.1.2 NeoForge 在后续阶段补齐。26.1.2 的 3D 歌词因渲染 API 重写暂未移植。
+
 ## v1.3.12
 
 - 新增模块化设置 API：`GET /api/config/schema` 返回可编辑设置的 key/label/type/min/max/value，外部界面（PySide6 等）可据此生成设置页并用 `PUT /api/config` 写回，无需修改启动器。

@@ -1,0 +1,94 @@
+package mclite;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * MCLite 岛（本地音乐模组）的可选组件清单。
+ *
+ * <p>清单是启动器 release 的一个资产，启动器只在用户点「安装」时才联网；
+ * mod 本体不随启动器分发。
+ */
+final class IslandCatalog {
+
+    /** 与 release 工作流约定：每次发布都带上这个资产。 */
+    static final String MANIFEST_URL =
+            "https://github.com/xus-stu/MC-Lite/releases/latest/download/island-manifest.json";
+
+    private IslandCatalog() {
+    }
+
+    record Build(String version, String mc, String loader, int java,
+                 String url, String sha256, long size, String notes) {
+
+        String displayName() {
+            return "MC " + mc + " · " + loader + " · v" + version
+                    + " · " + (size > 0 ? (size / 1024) + " KB" : "未知大小");
+        }
+    }
+
+    record Manifest(List<Build> builds) {
+        static final Manifest EMPTY = new Manifest(List.of());
+    }
+
+    static Manifest fetch(Net net) throws IOException {
+        byte[] bytes = net.getUnverifiedBytes(MANIFEST_URL, "MCLite 岛组件清单");
+        return parse(new String(bytes, StandardCharsets.UTF_8));
+    }
+
+    static Manifest parse(String json) throws IOException {
+        try {
+            Map<String, Object> root = Json.obj(Json.parse(json));
+            int schema = Json.integer(root, "schema", 0);
+            if (schema != 1) {
+                throw new IOException("不支持的组件清单版本: " + schema);
+            }
+            List<Build> builds = new ArrayList<>();
+            for (Object item : Json.arr(root.get("builds"))) {
+                Map<String, Object> map = Json.obj(item);
+                String version = Json.str(map, "version", "").trim();
+                String mc = Json.str(map, "mc", "").trim();
+                String loader = Json.str(map, "loader", "").trim().toLowerCase(Locale.ROOT);
+                String url = Json.str(map, "url", "").trim();
+                String sha256 = Json.str(map, "sha256", "").trim().toLowerCase(Locale.ROOT);
+                long size = Json.lng(map, "size", -1L);
+                int java = Json.integer(map, "java", 0);
+                if (version.isEmpty() || mc.isEmpty() || loader.isEmpty()
+                        || !url.startsWith("https://")
+                        || !sha256.matches("[0-9a-f]{64}")
+                        || size <= 0) {
+                    continue;
+                }
+                builds.add(new Build(version, mc, loader, java, url, sha256, size,
+                        Json.str(map, "notes", "")));
+            }
+            return new Manifest(List.copyOf(builds));
+        } catch (IOException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IOException("组件清单格式错误: " + ex.getMessage(), ex);
+        }
+    }
+
+    static List<Build> compatible(Manifest manifest, InstalledInstance instance) {
+        List<Build> result = new ArrayList<>();
+        if (manifest == null || instance == null) {
+            return result;
+        }
+        for (Build build : manifest.builds()) {
+            if (build.mc().equals(instance.mcVersion())
+                    && build.loader().equals(instance.loader())) {
+                result.add(build);
+            }
+        }
+        return result;
+    }
+
+    static boolean hasCompatibleBuild(Manifest manifest, InstalledInstance instance) {
+        return !compatible(manifest, instance).isEmpty();
+    }
+}

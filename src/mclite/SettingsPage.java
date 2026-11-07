@@ -156,6 +156,13 @@ final class SettingsPage {
         startBridge.setToolTipText("后台启动 Bridge，生成 ~/.mclite/bridge.json 供 Python 脚本连接");
         startBridge.addActionListener(e -> startPythonBridge());
         settingsActions.add(startBridge);
+        Ui.AccentButton island = Ui.smallButton("扩展组件 · MCLite 岛…",
+                Ui.AccentButton.Style.GHOST);
+        island.setToolTipText("本地音乐 + 3D 歌词 + 灵动岛：从 release 可选下载到指定实例，不随启动器打包");
+        island.addActionListener(e -> new IslandInstallDialog(
+                javax.swing.SwingUtilities.getWindowAncestor(owner),
+                config, new GamePaths(config.gameDir())).setVisible(true));
+        settingsActions.add(island);
         settingsActions.add(Ui.hgap(6));
         Ui.AccentButton checkUpdate = Ui.smallButton("检查更新", Ui.AccentButton.Style.GHOST);
         checkUpdate.addActionListener(e -> Updater.checkNow(config, owner,

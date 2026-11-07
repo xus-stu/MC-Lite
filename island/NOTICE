@@ -1,0 +1,22 @@
+MCLite Island
+Copyright 2026 MCLite contributors
+Licensed under the Apache License, Version 2.0.
+
+This product includes the following third-party libraries, bundled unmodified:
+
+  JLayer (javazoom:jlayer:1.0.1)
+  Copyright (C) 2000-2004 javazoom.net
+  License: GNU Lesser General Public License v2.1
+  Source: https://www.javazoom.net/javalayer/javalayer.html
+
+  JOrbis (com.googlecode.soundlibs:jorbis:0.0.17.4)
+  Copyright (C) 2000-2005 JCraft, Inc.
+  License: BSD-style (see upstream LICENSE)
+  Source: https://github.com/ymnk/jorbis
+
+  jFLAC (org.jflac:jflac-codec:1.5.2)
+  Copyright (C) 2000-2009 Josh Coalson, 2011-2016 Xiph.Org Foundation
+  License: Apache License 2.0
+  Source: https://github.com/redis/jflac
+
+No Minecraft or Fabric code is redistributed by this project.

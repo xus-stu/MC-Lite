@@ -52,3 +52,8 @@ backup/
 ### Python ###
 __pycache__/
 *.py[cod]
+
+### MCLite Island ###
+island/.gradle/
+island/**/.gradle/
+island/**/build/

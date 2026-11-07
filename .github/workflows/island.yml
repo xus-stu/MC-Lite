@@ -1,0 +1,52 @@
+name: island
+
+on:
+  push:
+    paths:
+      - 'island/**'
+      - 'docs/island.md'
+      - '.github/workflows/island.yml'
+  pull_request:
+    paths:
+      - 'island/**'
+      - 'docs/island.md'
+      - '.github/workflows/island.yml'
+
+jobs:
+  common:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Common tests
+        run: |
+          cd island
+          ./gradlew :common:test --no-daemon
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build 1.20.1 Fabric
+        run: |
+          cd island
+          ./gradlew :versions:1.20.1:fabric:bundledJar --no-daemon
+      - name: Build 26.1.2 Fabric
+        run: |
+          cd island/versions/26.1.2/fabric
+          JAVA_HOME="$JAVA_HOME_25_X64" ./gradlew bundledJar --no-daemon -Dorg.gradle.java.home="$JAVA_HOME_25_X64"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mclite-island-jars
+          path: island/versions/*/*/build/libs/*-bundled.jar
