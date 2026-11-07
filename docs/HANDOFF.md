@@ -577,7 +577,7 @@ cat VERSION
 
 启动器外置组件「MCLite Island」的完整交接见 [`docs/HANDOFF-island.md`](HANDOFF-island.md)：
 
-- 当前发布：启动器 **v1.4.19**、模组 **0.3.3**（1.20.1 / 26.1.2 Fabric）
+- 当前发布：启动器 **v1.4.20**、模组 **0.3.4**（1.20.1 / 26.1.2 Fabric）
 - 已实现：本地播放、B 站扫码/搜索/收藏/在线播放（ffmpeg 缓存）、自动歌词（LRCLIB + B 站字幕）、场景声学、Java2D 烘焙 UI、迷你播放器灵动岛、启动器插件下载页
 - 已知问题：用户仍觉得灵动岛/UI 不够好、`island` workflow v1.4.18 失败（release 成功）、1.20.1 UI 未同步、26.x 3D 歌词缺失
 - 下一位接手请先读该文件第 5、7 节

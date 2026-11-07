@@ -30,7 +30,7 @@ final class UISurface26 {
     static final int PAD = 10;
 
     /** 缓存上限：5 个常规页面 + 少量窗口尺寸变体。 */
-    private static final int MAX_SURFACES = 10;
+    private static final int MAX_SURFACES = 24;
 
     interface Painter {
         void paint(Graphics2D g, int width, int height);

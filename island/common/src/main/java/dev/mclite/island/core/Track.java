@@ -5,10 +5,10 @@ import java.util.Objects;
 
 /** 一首本地曲目。 */
 public record Track(Path file, String title, String artist, long durationMs,
-                    String bvid, int cid, int audioId, String remoteUrl) {
+                    String bvid, int cid, int audioId, String remoteUrl, String cover) {
 
     public Track(Path file, String title, String artist) {
-        this(file, title, artist, -1L, null, 0, 0, null);
+        this(file, title, artist, -1L, null, 0, 0, null, "");
     }
 
     public Track {
@@ -32,7 +32,13 @@ public record Track(Path file, String title, String artist, long durationMs,
 
     public static Track remote(String bvid, int cid, int audioId, String remoteUrl,
                                String title, String artist, long durationMs) {
-        return new Track(null, title, artist, durationMs, bvid, cid, audioId, remoteUrl);
+        return remote(bvid, cid, audioId, remoteUrl, title, artist, durationMs, "");
+    }
+
+    public static Track remote(String bvid, int cid, int audioId, String remoteUrl,
+                               String title, String artist, long durationMs, String cover) {
+        return new Track(null, title, artist, durationMs, bvid, cid, audioId, remoteUrl,
+                cover == null ? "" : cover);
     }
 
     public String displayName() {

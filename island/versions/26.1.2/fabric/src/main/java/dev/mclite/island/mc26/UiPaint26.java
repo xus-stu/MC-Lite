@@ -24,21 +24,25 @@ import java.awt.geom.RoundRectangle2D;
 final class UiPaint26 {
 
     // ---- 面板尺寸（26 外壳与底图共用，避免两边各写一份数字） ----
-    static final int PLAYER_W = 720;
-    static final int PLAYER_H = 460;
-    static final int PLAYER_HEADER = 64;
-    static final int PLAYER_LEFT_X = 22;
-    static final int PLAYER_LEFT_Y = 76;
-    static final int PLAYER_LEFT_W = 332;
-    static final int PLAYER_LEFT_H = 300;
-    static final int PLAYER_RIGHT_X = 368;
-    static final int PLAYER_RIGHT_Y = 76;
-    static final int PLAYER_RIGHT_W = 330;
-    static final int PLAYER_RIGHT_H = 300;
-    static final int PLAYER_BAR_X = 22;
-    static final int PLAYER_BAR_Y = 392;
-    static final int PLAYER_BAR_W = 676;
-    static final int PLAYER_BAR_H = 50;
+    static final int PLAYER_W = 740;
+    static final int PLAYER_H = 490;
+    static final int PLAYER_HEADER = 60;
+    static final int PLAYER_LEFT_X = 18;
+    static final int PLAYER_LEFT_Y = 72;
+    static final int PLAYER_LEFT_W = 278;
+    static final int PLAYER_LEFT_H = 334;
+    static final int PLAYER_RIGHT_X = 306;
+    static final int PLAYER_RIGHT_Y = 72;
+    static final int PLAYER_RIGHT_W = 416;
+    static final int PLAYER_RIGHT_H = 334;
+    static final int PLAYER_BAR_X = 18;
+    static final int PLAYER_BAR_Y = 420;
+    static final int PLAYER_BAR_W = 704;
+    static final int PLAYER_BAR_H = 52;
+    static final int PLAYER_ART_X = PLAYER_RIGHT_X + 18;
+    static final int PLAYER_ART_Y = PLAYER_RIGHT_Y + 18;
+    static final int PLAYER_ART_SIZE = 120;
+    static final int PLAYER_QUEUE_HEADER = 38;
 
     static final int SETTINGS_W = 760;
     static final int SETTINGS_H = 500;
@@ -118,28 +122,72 @@ final class UiPaint26 {
 
     static void player(Graphics2D g, int w, int h) {
         prepare(g);
-        shell(g, w, h, 20);
-        icon(g, 22, 20);
-        hairline(g, 22, 1, w - 44, new Color(108, 198, 255, 46));
-        line(g, 22, PLAYER_HEADER, w - 44, LINE);
-        innerCard(g, PLAYER_LEFT_X, PLAYER_LEFT_Y, PLAYER_LEFT_W, PLAYER_LEFT_H, 14,
+        shell(g, w, h, 22);
+
+        // 右上角的柔光：让大封面后面有一点颜色，不至于整页死黑
+        Shape clip = g.getClip();
+        g.clip(new RoundRectangle2D.Double(0, 0, w, h, 44, 44));
+        g.setPaint(new RadialGradientPaint(
+                new Point2D.Float(PLAYER_ART_X + PLAYER_ART_SIZE * 0.5f,
+                        PLAYER_ART_Y + PLAYER_ART_SIZE * 0.5f),
+                PLAYER_ART_SIZE * 1.15f,
+                new float[]{0f, 1f},
+                new Color[]{new Color(108, 198, 255, 30), new Color(108, 198, 255, 0)}));
+        g.fillRect(0, 0, w, h);
+        g.setClip(clip);
+
+        icon(g, 20, 14);
+        hairline(g, 20, 1, w - 40, new Color(108, 198, 255, 46));
+        line(g, 20, PLAYER_HEADER, w - 40, LINE);
+        innerCard(g, PLAYER_LEFT_X, PLAYER_LEFT_Y, PLAYER_LEFT_W, PLAYER_LEFT_H, 16,
                 CARD_TOP, CARD_BOTTOM);
-        innerCard(g, PLAYER_RIGHT_X, PLAYER_RIGHT_Y, PLAYER_RIGHT_W, PLAYER_RIGHT_H, 14,
+        innerCard(g, PLAYER_RIGHT_X, PLAYER_RIGHT_Y, PLAYER_RIGHT_W, PLAYER_RIGHT_H, 16,
                 CARD_TOP, CARD_BOTTOM);
-        // 右栏封面占位：渐变小方块，中间的音符由界面每帧画在原版字体上
-        int ax = PLAYER_RIGHT_X + 16;
-        int ay = PLAYER_RIGHT_Y + 34;
-        RoundRectangle2D art = new RoundRectangle2D.Double(ax, ay, 64, 64, 16, 16);
-        g.setPaint(new GradientPaint(ax, ay, new Color(108, 198, 255, 120),
-                ax + 64, ay + 64, new Color(34, 52, 70, 210)));
-        g.fill(art);
-        g.setColor(new Color(255, 255, 255, 48));
-        g.setStroke(new BasicStroke(1f));
-        g.draw(new RoundRectangle2D.Double(ax + 0.5, ay + 0.5, 63, 63, 16, 16));
-        g.setColor(new Color(255, 255, 255, 26));
-        g.fill(new RoundRectangle2D.Double(ax + 1, ay + 1, 62, 22, 15, 15));
         innerCard(g, PLAYER_BAR_X, PLAYER_BAR_Y, PLAYER_BAR_W, PLAYER_BAR_H, 14,
                 CARD_TOP, CARD_BOTTOM);
+
+        // 队列标题和列表之间的细分隔线
+        line(g, PLAYER_LEFT_X + 16, PLAYER_LEFT_Y + PLAYER_QUEUE_HEADER,
+                PLAYER_LEFT_W - 32, LINE);
+        // 右栏标题区的细分隔线（歌词从下面开始）
+        line(g, PLAYER_ART_X, PLAYER_ART_Y + PLAYER_ART_SIZE + 8,
+                PLAYER_RIGHT_W - 36, LINE);
+
+        // 大封面的底槽：图片没加载好时也有一个体面的占位
+        RoundRectangle2D slot = new RoundRectangle2D.Double(PLAYER_ART_X, PLAYER_ART_Y,
+                PLAYER_ART_SIZE, PLAYER_ART_SIZE, 14, 14);
+        g.setPaint(new GradientPaint(PLAYER_ART_X, PLAYER_ART_Y,
+                new Color(36, 54, 72, 230),
+                PLAYER_ART_X + PLAYER_ART_SIZE, PLAYER_ART_Y + PLAYER_ART_SIZE,
+                new Color(15, 23, 32, 240)));
+        g.fill(slot);
+        g.setColor(new Color(255, 255, 255, 30));
+        g.setStroke(new BasicStroke(1f));
+        g.draw(new RoundRectangle2D.Double(PLAYER_ART_X + 0.5, PLAYER_ART_Y + 0.5,
+                PLAYER_ART_SIZE - 1, PLAYER_ART_SIZE - 1, 14, 14));
+    }
+
+    /** 圆形传输按钮的底图：0 普通、1 hover、2 主按钮。 */
+    static void transportButton(Graphics2D g, int w, int h, int kind) {
+        prepare(g);
+        int pad = 6;
+        int size = Math.min(w, h) - pad * 2;
+        int x = (w - size) / 2;
+        int y = (h - size) / 2;
+        g.setColor(new Color(0, 0, 0, 70));
+        g.fillOval(x, y + 2, size, size);
+        Color top = kind == 2 ? new Color(124, 208, 255, 255)
+                : kind == 1 ? new Color(54, 78, 100, 255) : new Color(35, 47, 60, 250);
+        Color bottom = kind == 2 ? new Color(54, 150, 220, 255)
+                : kind == 1 ? new Color(34, 50, 66, 255) : new Color(20, 28, 38, 250);
+        g.setPaint(new GradientPaint(x, y, top, x, y + size, bottom));
+        g.fillOval(x, y, size, size);
+        g.setColor(new Color(255, 255, 255, kind == 2 ? 120 : 40));
+        g.setStroke(new BasicStroke(1f));
+        g.drawOval(x + 1, y + 1, size - 2, size - 2);
+        // 顶部内侧高光
+        g.setColor(new Color(255, 255, 255, kind == 2 ? 60 : 22));
+        g.fillOval(x + 4, y + 3, size - 8, Math.max(4, size / 3));
     }
 
     // =====================================================================
