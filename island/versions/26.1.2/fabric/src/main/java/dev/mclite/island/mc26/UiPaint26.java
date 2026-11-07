@@ -1,9 +1,7 @@
 package dev.mclite.island.mc26;
 
 import java.awt.BasicStroke;
-import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Composite;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.RadialGradientPaint;
@@ -11,7 +9,6 @@ import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.Point2D;
 import java.awt.geom.RoundRectangle2D;
-import java.awt.image.BufferedImage;
 
 /**
  * 26.x 界面的静态底图，纯 Java2D 绘制。
@@ -122,115 +119,6 @@ final class UiPaint26 {
     // =====================================================================
     // 播放器：720 x 460，双栏卡片 + 底部传输栏
     // =====================================================================
-
-    /**
-     * 播放器的“液态玻璃”底图：把封面缩成 48x31 再放大当模糊背景，压暗后画半透明卡片。
-     * 整张图按曲目封面烘焙一次（{@code PlayerBackdrop26}），每帧只 blit + 文本/控件。
-     */
-    static void playerBackdrop(Graphics2D g, int w, int h, BufferedImage cover, int accent) {
-        prepare(g);
-        int radius = 22;
-
-        // 外投影
-        for (int spread = 10; spread >= 1; spread--) {
-            g.setColor(new Color(0, 0, 0, 2 + (10 - spread)));
-            g.fill(new RoundRectangle2D.Double(-spread, -spread + 4,
-                    w + spread * 2, h + spread * 2 + 2,
-                    radius + spread * 2, radius + spread * 2));
-        }
-
-        RoundRectangle2D body = new RoundRectangle2D.Double(0, 0, w, h, radius, radius);
-        Shape old = g.getClip();
-        g.clip(body);
-
-        g.setColor(new Color(9, 11, 17, 255));
-        g.fill(body);
-
-        if (cover != null) {
-            // 缩到很小再放大：不需要 ConvolveOp，便宜但足够“糊”
-            BufferedImage blurred = new BufferedImage(48, 31, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D bg = blurred.createGraphics();
-            try {
-                bg.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                        RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                double scale = Math.max(48.0 / cover.getWidth(), 31.0 / cover.getHeight());
-                int dw = (int) Math.ceil(cover.getWidth() * scale);
-                int dh = (int) Math.ceil(cover.getHeight() * scale);
-                bg.drawImage(cover, (48 - dw) / 2, (31 - dh) / 2, dw, dh, null);
-            } finally {
-                bg.dispose();
-            }
-            Composite composite = g.getComposite();
-            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.48f));
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.drawImage(blurred, 0, 0, w, h, null);
-            g.setComposite(composite);
-        } else {
-            // 本地无封面：蓝紫渐变兜底
-            g.setPaint(new GradientPaint(0, 0, new Color(52, 58, 100),
-                    w, h, new Color(22, 26, 46)));
-            g.fill(body);
-        }
-
-        // 压暗 + 顶部一点提亮，保证文字可读
-        g.setPaint(new GradientPaint(0, 0, new Color(7, 9, 14, 198),
-                0, h, new Color(7, 9, 14, 244)));
-        g.fill(body);
-        g.setPaint(new GradientPaint(0, 0, new Color(255, 255, 255, 20),
-                0, 90, new Color(255, 255, 255, 0)));
-        g.fill(body);
-
-        // 主题色光晕（Muonium 那种从封面里渗出来的颜色）
-        g.setPaint(new RadialGradientPaint(
-                new Point2D.Float(PLAYER_ART_X + PLAYER_ART_SIZE * 0.6f,
-                        PLAYER_ART_Y + PLAYER_ART_SIZE * 0.5f),
-                PLAYER_ART_SIZE * 1.8f,
-                new float[]{0f, 1f},
-                new Color[]{new Color((accent & 0xFFFFFF) | 0x2E000000, true),
-                        new Color(accent & 0xFFFFFF, true)}));
-        g.fill(body);
-
-        // 卡片：只用极淡的白色覆盖，不再给每个控件加粗边框
-        card(g, PLAYER_LEFT_X, PLAYER_LEFT_Y, PLAYER_LEFT_W, PLAYER_LEFT_H, 18);
-        card(g, PLAYER_RIGHT_X, PLAYER_RIGHT_Y, PLAYER_RIGHT_W, PLAYER_RIGHT_H, 18);
-        card(g, PLAYER_BAR_X, PLAYER_BAR_Y, PLAYER_BAR_W, PLAYER_BAR_H, 16);
-
-        g.setColor(new Color(255, 255, 255, 18));
-        g.fillRect(PLAYER_LEFT_X + 16, PLAYER_LEFT_Y + PLAYER_QUEUE_HEADER,
-                PLAYER_LEFT_W - 32, 1);
-        g.fillRect(PLAYER_LEFT_X, PLAYER_HEADER, w - PLAYER_LEFT_X * 2, 1);
-
-        // 大封面底槽（真实封面/占位由屏幕画在上层）
-        RoundRectangle2D slot = new RoundRectangle2D.Double(PLAYER_ART_X, PLAYER_ART_Y,
-                PLAYER_ART_SIZE, PLAYER_ART_SIZE, 16, 16);
-        g.setPaint(new GradientPaint(PLAYER_ART_X, PLAYER_ART_Y,
-                new Color(38, 42, 64, 200),
-                PLAYER_ART_X + PLAYER_ART_SIZE, PLAYER_ART_Y + PLAYER_ART_SIZE,
-                new Color(16, 18, 30, 220)));
-        g.fill(slot);
-        g.setColor(new Color(255, 255, 255, 24));
-        g.setStroke(new BasicStroke(1f));
-        g.draw(new RoundRectangle2D.Double(PLAYER_ART_X + 0.5, PLAYER_ART_Y + 0.5,
-                PLAYER_ART_SIZE - 1, PLAYER_ART_SIZE - 1, 16, 16));
-
-        g.setClip(old);
-        g.setColor(new Color(255, 255, 255, 28));
-        g.setStroke(new BasicStroke(1f));
-        g.draw(new RoundRectangle2D.Double(1.0, 1.0, w - 2, h - 2, radius - 1, radius - 1));
-    }
-
-    private static void card(Graphics2D g, int x, int y, int w, int h, int radius) {
-        g.setColor(new Color(255, 255, 255, 13));
-        g.fill(new RoundRectangle2D.Double(x, y, w, h, radius, radius));
-        g.setColor(new Color(255, 255, 255, 12));
-        g.setStroke(new BasicStroke(1f));
-        g.draw(new RoundRectangle2D.Double(x + 0.5, y + 0.5, w - 1, h - 1, radius, radius));
-    }
-
-    private static int accentFrom(int accent) {
-        return 0x3A000000 | (accent & 0xFFFFFF);
-    }
 
     /** 圆形传输按钮的底图：0 普通、1 hover、2 主按钮。 */
     static void transportButton(Graphics2D g, int w, int h, int kind) {

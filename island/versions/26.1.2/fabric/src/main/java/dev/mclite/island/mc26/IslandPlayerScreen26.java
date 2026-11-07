@@ -21,13 +21,12 @@ import java.util.Locale;
 /**
  * 26.x 播放器：700x450 的「封面模糊背景 + 队列 + 正在播放 + 悬浮传输栏」。
  *
- * <p>背景和卡片是 {@link PlayerBackdrop26} 按曲目烘焙的一张纹理；每帧只做
- * 1 次 blit、队列行/歌词/进度条和文字。按钮全部自绘，不再用大号文字胶囊，
- * 避免 720p GUI 下溢出和“上世纪控件”的观感。</p>
+ * <p>背景完全透明：用 Minecraft 自带的菜单模糊虚化世界，不画任何底色/玻璃板，
+ * 因此没有大面板圆角，也就没有放大后的锯齿。每帧只画文字、封面、细线和小图标。</p>
  */
 final class IslandPlayerScreen26 extends Screen {
 
-    private static final int ACCENT = 0xFFFF7FB8;
+    private static final int ACCENT = 0xFFF0A3C2;
     private static final int ACCENT_DIM = 0x66FF7FB8;
     private static final int TEXT = 0xFFF5F7FA;
     private static final int DIM = 0xFFA2ACB8;
@@ -144,19 +143,19 @@ final class IslandPlayerScreen26 extends Screen {
         refreshY = cardY + 9;
 
         int barY = panelY + UiPaint26.PLAYER_BAR_Y;
-        int groupX = panelX + 288;
+        int groupX = panelX + 297;
         addRenderableWidget(new UiIconButton26(UiIconButton26.Icon.PREV,
-                groupX, barY + 9, 34, 34, false, () -> {
+                groupX, barY + 11, 30, 30, false, () -> {
                     service.previous();
                     syncTransport();
                 }));
         playButton = addRenderableWidget(new UiIconButton26(UiIconButton26.Icon.PLAY,
-                groupX + 42, barY + 6, 40, 40, true, () -> {
+                groupX + 36, barY + 9, 34, 34, true, () -> {
                     service.togglePlay();
                     syncTransport();
                 }));
         addRenderableWidget(new UiIconButton26(UiIconButton26.Icon.NEXT,
-                groupX + 90, barY + 9, 34, 34, false, () -> {
+                groupX + 76, barY + 11, 30, 30, false, () -> {
                     service.next(true);
                     syncTransport();
                 }));
@@ -245,19 +244,31 @@ final class IslandPlayerScreen26 extends Screen {
         }
     }
 
+    /**
+     * 背景完全透明：只让 Minecraft 自带的菜单模糊把世界虚化，不再画任何底色/玻璃板。
+     * 这样没有大面板圆角，也就没有放大后的锯齿。
+     */
+    @Override
+    public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY,
+                                  float delta) {
+        extractBlurredBackground(extractor);
+    }
+
     @Override
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
         Font font = minecraft.font;
         IslandSnapshot snapshot = service.snapshot();
         Track current = service.playlist().current();
-        String cover = current == null ? "" : current.cover();
-        PlayerBackdrop26.Entry backdrop = PlayerBackdrop26.get(cover);
-        if (backdrop != null) {
-            PlayerBackdrop26.draw(extractor, backdrop, panelX, panelY);
-        } else {
-            UiDraw26.panel(extractor, UiDraw26.CARD, panelX, panelY,
-                    UiPaint26.PLAYER_W, UiPaint26.PLAYER_H, 22);
-        }
+
+        // 只留 1px 极淡描边界定内容区，方便在亮背景下看清边界
+        int frame = 0x1AFFFFFF;
+        extractor.fill(panelX, panelY, panelX + UiPaint26.PLAYER_W, panelY + 1, frame);
+        extractor.fill(panelX, panelY + UiPaint26.PLAYER_H - 1,
+                panelX + UiPaint26.PLAYER_W, panelY + UiPaint26.PLAYER_H, frame);
+        extractor.fill(panelX, panelY, panelX + 1,
+                panelY + UiPaint26.PLAYER_H, frame);
+        extractor.fill(panelX + UiPaint26.PLAYER_W - 1, panelY,
+                panelX + UiPaint26.PLAYER_W, panelY + UiPaint26.PLAYER_H, frame);
 
         updateVolumeText();
         drawHeader(extractor, font, mouseX, mouseY);
@@ -270,12 +281,12 @@ final class IslandPlayerScreen26 extends Screen {
 
     private void drawHeader(GuiGraphicsExtractor extractor, Font font, int mouseX, int mouseY) {
         drawScaledText(extractor, font, "MCLite Island", panelX + 28, panelY + 12,
-                1.35f, TEXT);
-        extractor.text(font, "本地音乐 · B站 · 歌词", panelX + 28, panelY + 35, MUTED, false);
+                1.35f, TEXT, true);
+        extractor.text(font, "本地音乐 · B站 · 歌词", panelX + 28, panelY + 35, 0xFFD7DEE8, false);
         for (Nav nav : navs) {
             boolean hover = mouseX >= nav.x - 4 && mouseX <= nav.x + nav.w + 4
                     && mouseY >= nav.y - 4 && mouseY <= nav.y + nav.h + 4;
-            extractor.text(font, nav.label, nav.x, nav.y, hover ? ACCENT : DIM, false);
+            extractor.text(font, nav.label, nav.x, nav.y, hover ? ACCENT : 0xFFD7DEE8, true);
             if (hover) {
                 extractor.fill(nav.x, nav.y + 13, nav.x + nav.w, nav.y + 14, ACCENT);
             }
@@ -284,11 +295,11 @@ final class IslandPlayerScreen26 extends Screen {
 
     private void drawQueue(GuiGraphicsExtractor extractor, Font font, int mouseX, int mouseY,
                            IslandSnapshot snapshot) {
-        extractor.text(font, "播放队列", cardX + 16, cardY + 11, DIM, false);
+        extractor.text(font, "播放队列", cardX + 16, cardY + 11, 0xFFD7DEE8, true);
         String refresh = "刷新";
         boolean refreshHover = mouseX >= refreshX && mouseX <= refreshX + 40
                 && mouseY >= refreshY - 3 && mouseY <= refreshY + 17;
-        extractor.text(font, refresh, refreshX, refreshY, refreshHover ? ACCENT : MUTED, false);
+        extractor.text(font, refresh, refreshX, refreshY, refreshHover ? ACCENT : 0xFFCBD3DD, true);
 
         UiDraw26.textRight(extractor, font, countText, refreshX - 12,
                 cardY + 11, MUTED);
@@ -325,9 +336,9 @@ final class IslandPlayerScreen26 extends Screen {
             drawCover(extractor, font, tracks.get(index).cover(), coverX, coverY, ROW_COVER);
             int textX = coverX + ROW_COVER + 10;
             int color = playing ? ACCENT : hover ? TEXT : 0xFFE8EDF3;
-            extractor.text(font, rowTitle[index], textX, rowY + 5, color, false);
+            extractor.text(font, rowTitle[index], textX, rowY + 5, color, true);
             extractor.text(font, rowArtist[index], textX, rowY + 19,
-                    playing ? 0xD9FF9CCB : MUTED, false);
+                    playing ? 0xD9FFE3EF : 0xFFCBD3DD, false);
         }
 
         if (maxScroll > 0) {
@@ -374,18 +385,18 @@ final class IslandPlayerScreen26 extends Screen {
         int textW = rightX + UiPaint26.PLAYER_RIGHT_W - 16 - textX;
         if (snapshot.hasTrack()) {
             nowTitle.set(font, snapshot.title(), Math.round(textW / 1.3f));
-            drawScaledText(extractor, font, nowTitle.text(), textX, artY + 4, 1.3f, TEXT);
+            drawScaledText(extractor, font, nowTitle.text(), textX, artY + 4, 1.3f, TEXT, true);
             nowArtist.set(font, snapshot.artist().isBlank() ? "未知艺术家" : snapshot.artist(),
                     textW);
-            extractor.text(font, nowArtist.text(), textX, artY + 28, DIM, false);
+            extractor.text(font, nowArtist.text(), textX, artY + 28, 0xFFD7DEE8, true);
             String source = current != null && current.isRemote() ? "B 站音频" : "本地文件";
             extractor.text(font, source, textX, artY + 46, MUTED, false);
         } else {
-            drawScaledText(extractor, font, "未在播放", textX, artY + 4, 1.3f, TEXT);
+            drawScaledText(extractor, font, "未在播放", textX, artY + 4, 1.3f, TEXT, true);
             extractor.text(font, "从左侧队列选一首开始", textX, artY + 28, DIM, false);
         }
 
-        extractor.text(font, "歌词", rightX + 16, rightY + 154, MUTED, false);
+        extractor.text(font, "歌词", rightX + 16, rightY + 154, 0xFFCBD3DD, true);
         int centerX = rightX + UiPaint26.PLAYER_RIGHT_W / 2;
         if (snapshot.hasTrack()) {
             String lyric = snapshot.lyric() == null ? "" : snapshot.lyric();
@@ -393,13 +404,13 @@ final class IslandPlayerScreen26 extends Screen {
             nowLyric.set(font, hasLyric ? lyric : "暂无歌词", UiPaint26.PLAYER_RIGHT_W - 36);
             int lyricWidth = Math.round(nowLyric.width() * 1.18f);
             drawScaledText(extractor, font, nowLyric.text(), centerX - lyricWidth / 2f,
-                    rightY + 170, 1.18f, hasLyric ? 0xFFFFE3F0 : MUTED);
+                    rightY + 170, 1.18f, hasLyric ? 0xFFF6EAF1 : MUTED, true);
             String next = snapshot.nextLyric() == null ? "" : snapshot.nextLyric();
             if (!next.isBlank()) {
                 nextLyric.set(font, next, UiPaint26.PLAYER_RIGHT_W - 36);
                 int nextWidth = nextLyric.width();
                 extractor.text(font, nextLyric.text(), centerX - nextWidth / 2,
-                        rightY + 196, DIM, false);
+                        rightY + 196, 0xFFD7DEE8, true);
             }
         } else {
             UiDraw26.textCentered(extractor, font, "在左侧选一首歌，歌词会显示在这里",
@@ -417,11 +428,11 @@ final class IslandPlayerScreen26 extends Screen {
                 mouseX >= progressX - 4 && mouseX <= progressX + progressW + 4
                         && mouseY >= progressY - 8 && mouseY <= progressY + 12);
         updateTimeLabels(position, duration);
-        extractor.text(font, positionText, progressX, progressY + 16, MUTED, false);
+        extractor.text(font, positionText, progressX, progressY + 16, 0xFFCBD3DD, true);
         UiDraw26.textRight(extractor, font, durationText, progressX + progressW,
                 progressY + 16, MUTED);
 
-        extractor.text(font, "音量", rightX + 16, rightY + 276, MUTED, false);
+        extractor.text(font, "音量", rightX + 16, rightY + 276, 0xFFCBD3DD, true);
         UiDraw26.textRight(extractor, font, volumeText, rightX + UiPaint26.PLAYER_RIGHT_W - 16,
                 rightY + 276, DIM);
         int volumeX = rightX + 52;
@@ -433,11 +444,11 @@ final class IslandPlayerScreen26 extends Screen {
 
     private void drawSlider(GuiGraphicsExtractor extractor, int x, int y, int w, float value,
                             boolean hot) {
-        extractor.fill(x, y, x + w, y + 3, 0x33FFFFFF);
+        extractor.fill(x, y, x + w, y + 2, 0x2EFFFFFF);
         int filled = x + Math.round(w * Math.max(0f, Math.min(1f, value)));
-        extractor.fill(x, y, filled, y + 3, ACCENT);
+        extractor.fill(x, y, filled, y + 2, ACCENT);
         if (hot) {
-            extractor.fill(filled - 2, y - 2, filled + 2, y + 5, 0xFFFFE3F0);
+            extractor.fill(filled - 2, y - 2, filled + 2, y + 4, 0xFFFFE8F1);
         }
     }
 
@@ -449,7 +460,7 @@ final class IslandPlayerScreen26 extends Screen {
             extractor.fill(panelX + 34, panelY + 428, panelX + 130, panelY + 430, ACCENT_DIM);
         }
         extractor.text(font, modeLabel(config.playMode), panelX + 40, panelY + 412,
-                modeHover ? ACCENT : DIM, false);
+                modeHover ? ACCENT : 0xFFCBD3DD, true);
 
         String message = status;
         if (message.isBlank()) {
@@ -496,11 +507,17 @@ final class IslandPlayerScreen26 extends Screen {
 
     private static void drawScaledText(GuiGraphicsExtractor extractor, Font font, String text,
                                        float x, float y, float scale, int color) {
+        drawScaledText(extractor, font, text, x, y, scale, color, false);
+    }
+
+    private static void drawScaledText(GuiGraphicsExtractor extractor, Font font, String text,
+                                       float x, float y, float scale, int color,
+                                       boolean shadow) {
         var pose = extractor.pose();
         pose.pushMatrix();
         pose.translate(x, y);
         pose.scale(scale, scale);
-        extractor.text(font, text, 0, 0, color, false);
+        extractor.text(font, text, 0, 0, color, shadow);
         pose.popMatrix();
     }
 

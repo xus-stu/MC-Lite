@@ -83,17 +83,26 @@ jobs:
           exit 1
       - name: Build 26.1.2 Fabric
         run: |
+          set -o pipefail
           test -n "$JAVA_HOME_25_X64" || {
             echo "JAVA_HOME_25_X64 未设置（runner 架构不是 x64？）" >&2
             exit 1
           }
           cd island/versions/26.1.2/fabric
           for attempt in 1 2 3; do
-            JAVA_HOME="$JAVA_HOME_25_X64" ./gradlew bundledJar --no-daemon --stacktrace \
-              -Dorg.gradle.java.home="$JAVA_HOME_25_X64" && exit 0
+            if JAVA_HOME="$JAVA_HOME_25_X64" ./gradlew bundledJar --no-daemon --stacktrace \
+                -Dorg.gradle.java.home="$JAVA_HOME_25_X64" 2>&1 | tee /tmp/gradle-26.log; then
+              exit 0
+            fi
             echo "attempt ${attempt} failed; retrying in 15s" >&2
             sleep 15
           done
+          {
+            echo '### 26.1.2 build failed'
+            echo '```'
+            tail -120 /tmp/gradle-26.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           exit 1
       - name: Upload jars
         uses: actions/upload-artifact@v4
