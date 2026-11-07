@@ -110,6 +110,24 @@ public final class McliteIsland26Client implements ClientModInitializer {
     }
 
     private void updateContext(Minecraft client) {
+        // JEI 列表悬停优先；JEI 缺失时连类都不会去解析。
+        if (FabricLoader.getInstance().isModLoaded("jei")) {
+            String hovered = jeiHovered();
+            if (hovered != null) {
+                int split = hovered.indexOf('|');
+                String name = split >= 0 ? hovered.substring(0, split) : hovered;
+                String namespace = split >= 0 ? hovered.substring(split + 1) : "";
+                service.setContext(name, namespace.isBlank() ? "JEI" : "JEI · " + namespace);
+                return;
+            }
+        }
+        if (FabricLoader.getInstance().isModLoaded("jade")) {
+            String jade = JadeCompat.targetLine();
+            if (jade != null) {
+                service.setContext(jade, "Jade");
+                return;
+            }
+        }
         HitResult hit = client.hitResult;
         if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
             var state = client.level.getBlockState(blockHit.getBlockPos());
@@ -126,6 +144,27 @@ public final class McliteIsland26Client implements ClientModInitializer {
             return;
         }
         service.clearContext();
+    }
+
+    private static java.lang.reflect.Method jeiHoverMethod;
+
+    /**
+     * 用反射调用 JEI 桥，避免主类常量池直接引用 JeiCompat——
+     * 这样即使 JEI 没装/入口点被提前校验，也不会 NoClassDefFoundError。
+     */
+    private static String jeiHovered() {
+        try {
+            if (jeiHoverMethod == null) {
+                Class<?> bridge = Class.forName("dev.mclite.island.mc26.JeiCompat");
+                java.lang.reflect.Method method = bridge.getDeclaredMethod("hoveredIngredient");
+                method.setAccessible(true);
+                jeiHoverMethod = method;
+            }
+            return (String) jeiHoverMethod.invoke(null);
+        } catch (Throwable ignored) {
+            // JEI 版本不匹配时静默降级到准星探针
+            return null;
+        }
     }
 
     private void saveConfig() {

@@ -135,6 +135,11 @@ public final class LrcParser {
             if (Files.isRegularFile(inLyrics)) {
                 return inLyrics;
             }
+            // Windows/Linux 上歌词文件常见 .LRC 大写
+            Path upper = lyricsDir.resolve(stem + ".LRC");
+            if (Files.isRegularFile(upper)) {
+                return upper;
+            }
         }
         return null;
     }

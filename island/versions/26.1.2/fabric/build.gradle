@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.mclite'
-version = '0.1.0'
+version = '0.1.1'
 
 base {
     archivesName = 'mclite-island-26.1.2-fabric'
@@ -30,6 +30,7 @@ sourceSets {
 repositories {
     maven { url = 'https://maven.aliyun.com/repository/public' }
     maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+    maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
 }
 
 dependencies {
@@ -41,6 +42,9 @@ dependencies {
     implementation 'javazoom:jlayer:1.0.1'
     implementation 'org.jflac:jflac-codec:1.5.2'
     implementation 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+
+    // JEI 可选：只编译用，运行时由 JEI 入口点决定是否加载
+    compileOnly 'maven.modrinth:jei:DJdKi2Zw'
 }
 
 configurations {

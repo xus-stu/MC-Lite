@@ -43,16 +43,20 @@ final class IslandInstaller {
         Path mods = modsDir(config, instance);
         Files.createDirectories(mods);
         String fileName = safeFileName(build);
-        Path target = mods.resolve(fileName);
+        Path target = mods.resolve(fileName).normalize();
+        if (!target.startsWith(mods.toAbsolutePath().normalize())) {
+            throw new IOException("组件文件名越出 mods 目录，已拒绝");
+        }
         Path temp = mods.resolve(fileName + ".part");
         Files.write(temp, bytes);
-        cleanupOldJars(mods, fileName);
         try {
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING,
                     StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException atomicFailed) {
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
         }
+        // 新 jar 落盘成功后再清理旧版本；中途失败时旧 jar 仍然可用。
+        cleanupOldJars(mods, fileName);
         return target;
     }
 
@@ -62,10 +66,16 @@ final class IslandInstaller {
             return 0;
         }
         int removed = 0;
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mods, PREFIX + "*.jar")) {
-            for (Path jar : stream) {
-                Files.deleteIfExists(jar);
-                removed++;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mods)) {
+            for (Path file : stream) {
+                String name = file.getFileName().toString();
+                if (!name.startsWith(PREFIX)) {
+                    continue;
+                }
+                if (name.endsWith(".jar") || name.endsWith(".jar.bak") || name.endsWith(".part")) {
+                    Files.deleteIfExists(file);
+                    removed++;
+                }
             }
         }
         return removed;
@@ -99,9 +109,15 @@ final class IslandInstaller {
         if (!name.toLowerCase(Locale.ROOT).endsWith(".jar")
                 || !name.startsWith(PREFIX)
                 || !name.matches("[A-Za-z0-9._-]+")) {
-            name = PREFIX + build.mc() + "-" + build.loader() + "-" + build.version() + ".jar";
+            name = PREFIX + safePart(build.mc()) + "-" + safePart(build.loader())
+                    + "-" + safePart(build.version()) + ".jar";
         }
         return name;
+    }
+
+    private static String safePart(String value) {
+        String cleaned = value == null ? "" : value.replaceAll("[^A-Za-z0-9._-]", "_");
+        return cleaned.isBlank() ? "unknown" : cleaned;
     }
 
     private static void cleanupOldJars(Path mods, String keepName) throws IOException {
