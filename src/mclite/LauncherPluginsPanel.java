@@ -16,6 +16,8 @@ import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Component;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,7 +32,7 @@ public final class LauncherPluginsPanel extends JPanel {
 
     private final Config config;
     private final GamePaths paths;
-    private final JComboBox<InstalledInstance> instanceBox = new JComboBox<>();
+    private final JComboBox<InstalledInstance> instanceBox = new Ui.DarkCombo<>();
     private final DefaultListModel<IslandCatalog.Build> builds = new DefaultListModel<>();
     private final JList<IslandCatalog.Build> buildList = new JList<>(builds);
     private final JLabel status = new JLabel("正在获取组件清单…");
@@ -55,7 +57,7 @@ public final class LauncherPluginsPanel extends JPanel {
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(6, 6, 6, 6));
 
-        root = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 18);
+        root = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 20);
         root.setLayout(new BorderLayout(0, 12));
         root.setBorder(new EmptyBorder(18, 18, 16, 18));
         add(root, BorderLayout.CENTER);
@@ -76,34 +78,22 @@ public final class LauncherPluginsPanel extends JPanel {
         JPanel instanceRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         instanceRow.setOpaque(false);
         instanceRow.add(Ui.label("目标实例", Theme.SMALL, Theme.MUTED));
-        instanceBox.setPreferredSize(new Dimension(380, 26));
-        instanceBox.setRenderer((list, value, index, selected, focus) -> {
-            JLabel label = new JLabel(value == null ? "" : value.displayName());
-            label.setOpaque(true);
-            label.setBackground(selected ? Theme.CARD_ALT : Theme.CARD);
-            label.setForeground(Theme.TEXT);
-            label.setBorder(new EmptyBorder(3, 6, 3, 6));
-            return label;
-        });
+        instanceBox.setPreferredSize(new Dimension(380, 30));
         instanceRow.add(instanceBox);
         center.add(instanceRow);
         center.add(Ui.vgap(10));
 
         buildList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        buildList.setBackground(Theme.BG);
+        buildList.setOpaque(false);
         buildList.setForeground(Theme.TEXT);
-        buildList.setCellRenderer((list, value, index, selected, focus) -> {
-            JLabel label = new JLabel(value == null ? "" : value.displayName());
-            label.setOpaque(true);
-            label.setBackground(selected ? Theme.CARD_ALT : Theme.BG);
-            label.setForeground(Theme.TEXT);
-            label.setBorder(new EmptyBorder(4, 8, 4, 8));
-            return label;
-        });
-        JScrollPane scroll = new JScrollPane(buildList);
-        scroll.setPreferredSize(new Dimension(520, 150));
-        scroll.setBorder(BorderFactory.createLineBorder(Theme.BORDER_LIGHT));
-        center.add(scroll);
+        buildList.setCellRenderer(new RoundedBuildCellRenderer());
+        JScrollPane scroll = Ui.scroll(buildList);
+        scroll.setPreferredSize(new Dimension(520, 170));
+        Ui.RoundedPanel listCard = new Ui.RoundedPanel(Theme.BG, Theme.BORDER_LIGHT, 14);
+        listCard.setLayout(new BorderLayout());
+        listCard.setBorder(new EmptyBorder(8, 8, 8, 8));
+        listCard.add(scroll, BorderLayout.CENTER);
+        center.add(listCard);
         center.add(Ui.vgap(8));
         installed.setForeground(Theme.MUTED);
         center.add(installed);
@@ -340,5 +330,40 @@ public final class LauncherPluginsPanel extends JPanel {
         }
         String message = current.getMessage();
         return message == null || message.isBlank() ? current.getClass().getSimpleName() : message;
+    }
+
+    /** 列表项也用圆角高亮，避免默认矩形选中条。 */
+    private static final class RoundedBuildCellRenderer extends JLabel
+            implements javax.swing.ListCellRenderer<IslandCatalog.Build> {
+        private boolean selected;
+
+        RoundedBuildCellRenderer() {
+            setOpaque(false);
+            setForeground(Theme.TEXT);
+            setBorder(new EmptyBorder(6, 10, 6, 10));
+        }
+
+        @Override
+        public java.awt.Component getListCellRendererComponent(JList<? extends IslandCatalog.Build> list,
+                                                               IslandCatalog.Build value, int index,
+                                                               boolean isSelected, boolean cellHasFocus) {
+            setText(value == null ? "" : value.displayName());
+            this.selected = isSelected;
+            setForeground(isSelected ? Theme.ACCENT : Theme.TEXT);
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                    java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            if (selected) {
+                g2.setColor(Theme.CARD_ALT);
+                g2.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 10, 10);
+            }
+            g2.dispose();
+            super.paintComponent(g);
+        }
     }
 }

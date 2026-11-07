@@ -89,4 +89,9 @@ record InstalledInstance(String id, String mcVersion, String loader, Path versio
     String displayName() {
         return id + "  ·  MC " + mcVersion + "  ·  " + loader;
     }
+
+    @Override
+    public String toString() {
+        return displayName();
+    }
 }

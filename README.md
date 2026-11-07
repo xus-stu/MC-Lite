@@ -72,7 +72,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 
 ## 运行
 
-当前版本：V1.4.5
+当前版本：V1.4.6
 
 需要 Java 21 或更高版本。
 
@@ -80,7 +80,7 @@ Java 21 + Swing 写的 Minecraft 启动器，支持 Windows、macOS 和 Linux。
 ./run-region.sh
 ```
 
-macOS 可以打开 `dist/MC Lite Region v1.4.5.app`，或者双击 `启动器-地区版.command`。
+macOS 可以打开 `dist/MC Lite Region v1.4.6.app`，或者双击 `启动器-地区版.command`。
 
 Windows：
 
@@ -91,7 +91,7 @@ run-region.bat
 也可以直接运行：
 
 ```bash
-java -jar dist/MCLite_v1.4.5-region.jar
+java -jar dist/MCLite_v1.4.6-region.jar
 ```
 
 ## 地区限制
@@ -135,18 +135,18 @@ java -jar dist/MCLite_v1.4.5-region.jar
 会生成：
 
 ```text
-dist/MCLite_v1.4.5.jar
-dist/MCLite_v1.4.5-region.jar
+dist/MCLite_v1.4.6.jar
+dist/MCLite_v1.4.6-region.jar
 dist/MCLiteBenchmark.jar
-dist/MC Lite v1.4.5.app
-dist/MC Lite Region v1.4.5.app
-dist/MC-Lite_v1.4.5_macOS.zip
-dist/MC-Lite_v1.4.5_region_macOS.zip
-dist/MC-Lite_v1.4.5_region_Windows.zip
+dist/MC Lite v1.4.6.app
+dist/MC Lite Region v1.4.6.app
+dist/MC-Lite_v1.4.6_macOS.zip
+dist/MC-Lite_v1.4.6_region_macOS.zip
+dist/MC-Lite_v1.4.6_region_Windows.zip
 dist/SHA256SUMS.txt
 ```
 
-Windows 解压 `dist/MC-Lite_v1.4.5_region_Windows.zip`，双击 `start.bat`。
+Windows 解压 `dist/MC-Lite_v1.4.6_region_Windows.zip`，双击 `start.bat`。
 
 ## 测试
 
@@ -197,7 +197,7 @@ MCLite_v版本-region.jar
 ## Windows 安装版
 
 ```text
-dist/MC-Lite_v1.4.5_Setup.exe
+dist/MC-Lite_v1.4.6_Setup.exe
 ```
 
 安装到当前用户的 `%LOCALAPPDATA%\Programs\MCLite`，不需要管理员权限。
@@ -215,7 +215,7 @@ macOS 设置页有一项「强制使用 Metal 渲染」，只影响启动器界�
 紧急恢复时可以加参数启动：
 
 ```bash
-java -jar dist/MCLite_v1.4.5.jar --software-render
+java -jar dist/MCLite_v1.4.6.jar --software-render
 ```
 
 启动器日志在 `~/.mclite/logs/`。设置页右上角有「打开日志目录」。Windows 下路径为：
