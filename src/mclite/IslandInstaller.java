@@ -54,7 +54,10 @@ final class IslandInstaller {
                 progress.total(build.size());
             }
             try {
-                byte[] candidate = net.getUnverifiedBytesQuick(url,
+                // 同名资产可能被镜像缓存成旧文件/404，带版本 hash 强制回源
+                String busted = url + (url.contains("?") ? "&" : "?")
+                        + "v=" + build.sha256().substring(0, 8);
+                byte[] candidate = net.getUnverifiedBytesQuick(busted,
                         "MCLite 岛 v" + build.version(), 25);
                 if (candidate.length != build.size()) {
                     last = new IOException("组件大小校验失败: 期望 " + build.size()

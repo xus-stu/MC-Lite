@@ -132,21 +132,3 @@ jobs:
             echo "把最新插件清单镜像到旧启动器读取的 ${latest}"
             gh release upload "$latest" dist/island-manifest.json --clobber
           fi
-      - name: Remove stale jar assets
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          keep="$(cd dist && ls mclite-island-*.jar)"
-          gh release view island-latest --json assets --jq '.assets[].name' |
-          while read -r name; do
-            case "$name" in
-              mclite-island-*)
-                if ! printf '%s\n' "$keep" | grep -qx "$name"; then
-                  echo "删除旧资产 $name"
-                  gh release delete-asset island-latest "$name" -y
-                fi
-                ;;
-            esac
-          done
