@@ -5,32 +5,51 @@ import dev.mclite.island.core.IslandConfig;
 import dev.mclite.island.core.PlaybackService;
 import dev.mclite.island.core.Track;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import org.lwjgl.glfw.GLFW;
+
 /** B 站浏览：搜索 / 收藏夹，点歌后加入播放队列并立即播放。 */
 final class BiliBrowseScreen26 extends Screen {
+
+    private static final int ROW_HEIGHT = 24;
+    private static final int TEXT = 0xFFF2F5F8;
+    private static final int DIM = 0xFF93A0AD;
+    private static final int MUTED = 0xFF6B7885;
+    private static final int ACCENT = 0xFF8FD3FF;
+    private static final int ERROR = 0xFFFF8A8A;
 
     private final McliteIsland26Client client;
     private final PlaybackService service;
     private final IslandConfig config;
 
     private EditBox searchBox;
-    private final List<BiliApi.Video> results = new ArrayList<>();
-    private volatile List<BiliApi.Video> loaded = List.of();
+    private volatile Row[] rows = new Row[0];
     private volatile String status = "输入关键字搜索，或打开收藏夹";
     private volatile boolean loading;
     private boolean favoritesTab;
     private int scroll;
-    private int listTop = 92;
+
+    private int panelX;
+    private int panelY;
+    private int listX;
+    private int listTop;
+    private int listW;
     private int listBottom;
+    private UISurface26.Surface background;
+    private final UiText26 statusCache = new UiText26();
+
+    private record Row(BiliApi.Video video, String title, String meta) {
+    }
 
     BiliBrowseScreen26(McliteIsland26Client client, PlaybackService service, IslandConfig config) {
         super(Component.literal("B 站"));
@@ -45,21 +64,35 @@ final class BiliBrowseScreen26 extends Screen {
 
     @Override
     protected void init() {
-        int left = width / 2 - 320;
-        searchBox = new EditBox(minecraft.font, left, 52, 300, 20, text("搜索视频"));
+        panelX = Math.max(8, (width - UiPaint26.BILI_W) / 2);
+        panelY = Math.max(8, (height - UiPaint26.BILI_H) / 2);
+        background = UISurface26.get("bili", UiPaint26.BILI_W, UiPaint26.BILI_H,
+                UiPaint26::bili);
+
+        listX = panelX + UiPaint26.BILI_LIST_X + 10;
+        listW = UiPaint26.BILI_LIST_W - 20;
+        listTop = panelY + UiPaint26.BILI_LIST_Y + 14;
+        listBottom = panelY + UiPaint26.BILI_LIST_Y + UiPaint26.BILI_LIST_H - 12;
+
+        searchBox = new EditBox(minecraft.font, panelX + 36, panelY + 64, 496, 20,
+                text("搜索视频"));
         searchBox.setMaxLength(60);
+        searchBox.setBordered(false);
+        searchBox.setTextColor(TEXT);
         searchBox.setHint(text("搜索 B 站视频…"));
         addRenderableWidget(searchBox);
-        addRenderableWidget(Button.builder(text("搜索"), b -> search())
-                .bounds(left + 308, 52, 52, 20).build());
-        addRenderableWidget(Button.builder(text("收藏夹"), b -> loadFavorites())
-                .bounds(left + 368, 52, 64, 20).build());
-        addRenderableWidget(Button.builder(text("登录"), b -> Minecraft.getInstance()
-                        .setScreen(new BiliLoginScreen26(client, () -> status = "登录成功")))
-                .bounds(left + 440, 52, 52, 20).build());
-        addRenderableWidget(Button.builder(text("返回"), b -> onClose())
-                .bounds(left + 500, 52, 52, 20).build());
-        listBottom = height - 40;
+        addRenderableWidget(UiButton26.primary("搜索", panelX + 542, panelY + 62, 54, 24,
+                this::search));
+        addRenderableWidget(UiButton26.ghost("收藏夹", panelX + 602, panelY + 62, 70, 24,
+                this::loadFavorites));
+        addRenderableWidget(UiButton26.ghost(
+                client.biliCookies().loggedIn() ? "重新登录" : "登录",
+                panelX + 582, panelY + 18, 54, 24,
+                () -> Minecraft.getInstance().setScreen(
+                        new BiliLoginScreen26(client, () -> status = "登录成功", this))));
+        addRenderableWidget(UiButton26.ghost("返回", panelX + 644, panelY + 18, 54, 24,
+                this::onClose));
+
         status = client.biliCookies().loggedIn() ? "已登录，可搜索或打开收藏夹" : "未登录，在线播放仍可用";
     }
 
@@ -75,7 +108,7 @@ final class BiliBrowseScreen26 extends Screen {
             try {
                 List<BiliApi.Video> videos = client.bili().search(keyword, 1);
                 Minecraft.getInstance().execute(() -> {
-                    loaded = videos;
+                    setLoaded(videos);
                     favoritesTab = false;
                     loading = false;
                     status = "找到 " + videos.size() + " 个视频";
@@ -106,7 +139,7 @@ final class BiliBrowseScreen26 extends Screen {
                     }
                 }
                 Minecraft.getInstance().execute(() -> {
-                    loaded = all;
+                    setLoaded(all);
                     favoritesTab = true;
                     loading = false;
                     status = "收藏夹共 " + all.size() + " 首";
@@ -118,6 +151,22 @@ final class BiliBrowseScreen26 extends Screen {
                 });
             }
         }, "mclite-island-bili-fav").start();
+    }
+
+    private void setLoaded(List<BiliApi.Video> videos) {
+        Row[] built = new Row[videos.size()];
+        Font font = minecraft.font;
+        int titleWidth = listW - 190;
+        for (int i = 0; i < videos.size(); i++) {
+            BiliApi.Video video = videos.get(i);
+            String author = video.author() == null ? "" : video.author();
+            String meta = author + " · " + formatDuration(video.durationSeconds());
+            built[i] = new Row(video,
+                    UiText26.fit(font, video.title(), titleWidth),
+                    UiText26.fit(font, meta, 150));
+        }
+        rows = built;
+        scroll = 0;
     }
 
     private void play(BiliApi.Video video) {
@@ -133,7 +182,10 @@ final class BiliBrowseScreen26 extends Screen {
                     service.playlist().replace(List.of(track));
                     service.playAt(0);
                     status = "正在播放: " + view.title();
-                    onClose();
+                    // 如果用户已经切到别的界面，不要把新界面一起关掉
+                    if (Minecraft.getInstance().screen == BiliBrowseScreen26.this) {
+                        onClose();
+                    }
                 });
             } catch (Exception ex) {
                 Minecraft.getInstance().execute(() -> status = "播放失败: " + ex.getMessage());
@@ -143,52 +195,96 @@ final class BiliBrowseScreen26 extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
-        var font = minecraft.font;
-        int left = width / 2 - 320;
-        int right = width / 2 + 320;
-        UiDraw26.panel(extractor, UiDraw26.CARD, left - 12, 40, right - left + 24, height - 60, 16);
-        String title = "B 站音乐";
-        extractor.text(font, title, left, 22, 0xFFF2F5F8, false);
-        String account = client.biliCookies().loggedIn() ? "已登录" : "未登录";
-        extractor.text(font, account, right - font.width(account), 22,
-                client.biliCookies().loggedIn() ? 0xFF6CC6FF : 0xFF93A0AD, false);
+        Font font = minecraft.font;
+        if (background != null) {
+            UISurface26.draw(extractor, background, panelX, panelY);
+        } else {
+            UiDraw26.panel(extractor, UiDraw26.CARD, panelX, panelY,
+                    UiPaint26.BILI_W, UiPaint26.BILI_H, 20);
+            UiDraw26.panel(extractor, UiDraw26.DARK, panelX + UiPaint26.BILI_LIST_X,
+                    panelY + UiPaint26.BILI_LIST_Y, UiPaint26.BILI_LIST_W,
+                    UiPaint26.BILI_LIST_H, 14);
+        }
 
-        List<BiliApi.Video> list = loaded;
-        int rowHeight = 22;
-        int visible = Math.max(1, (listBottom - listTop) / rowHeight);
-        int maxScroll = Math.max(0, list.size() - visible);
+        drawScaledText(extractor, font, "B 站音乐", panelX + 44, panelY + 16, 1.25f, TEXT);
+        extractor.text(font, "搜索 · 收藏夹 · 点歌", panelX + 44, panelY + 37, DIM, false);
+        boolean loggedIn = client.biliCookies().loggedIn();
+        String account = loggedIn ? "已登录" : "未登录";
+        UiDraw26.textRight(extractor, font, account, panelX + 566, panelY + 22,
+                loggedIn ? ACCENT : DIM);
+
+        drawRows(extractor, font, mouseX, mouseY);
+        if (loading) {
+            String tip = "加载中…";
+            UiDraw26.textCentered(extractor, font, tip,
+                    panelX + UiPaint26.BILI_W / 2, panelY + UiPaint26.BILI_H / 2 - 24, DIM);
+        }
+
+        String message = status;
+        int color = message.startsWith("搜索失败") || message.startsWith("收藏夹读取失败")
+                || message.startsWith("播放失败") ? ERROR : DIM;
+        statusCache.set(font, message, 640);
+        extractor.text(font, statusCache.text(), panelX + 24, panelY + 414, color, false);
+        super.extractRenderState(extractor, mouseX, mouseY, delta);
+    }
+
+    private void drawRows(GuiGraphicsExtractor extractor, Font font, int mouseX, int mouseY) {
+        Row[] list = rows;
+        if (list.length == 0) {
+            if (!loading) {
+                String empty = favoritesTab ? "收藏夹为空" : "没有结果";
+                UiDraw26.textCentered(extractor, font, empty,
+                        panelX + UiPaint26.BILI_W / 2, listTop + 40, MUTED);
+            }
+            return;
+        }
+
+        int visible = Math.max(1, (listBottom - listTop) / ROW_HEIGHT);
+        int maxScroll = Math.max(0, list.length - visible);
         scroll = Math.max(0, Math.min(scroll, maxScroll));
-        for (int i = 0; i < visible; i++) {
-            int index = scroll + i;
-            if (index >= list.size()) {
+        Track current = service.playlist().current();
+
+        for (int row = 0; row < visible; row++) {
+            int index = scroll + row;
+            if (index >= list.length) {
                 break;
             }
-            BiliApi.Video video = list.get(index);
-            int y = listTop + i * rowHeight;
-            extractor.fill(left - 4, y - 2, right, y + rowHeight - 4, 0x18FFFFFF);
-            String text = video.title();
-            extractor.text(font, font.plainSubstrByWidth(text, right - left - 130),
-                    left + 4, y, 0xFFF2F5F8, false);
-            String meta = video.author() + " · " + formatDuration(video.durationSeconds());
-            extractor.text(font, meta, right - font.width(meta) - 6, y, 0xFF93A0AD, false);
+            Row item = list[index];
+            int y = listTop + row * ROW_HEIGHT;
+            boolean hover = mouseX >= listX && mouseX < listX + listW
+                    && mouseY >= y - 1 && mouseY < y + ROW_HEIGHT - 2;
+            boolean playing = current != null && current.bvid() != null
+                    && current.bvid().equals(item.video().bvid());
+            if (hover || playing) {
+                UiDraw26.panel(extractor, playing ? UiDraw26.SOFT : UiDraw26.HOVER,
+                        listX + 2, y - 1, listW - 8, ROW_HEIGHT - 2);
+            }
+            if (playing) {
+                extractor.fill(listX + 6, y + 5, listX + 8, y + 19, 0xFF6CC6FF);
+            }
+            extractor.text(font, item.title(), listX + 14, y + 3,
+                    playing ? ACCENT : TEXT, false);
+            UiDraw26.textRight(extractor, font, item.meta(), listX + listW - 12, y + 3, DIM);
         }
-        if (list.isEmpty() && !loading) {
-            String empty = favoritesTab ? "收藏夹为空" : "没有结果";
-            extractor.text(font, empty, left + (right - left - font.width(empty)) / 2,
-                    listTop + 20, 0xFF93A0AD, false);
+
+        if (maxScroll > 0) {
+            int trackX = listX + listW - 3;
+            int viewH = listBottom - listTop;
+            extractor.fill(trackX, listTop, trackX + 3, listBottom, 0x14FFFFFF);
+            int thumbH = Math.max(18, viewH * visible / list.length);
+            int thumbY = listTop + (int) ((viewH - thumbH) * (scroll / (float) maxScroll));
+            extractor.fill(trackX, thumbY, trackX + 3, thumbY + thumbH, 0x55FFFFFF);
         }
-        extractor.text(font, status, left, height - 32,
-                status.startsWith("失败") || status.contains("失败") ? 0xFFFF6B6B : 0xFF93A0AD, false);
-        super.extractRenderState(extractor, mouseX, mouseY, delta);
     }
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (event.button() == 0 && event.y() >= listTop && event.y() < listBottom) {
-            int index = scroll + (int) ((event.y() - listTop) / 22);
-            List<BiliApi.Video> list = loaded;
-            if (index >= 0 && index < list.size()) {
-                play(list.get(index));
+        if (event.button() == 0 && event.x() >= listX && event.x() < listX + listW
+                && event.y() >= listTop && event.y() < listBottom) {
+            int index = scroll + (int) ((event.y() - listTop) / ROW_HEIGHT);
+            Row[] list = rows;
+            if (index >= 0 && index < list.length) {
+                play(list[index].video());
                 return true;
             }
         }
@@ -196,27 +292,37 @@ final class BiliBrowseScreen26 extends Screen {
     }
 
     @Override
+    public boolean keyPressed(KeyEvent event) {
+        if (searchBox != null && searchBox.isFocused()
+                && (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER)) {
+            search();
+            return true;
+        }
+        return super.keyPressed(event);
+    }
+
+    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY) {
-        scroll -= (int) Math.signum(deltaY) * 4;
-        return true;
+        if (mouseX >= listX && mouseX < listX + listW
+                && mouseY >= listTop && mouseY <= listBottom) {
+            scroll -= (int) Math.signum(deltaY) * 3;
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, deltaX, deltaY);
     }
 
     private static String formatDuration(long seconds) {
-        return String.format("%d:%02d", seconds / 60, seconds % 60);
+        return String.format(java.util.Locale.ROOT, "%d:%02d", seconds / 60L, seconds % 60L);
     }
 
-    private static void fillRounded(GuiGraphicsExtractor extractor, int x, int y,
-                                    int width, int height, int radius, int color) {
-        int safe = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
-        for (int row = 0; row < height; row++) {
-            int edge = Math.min(row, height - 1 - row);
-            int inset = 0;
-            if (edge < safe) {
-                int dx = safe - edge;
-                inset = safe - (int) Math.round(Math.sqrt(Math.max(0, safe * safe - dx * dx)));
-            }
-            extractor.fill(x + inset, y + row, x + width - inset, y + row + 1, color);
-        }
+    private static void drawScaledText(GuiGraphicsExtractor extractor, Font font, String text,
+                                       int x, int y, float scale, int color) {
+        var pose = extractor.pose();
+        pose.pushMatrix();
+        pose.translate(x, y);
+        pose.scale(scale, scale);
+        extractor.text(font, text, 0, 0, color, false);
+        pose.popMatrix();
     }
 
     @Override

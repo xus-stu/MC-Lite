@@ -6,8 +6,8 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import dev.mclite.island.bili.BiliApi;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -16,36 +16,51 @@ import java.util.Map;
 /** B 站扫码登录页。二维码只在这里绘制，不常驻 HUD。 */
 final class BiliLoginScreen26 extends Screen {
 
-    private static final int PANEL_W = 380;
-    private static final int PANEL_H = 320;
-    private static final int QR_SIZE = 176;
+    private static final int QR_SIZE = UiPaint26.LOGIN_QR_INNER;
+    private static final int TEXT = 0xFFF2F5F8;
+    private static final int DIM = 0xFF93A0AD;
+    private static final int MUTED = 0xFF6B7885;
+    private static final int ACCENT = 0xFF8FD3FF;
+    private static final int ERROR = 0xFFFF8A8A;
 
     private final McliteIsland26Client client;
     private final Runnable onSuccess;
+    private final Screen parent;
 
     private volatile BitMatrix qr;
     private volatile String status = "正在生成二维码…";
     private volatile boolean active = true;
     private String qrKey = "";
     private Thread pollThread;
+    private volatile int generation;
+
+    private int panelX;
+    private int panelY;
+    private UISurface26.Surface background;
+    private final UiText26 statusCache = new UiText26();
 
     BiliLoginScreen26(McliteIsland26Client client, Runnable onSuccess) {
+        this(client, onSuccess, null);
+    }
+
+    BiliLoginScreen26(McliteIsland26Client client, Runnable onSuccess, Screen parent) {
         super(Component.literal("登录 B 站"));
         this.client = client;
         this.onSuccess = onSuccess;
-    }
-
-    private static Component text(String value) {
-        return Component.literal(value == null ? "" : value);
+        this.parent = parent;
     }
 
     @Override
     protected void init() {
-        int cx = width / 2;
-        int bottom = height / 2 + PANEL_H / 2;
-        addRenderableWidget(UiButton26.primary("刷新二维码", cx - 110, bottom - 48, 100, 24,
+        panelX = Math.max(8, (width - UiPaint26.LOGIN_W) / 2);
+        panelY = Math.max(8, (height - UiPaint26.LOGIN_H) / 2);
+        background = UISurface26.get("login", UiPaint26.LOGIN_W, UiPaint26.LOGIN_H,
+                UiPaint26::login);
+
+        int cx = panelX + UiPaint26.LOGIN_W / 2;
+        addRenderableWidget(UiButton26.primary("刷新二维码", cx - 110, panelY + 288, 100, 28,
                 this::startQr));
-        addRenderableWidget(UiButton26.ghost("取消", cx + 10, bottom - 48, 100, 24,
+        addRenderableWidget(UiButton26.ghost("取消", cx + 10, panelY + 288, 100, 28,
                 this::onClose));
         startQr();
     }
@@ -57,6 +72,7 @@ final class BiliLoginScreen26 extends Screen {
             old.interrupt();
         }
         active = true;
+        int myGeneration = ++generation;
         qr = null;
         status = "正在生成二维码…";
         Thread thread = new Thread(() -> {
@@ -68,8 +84,11 @@ final class BiliLoginScreen26 extends Screen {
                         Map.of(EncodeHintType.MARGIN, 0));
                 qr = matrix;
                 status = "请用 B 站 App 扫码";
-                while (active) {
+                while (active && generation == myGeneration) {
                     Thread.sleep(2000L);
+                    if (generation != myGeneration) {
+                        break;
+                    }
                     BiliApi.QrPoll poll = client.bili().qrPoll(qrKey);
                     switch (poll.code()) {
                         case 0 -> {
@@ -81,6 +100,19 @@ final class BiliLoginScreen26 extends Screen {
                                 }
                             });
                             active = false;
+                            if (parent != null) {
+                                try {
+                                    Thread.sleep(650L);
+                                } catch (InterruptedException ignored) {
+                                    Thread.currentThread().interrupt();
+                                }
+                                Minecraft.getInstance().execute(() -> {
+                                    if (generation == myGeneration
+                                            && Minecraft.getInstance().screen == BiliLoginScreen26.this) {
+                                        Minecraft.getInstance().setScreen(parent);
+                                    }
+                                });
+                            }
                         }
                         case 86090 -> status = "已扫码，请在手机上确认";
                         case 86038 -> {
@@ -105,19 +137,25 @@ final class BiliLoginScreen26 extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
-        var font = minecraft.font;
-        int x = (width - PANEL_W) / 2;
-        int y = (height - PANEL_H) / 2;
-        UiDraw26.panel(extractor, UiDraw26.CARD, x, y, PANEL_W, PANEL_H, 18);
+        Font font = minecraft.font;
+        if (background != null) {
+            UISurface26.draw(extractor, background, panelX, panelY);
+        } else {
+            UiDraw26.panel(extractor, UiDraw26.CARD, panelX, panelY,
+                    UiPaint26.LOGIN_W, UiPaint26.LOGIN_H, 20);
+            UiDraw26.panel(extractor, UiDraw26.WHITE, panelX + UiPaint26.LOGIN_QR_X,
+                    panelY + UiPaint26.LOGIN_QR_Y, UiPaint26.LOGIN_QR_W,
+                    UiPaint26.LOGIN_QR_H, 14);
+        }
 
-        String title = "登录 B 站";
-        extractor.text(font, title, x + (PANEL_W - font.width(title)) / 2, y + 18, 0xFFF2F5F8, false);
-        String hint = "cookie 仅保存在本机实例目录";
-        extractor.text(font, hint, x + (PANEL_W - font.width(hint)) / 2, y + 36, 0xFF93A0AD, false);
+        int titleWidth = Math.round(font.width("登录 B 站") * 1.3f);
+        drawScaledText(extractor, font, "登录 B 站", panelX + 200 - titleWidth / 2, panelY + 18,
+                1.3f, TEXT);
+        UiDraw26.textCentered(extractor, font, "cookie 仅保存在本机实例目录",
+                panelX + 200, panelY + 38, DIM);
 
-        int qx = x + (PANEL_W - QR_SIZE) / 2;
-        int qy = y + 56;
-        UiDraw26.panel(extractor, UiDraw26.WHITE, qx - 6, qy - 6, QR_SIZE + 12, QR_SIZE + 12, 8);
+        int qx = panelX + UiPaint26.LOGIN_QR_X + 6;
+        int qy = panelY + UiPaint26.LOGIN_QR_Y + 6;
         BitMatrix matrix = qr;
         if (matrix != null) {
             int modules = matrix.getWidth();
@@ -141,31 +179,26 @@ final class BiliLoginScreen26 extends Screen {
                 }
             }
         } else {
-            String loading = "生成中…";
-            extractor.text(font, loading, qx + (QR_SIZE - font.width(loading)) / 2,
-                    qy + QR_SIZE / 2, 0xFF5A6570, false);
+            UiDraw26.textCentered(extractor, font, "生成中…", qx + QR_SIZE / 2,
+                    qy + QR_SIZE / 2 - 4, MUTED);
         }
 
         String state = status;
-        int color = state.startsWith("登录成功") ? 0xFF6CC6FF
-                : state.startsWith("登录失败") || state.contains("过期") ? 0xFFFF6B6B : 0xFF93A0AD;
-        extractor.text(font, state, x + (PANEL_W - font.width(state)) / 2,
-                qy + QR_SIZE + 16, color, false);
+        int color = state.startsWith("登录成功") ? ACCENT
+                : state.startsWith("登录失败") || state.contains("过期") ? ERROR : DIM;
+        statusCache.set(font, state, 340);
+        UiDraw26.textCentered(extractor, font, statusCache.text(), panelX + 200, panelY + 262, color);
         super.extractRenderState(extractor, mouseX, mouseY, delta);
     }
 
-    private static void fillRounded(GuiGraphicsExtractor extractor, int x, int y,
-                                    int width, int height, int radius, int color) {
-        int safe = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
-        for (int row = 0; row < height; row++) {
-            int edge = Math.min(row, height - 1 - row);
-            int inset = 0;
-            if (edge < safe) {
-                int dx = safe - edge;
-                inset = safe - (int) Math.round(Math.sqrt(Math.max(0, safe * safe - dx * dx)));
-            }
-            extractor.fill(x + inset, y + row, x + width - inset, y + row + 1, color);
-        }
+    private static void drawScaledText(GuiGraphicsExtractor extractor, Font font, String text,
+                                       int x, int y, float scale, int color) {
+        var pose = extractor.pose();
+        pose.pushMatrix();
+        pose.translate(x, y);
+        pose.scale(scale, scale);
+        extractor.text(font, text, 0, 0, color, false);
+        pose.popMatrix();
     }
 
     @Override
@@ -175,7 +208,11 @@ final class BiliLoginScreen26 extends Screen {
         if (thread != null) {
             thread.interrupt();
         }
-        super.onClose();
+        if (parent != null) {
+            Minecraft.getInstance().setScreen(parent);
+        } else {
+            super.onClose();
+        }
     }
 
     @Override

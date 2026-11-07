@@ -142,6 +142,13 @@ public final class McliteIsland26Client implements ClientModInitializer {
     }
 
     private void updateContext(Minecraft client) {
+        // 先看配置：默认全部关闭，旧配置也会被 IslandConfig.sanitized() 迁移成关闭。
+        // 三个集成都关掉时连 hitResult 都不碰，避免无意义的工作。
+        if (!config.showContext
+                || (!config.useJei && !config.useJade && !config.useOwnProbe)) {
+            service.clearContext();
+            return;
+        }
         // JEI 列表悬停优先；JEI 缺失时连类都不会去解析。
         if (config.useJei && FabricLoader.getInstance().isModLoaded("jei")) {
             String hovered = jeiHovered();

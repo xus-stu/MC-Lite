@@ -36,13 +36,25 @@ public final class IslandConfig {
     public float islandScale = 1.0f;
     /** 播放音乐时是否也让 JEI/Jade 上下文占用灵动岛。 */
     public boolean contextWhilePlaying = false;
-    public boolean showContext = true;
+    /**
+     * 是否在灵动岛显示 JEI/Jade/准星上下文。
+     *
+     * <p>默认关闭：大多数玩家只想看歌名和歌词。旧版本的默认值是 true，
+     * 升级后由 {@link #contextDefaultsVersion} 一次性迁移为关闭。</p>
+     */
+    public boolean showContext = false;
+    /**
+     * 配置迁移版本。旧配置没有这个字段，反序列化时会保持 0；此时把
+     * showContext/useJei/useJade/useOwnProbe 统一关掉，避免“升级后 JEI
+     * 还在灵动岛上冒出来”。用户在设置页手动打开后会随 save() 写成 1。
+     */
+    public int contextDefaultsVersion = 0;
     /** JEI 物品悬停集成（装了 JEI 才有效）。 */
-    public boolean useJei = true;
+    public boolean useJei = false;
     /** Jade 目标提示集成（装了 Jade 才有效）。 */
-    public boolean useJade = true;
+    public boolean useJade = false;
     /** 没装/关掉 JEI/Jade 时，是否用自带准星探针显示方块/实体信息。 */
-    public boolean useOwnProbe = true;
+    public boolean useOwnProbe = false;
 
     // B 站
     public boolean biliEnabled = true;
@@ -95,6 +107,8 @@ public final class IslandConfig {
 
     public void save(Path file) throws IOException {
         Objects.requireNonNull(file, "file");
+        // 只要保存过一次，就认为迁移完成；之后用户在设置页打开的集成开关会保留。
+        contextDefaultsVersion = 1;
         Path parent = file.toAbsolutePath().getParent();
         if (parent != null) {
             Files.createDirectories(parent);
@@ -110,6 +124,14 @@ public final class IslandConfig {
     }
 
     public IslandConfig sanitized() {
+        if (contextDefaultsVersion < 1) {
+            // 旧配置（或首次启动）统一关闭上下文集成；需要时由用户手动打开。
+            showContext = false;
+            useJei = false;
+            useJade = false;
+            useOwnProbe = false;
+            contextDefaultsVersion = 1;
+        }
         volume = clamp(volume, 0f, 1f);
         islandScale = clamp(islandScale, 0.5f, 3f);
         lyricsDistance = clamp(lyricsDistance, 0.5f, 8f);
