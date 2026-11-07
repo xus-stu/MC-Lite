@@ -1,0 +1,71 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version '1.17.20'
+}
+
+group = 'dev.mclite'
+version = '0.1.0'
+
+base {
+    archivesName = 'mclite-island-26.1.2-fabric'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir rootProject.file('../../../common/src/main/java')
+        }
+    }
+}
+
+repositories {
+    maven { url = 'https://maven.aliyun.com/repository/public' }
+    maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+}
+
+dependencies {
+    minecraft 'com.mojang:minecraft:26.1.2'
+    // 26.x 官方 jar 不再混淆，Loom 不需要 mappings。
+    implementation 'net.fabricmc:fabric-loader:0.19.3'
+    implementation 'net.fabricmc.fabric-api:fabric-api:0.155.3+26.1.2'
+
+    implementation 'javazoom:jlayer:1.0.1'
+    implementation 'org.jflac:jflac-codec:1.5.2'
+    implementation 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+}
+
+configurations {
+    embed
+}
+
+dependencies {
+    embed 'javazoom:jlayer:1.0.1'
+    embed 'org.jflac:jflac-codec:1.5.2'
+    embed 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.register('bundledJar', Jar) {
+    dependsOn tasks.named('jar')
+    archiveBaseName = 'mclite-island-26.1.2-fabric'
+    archiveClassifier = 'bundled'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from { zipTree(tasks.named('jar').get().archiveFile.get().asFile) }
+    from { configurations.embed.collect { zipTree(it) } }
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'META-INF/MANIFEST.MF'
+}

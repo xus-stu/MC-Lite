@@ -501,6 +501,66 @@ public final class SelfTest {
         check(LaunchDiagnostics.analyze("all good, no errors here").isEmpty(), "诊断正常日志不误报");
         passed += 4;
 
+
+        String sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        String catalogJson = "{\"schema\":1,\"builds\":[{\"version\":\"0.1.0\",\"mc\":\"1.20.1\","
+                + "\"loader\":\"fabric\",\"java\":17,"
+                + "\"url\":\"https://github.com/xus-stu/MC-Lite/releases/download/v1.4.0/"
+                + "mclite-island-1.20.1-fabric-0.1.0.jar\","
+                + "\"sha256\":\"" + sha + "\",\"size\":123456}]}";
+        try {
+            IslandCatalog.Manifest manifest = IslandCatalog.parse(catalogJson);
+            check(manifest.builds().size() == 1, "岛组件清单解析");
+            IslandCatalog.Build build = manifest.builds().get(0);
+            check(build.mc().equals("1.20.1") && build.loader().equals("fabric"),
+                    "岛组件字段");
+            InstalledInstance fabric = new InstalledInstance("inst-a", "1.20.1",
+                    InstalledInstance.LOADER_FABRIC, work);
+            InstalledInstance forge = new InstalledInstance("inst-b", "1.20.1",
+                    InstalledInstance.LOADER_FORGE, work);
+            check(IslandCatalog.compatible(manifest, fabric).size() == 1
+                    && IslandCatalog.compatible(manifest, forge).isEmpty(), "岛组件兼容过滤");
+            check(IslandInstaller.safeFileName(build).equals(
+                    "mclite-island-1.20.1-fabric-0.1.0.jar"), "岛组件文件名");
+            IslandCatalog.Build traversal = new IslandCatalog.Build("0.1.0", "1.20.1", "fabric", 17,
+                    "https://example.com/../../evil.jar", sha, 1, "");
+            String safe = IslandInstaller.safeFileName(traversal);
+            check(safe.startsWith("mclite-island-") && !safe.contains("/") && !safe.contains(".."),
+                    "岛组件文件名防穿越");
+            check(IslandInstaller.sha256Hex("abc".getBytes(StandardCharsets.UTF_8))
+                    .equals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+                    "SHA-256 校验");
+        } catch (Exception ex) {
+            check(false, "岛组件清单: " + ex.getMessage());
+        }
+        passed += 5;
+
+        Path islandInstanceDir = work.resolve("versions/inst-island");
+        writeFile(islandInstanceDir.resolve("inst-island.json"),
+                "{\"id\":\"inst-island\",\"inheritsFrom\":\"1.20.1\",\"libraries\":["
+                        + "{\"name\":\"net.fabricmc:fabric-loader:0.16.9\"}]}");
+        InstalledInstance parsedInstance = InstalledInstance.read("inst-island", islandInstanceDir,
+                islandInstanceDir.resolve("inst-island.json"));
+        check(parsedInstance != null && "1.20.1".equals(parsedInstance.mcVersion())
+                && InstalledInstance.LOADER_FABRIC.equals(parsedInstance.loader()),
+                "实例 MC/加载器识别");
+        Config islandConfig = Config.load();
+        islandConfig.isolateVersions(true);
+        islandConfig.gameDir(work);
+        try {
+            Path mods = IslandInstaller.modsDir(islandConfig, parsedInstance);
+            Files.createDirectories(mods);
+            Files.writeString(mods.resolve("mclite-island-1.20.1-fabric-0.1.0.jar"), "x");
+            check(IslandInstaller.installedJars(islandConfig, parsedInstance).size() == 1,
+                    "岛组件已安装检测");
+            check(IslandInstaller.uninstall(islandConfig, parsedInstance) == 1
+                    && IslandInstaller.installedJars(islandConfig, parsedInstance).isEmpty(),
+                    "岛组件卸载");
+        } catch (Exception ex) {
+            check(false, "岛组件安装目录: " + ex.getMessage());
+        }
+        passed += 2;
+
         return passed;
     }
 

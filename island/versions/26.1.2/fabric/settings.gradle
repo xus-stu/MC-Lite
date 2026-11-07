@@ -1,0 +1,9 @@
+pluginManagement {
+    repositories {
+        maven { url = 'https://maven.aliyun.com/repository/gradle-plugin' }
+        maven { url = 'https://maven.aliyun.com/repository/public' }
+        maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+        gradlePluginPortal()
+    }
+}
+rootProject.name = 'mclite-island-26.1.2-fabric'

@@ -1,0 +1,28 @@
+plugins {
+    id 'java-library'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    api 'com.google.code.gson:gson:2.10.1'
+    implementation 'javazoom:jlayer:1.0.1'
+    implementation 'org.jflac:jflac-codec:1.5.2'
+    implementation 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}

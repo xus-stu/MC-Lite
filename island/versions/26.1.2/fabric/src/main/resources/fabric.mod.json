@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "mclite-island",
+  "version": "${version}",
+  "name": "MCLite Island",
+  "description": "本地音乐播放器 + 灵动岛。零登录、零联网。",
+  "authors": [
+    "MCLite"
+  ],
+  "license": "Apache-2.0",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.mclite.island.mc26.McliteIsland26Client"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "26.1.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}
