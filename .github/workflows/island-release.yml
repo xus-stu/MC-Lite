@@ -83,6 +83,18 @@ jobs:
             启动器「下载中心 → 启动器插件」会读取这里的 `island-manifest.json`；
             该 release 标记为 prerelease，不会占用启动器的 latest release。
 
+      - name: Mirror manifest to latest launcher release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest="$(gh release view --json tagName --jq .tagName)"
+          if [ "$latest" != "island-latest" ]; then
+            echo "把最新插件清单镜像到旧启动器读取的 ${latest}"
+            gh release upload "$latest" dist/island-manifest.json --clobber
+          fi
+
       - name: Remove stale jar assets
         continue-on-error: true
         env:
