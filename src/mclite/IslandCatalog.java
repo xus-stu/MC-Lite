@@ -36,8 +36,16 @@ final class IslandCatalog {
     }
 
     static Manifest fetch(Net net) throws IOException {
-        byte[] bytes = net.getUnverifiedBytes(MANIFEST_URL, "MCLite 岛组件清单");
-        return parse(new String(bytes, StandardCharsets.UTF_8));
+        IOException last = null;
+        for (String url : GithubSources.candidates(MANIFEST_URL)) {
+            try {
+                byte[] bytes = net.getUnverifiedBytes(url, "MCLite 岛组件清单");
+                return parse(new String(bytes, StandardCharsets.UTF_8));
+            } catch (IOException ex) {
+                last = ex;
+            }
+        }
+        throw last == null ? new IOException("组件清单下载失败") : last;
     }
 
     static Manifest parse(String json) throws IOException {

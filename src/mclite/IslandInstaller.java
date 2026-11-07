@@ -32,13 +32,28 @@ final class IslandInstaller {
         if (!build.loader().equals(instance.loader())) {
             throw new IOException("组件加载器不匹配: " + build.loader() + " vs " + instance.loader());
         }
-        byte[] bytes = net.getUnverifiedBytes(build.url(), "MCLite 岛 v" + build.version());
-        if (bytes.length != build.size()) {
-            throw new IOException("组件大小校验失败: 期望 " + build.size() + "，实际 " + bytes.length);
+        byte[] bytes = null;
+        IOException last = null;
+        for (String url : GithubSources.candidates(build.url())) {
+            try {
+                byte[] candidate = net.getUnverifiedBytes(url, "MCLite 岛 v" + build.version());
+                if (candidate.length != build.size()) {
+                    last = new IOException("组件大小校验失败: 期望 " + build.size()
+                            + "，实际 " + candidate.length);
+                    continue;
+                }
+                if (!sha256Hex(candidate).equals(build.sha256())) {
+                    last = new IOException("组件 SHA-256 校验失败，已拒绝安装");
+                    continue;
+                }
+                bytes = candidate;
+                break;
+            } catch (IOException ex) {
+                last = ex;
+            }
         }
-        String actual = sha256Hex(bytes);
-        if (!actual.equals(build.sha256())) {
-            throw new IOException("组件 SHA-256 校验失败，已拒绝安装");
+        if (bytes == null) {
+            throw last == null ? new IOException("组件下载失败") : last;
         }
         Path mods = modsDir(config, instance);
         Files.createDirectories(mods);

@@ -68,7 +68,11 @@ public final class Net {
             "github.com",
             "objects.githubusercontent.com",
             "release-assets.githubusercontent.com",
-            "raw.githubusercontent.com"
+            "raw.githubusercontent.com",
+            "ghfast.top",
+            "gh-proxy.com",
+            "ghproxy.net",
+            "github.moeyy.xyz"
     );
     private static final int MAX_METADATA_BYTES = 16 * 1024 * 1024;
     private static final int BUFFER_SIZE = 64 * 1024;

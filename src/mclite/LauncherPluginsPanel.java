@@ -21,6 +21,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -316,7 +317,19 @@ public final class LauncherPluginsPanel extends JPanel {
             @Override
             protected String doInBackground() throws Exception {
                 Net net = new Net(ProgressSink.NOOP, new CancellationToken());
-                byte[] bytes = net.getUnverifiedBytes(url, "插件简介");
+                byte[] bytes = null;
+                IOException last = null;
+                for (String candidate : GithubSources.candidates(url)) {
+                    try {
+                        bytes = net.getUnverifiedBytes(candidate, "插件简介");
+                        break;
+                    } catch (IOException ex) {
+                        last = ex;
+                    }
+                }
+                if (bytes == null) {
+                    throw last == null ? new IOException("简介下载失败") : last;
+                }
                 String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
                 String trimmed = text.replace("\r", "").trim();
                 if (trimmed.length() > 1400) {
