@@ -152,6 +152,24 @@ final class IslandConfigScreen26 extends Screen {
                     long ms = Math.round(value / 50f) * 50L;
                     return (ms > 0 ? "+" : "") + ms + " ms";
                 }));
+        rows.add(new ToggleRow("3D 歌词", "在世界空间里显示当前歌词", () -> config.threeDLyrics,
+                value -> config.threeDLyrics = value));
+        rows.add(new SliderRow("3D 距离", "歌词离镜头多远（格）", 1f, 8f,
+                () -> config.lyricsDistance,
+                value -> config.lyricsDistance = Math.round(value * 10f) / 10f,
+                value -> String.format(java.util.Locale.ROOT, "%.1f", value)));
+        rows.add(new SliderRow("3D 缩放", "0.5 - 3.0x", 0.5f, 3f,
+                () -> config.lyricsScale,
+                value -> config.lyricsScale = Math.round(value * 10f) / 10f,
+                value -> String.format(java.util.Locale.ROOT, "%.1fx", value)));
+        rows.add(new SliderRow("3D 垂直偏移", "负数往下", -1f, 1f,
+                () -> config.lyricsVerticalOffset,
+                value -> config.lyricsVerticalOffset = Math.round(value * 20f) / 20f,
+                value -> String.format(java.util.Locale.ROOT, "%.2f", value)));
+        rows.add(new SliderRow("3D 行数", "1 - 4 行", 1f, 4f,
+                () -> config.lyricsMaxLines,
+                value -> config.lyricsMaxLines = Math.round(value),
+                value -> Math.round(value) + " 行"));
         rows.add(new ActionRow("当前歌词", "重新读取当前曲目的 .lrc", "重新加载", false, () -> {
             service.reloadLyrics();
             footerStatus = "已重新加载歌词";

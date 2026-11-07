@@ -29,20 +29,20 @@ public final class ReverbEffect implements PcmEffect {
 
     public void setEnvironment(AcousticEnvironment env, float strength) {
         float s = Math.max(0f, Math.min(1f, strength));
-        float wetTarget = 0.10f;
-        float decayTarget = 0.72f;
-        float dampTarget = 0.35f;
+        float wetTarget = 0.14f;
+        float decayTarget = 0.74f;
+        float dampTarget = 0.32f;
         if (env.submerged()) {
-            wetTarget = 0.42f;
-            decayTarget = 0.86f;
-            dampTarget = 0.78f;
+            wetTarget = 0.58f;
+            decayTarget = 0.90f;
+            dampTarget = 0.82f;
         } else if (env.enclosed()) {
-            wetTarget = 0.30f;
-            decayTarget = 0.82f;
-            dampTarget = 0.42f;
+            wetTarget = 0.46f;
+            decayTarget = 0.86f;
+            dampTarget = 0.40f;
         } else if (env.raining()) {
-            wetTarget = 0.16f;
-            decayTarget = 0.74f;
+            wetTarget = 0.26f;
+            decayTarget = 0.78f;
             dampTarget = 0.30f;
         }
         this.targetWet = wetTarget * s;
