@@ -8,27 +8,42 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
- * 26.x 灵动岛：屏幕顶部居中的小号深色半透明胶囊。
+ * 26.x 灵动岛：顶部居中的迷你播放器胶囊。
  *
- * <p>宽度按两行文本自适应，限制在 160..360；有歌词时 34 高（两行），
- * 没有歌词时 26 高（仍是两行：标题 + 歌手/提示）。文本、宽度、截断结果
- * 全部缓存，渲染帧内不做字符串拼接。</p>
+ * <p>有歌曲时是「封面块 + 标题 + 歌词 + 进度线」的横向小卡片，左边封面块里
+ * 的音量条随播放跳动；没有歌曲时退化成居中的小胶囊。所有静态底图由
+ * {@link HudPaint26} 用 Java2D 烘焙，每帧只做 1 次 blit + 少量文本/矩形，
+ * 宽度会量化到 8px 一档以复用纹理。</p>
  */
 final class IslandHud26 {
 
     private static final String HINT = "M 打开播放器";
     private static final String IDLE_TITLE = "MCLite Island";
-    private static final int MIN_WIDTH = 160;
-    private static final int MAX_WIDTH = 360;
-    private static final int PAD_X = 12;
-    private static final int HEIGHT_ONE = 26;
-    private static final int HEIGHT_LYRIC = 34;
+
+    private static final int MIN_WIDTH = 200;
+    private static final int MAX_WIDTH = 420;
+    private static final int MIN_IDLE_WIDTH = 176;
+    private static final int HEIGHT_IDLE = 36;
+    private static final int HEIGHT_PLAYING = 42;
+    private static final int HEIGHT_LYRIC = 48;
+
     private static final int TEXT = 0xFFF2F5F8;
-    private static final int TEXT_PAUSED = 0xFFB4C0CB;
+    private static final int TEXT_PAUSED = 0xFFB0BCC8;
     private static final int LYRIC = 0xFF8FD3FF;
     private static final int DIM = 0xFF93A0AD;
-    private static final int TRACK_BG = 0x28FFFFFF;
-    private static final int TRACK_FG = 0xB06CC6FF;
+    private static final int ACCENT = 0xFF7FC8FF;
+    private static final int TRACK_BG = 0x30FFFFFF;
+    private static final int EQ_DIM = 0x66CFE9FF;
+
+    private static final UISurface26.Painter PAINT_PLAYER =
+            (g, w, h) -> HudPaint26.pill(g, w, h, true);
+    private static final UISurface26.Painter PAINT_IDLE =
+            (g, w, h) -> HudPaint26.pill(g, w, h, false);
+
+    private static final int EQ_BARS = 3;
+    private static final int EQ_BAR_W = 2;
+    private static final int EQ_GAP = 2;
+    private static final int EQ_MAX_H = 13;
 
     private IslandHud26() {
     }
@@ -64,25 +79,8 @@ final class IslandHud26 {
         IslandSnapshot snapshot = service.snapshot();
         Font font = client.font;
         Layout layout = ensureLayout(font, snapshot, config);
-        int x = centerX - layout.width / 2;
-        int y = centerY - layout.height / 2;
-        draw(extractor, font, layout, snapshot, x, y, 1f);
-    }
-
-    private static void paintPill(java.awt.Graphics2D g, int w, int h) {
-        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
-                java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-        int radius = h;
-        g.setColor(new java.awt.Color(0, 0, 0, 70));
-        g.fillRoundRect(0, 2, w, h, radius, radius);
-        java.awt.GradientPaint gradient = new java.awt.GradientPaint(
-                0, 0, new java.awt.Color(22, 28, 36, 232),
-                0, h, new java.awt.Color(12, 16, 21, 238));
-        g.setPaint(gradient);
-        g.fillRoundRect(0, 0, w, h, radius, radius);
-        g.setColor(new java.awt.Color(255, 255, 255, 34));
-        g.setStroke(new java.awt.BasicStroke(1f));
-        g.drawRoundRect(0, 0, w - 1, h - 1, radius, radius);
+        draw(extractor, font, layout, snapshot,
+                centerX - layout.width / 2, centerY - layout.height / 2, 1f);
     }
 
     private static void draw(GuiGraphicsExtractor extractor, Font font, Layout layout,
@@ -93,32 +91,70 @@ final class IslandHud26 {
         pose.scale(scale, scale);
         int w = layout.width;
         int h = layout.height;
+        boolean art = layout.hasTrack;
 
-        // Java2D 烘焙的胶囊底图：真正的圆角(radius = h/2) + 渐变 + 细描边 + 阴影
-        UISurface26.Surface backdrop = UISurface26.get("hud", w, h, IslandHud26::paintPill);
+        UISurface26.Surface backdrop = UISurface26.get(
+                (art ? "hud/player/" : "hud/idle/") + h, w, h,
+                art ? PAINT_PLAYER : PAINT_IDLE);
         UISurface26.draw(extractor, backdrop, 0, 0);
 
-        int y1 = h == HEIGHT_LYRIC ? 6 : 3;
-        int y2 = h == HEIGHT_LYRIC ? 18 : 13;
+        if (!art) {
+            int color1 = snapshot.paused() ? TEXT_PAUSED : TEXT;
+            extractor.text(font, layout.shown1, (w - layout.shown1Width) / 2, 8, color1, false);
+            extractor.text(font, layout.shown2, (w - layout.shown2Width) / 2, 20, DIM, false);
+            pose.popMatrix();
+            return;
+        }
+
+        int artY = (h - HudPaint26.ART_SIZE) / 2;
+        drawEqualizer(extractor, snapshot, artY);
+
         int color1 = snapshot.paused() ? TEXT_PAUSED : TEXT;
         int color2 = layout.hasLyric ? LYRIC : DIM;
-        extractor.text(font, layout.shown1, (w - layout.shown1Width) / 2, y1, color1, false);
-        extractor.text(font, layout.shown2, (w - layout.shown2Width) / 2, y2, color2, false);
+        extractor.text(font, layout.shown1, HudPaint26.TEXT_X, layout.line1Y, color1, false);
+        extractor.text(font, layout.shown2, HudPaint26.TEXT_X, layout.line2Y, color2, false);
 
         long duration = snapshot.durationMs();
-        if (snapshot.hasTrack() && duration > 0L) {
-            int barY = h - 4;
-            int left = 14;
-            int right = w - 14;
-            extractor.fill(left, barY, right, barY + 2, TRACK_BG);
-            long position = Math.max(0L, snapshot.positionMs());
-            int filled = left + (int) Math.min(right - left,
-                    (right - left) * (double) position / (double) duration);
-            if (filled > left) {
-                extractor.fill(left, barY, filled, barY + 2, TRACK_FG);
-            }
+        if (duration > 0L) {
+            drawProgress(extractor, snapshot, w, h, duration);
         }
         pose.popMatrix();
+    }
+
+    /** 封面块里 3 根跳动的电平条；暂停时保持低平的静态条。 */
+    private static void drawEqualizer(GuiGraphicsExtractor extractor, IslandSnapshot snapshot,
+                                      int artY) {
+        int centerX = HudPaint26.ART_X + HudPaint26.ART_SIZE / 2;
+        int total = EQ_BARS * EQ_BAR_W + (EQ_BARS - 1) * EQ_GAP;
+        int startX = centerX - total / 2;
+        int baseline = artY + HudPaint26.ART_SIZE - 8;
+        boolean animate = snapshot.playing() && !snapshot.paused();
+        float phase = animate ? (System.currentTimeMillis() % 1600L) / 1600f : 0f;
+        int color = animate ? ACCENT : EQ_DIM;
+        for (int i = 0; i < EQ_BARS; i++) {
+            float wave = (float) Math.sin((phase + i * 0.27f) * Math.PI * 2.0);
+            int barHeight = animate
+                    ? 4 + Math.round((EQ_MAX_H - 4) * (0.5f + 0.5f * wave))
+                    : 4 + i;
+            int barX = startX + i * (EQ_BAR_W + EQ_GAP);
+            extractor.fill(barX, baseline - barHeight, barX + EQ_BAR_W, baseline, color);
+        }
+    }
+
+    private static void drawProgress(GuiGraphicsExtractor extractor, IslandSnapshot snapshot,
+                                     int w, int h, long duration) {
+        int left = HudPaint26.TEXT_X;
+        int right = w - HudPaint26.PAD_RIGHT;
+        int barY = h - 7;
+        extractor.fill(left, barY, right, barY + 2, TRACK_BG);
+        long position = Math.max(0L, snapshot.positionMs());
+        int filled = left + (int) Math.min(right - left,
+                (right - left) * (double) position / (double) duration);
+        if (filled > left) {
+            extractor.fill(left, barY, filled, barY + 2, ACCENT);
+            int head = Math.min(right, filled + 1);
+            extractor.fill(head - 1, barY - 1, head + 2, barY + 3, 0xFFE4F4FF);
+        }
     }
 
     private static Layout ensureLayout(Font font, IslandSnapshot snapshot, IslandConfig config) {
@@ -163,24 +199,33 @@ final class IslandHud26 {
             } else {
                 line2 = cached.srcArtist.isBlank() ? HINT : cached.srcArtist;
                 lyricLine = false;
-                height = HEIGHT_ONE;
+                height = HEIGHT_PLAYING;
             }
         } else if (showContext && hasContext) {
             line1 = cached.srcContextTitle.isBlank() ? IDLE_TITLE : cached.srcContextTitle;
             line2 = cached.srcContextSubtitle.isBlank() ? HINT : cached.srcContextSubtitle;
             lyricLine = false;
-            height = HEIGHT_ONE;
+            height = HEIGHT_IDLE;
         } else {
             line1 = IDLE_TITLE;
             line2 = HINT;
             lyricLine = false;
-            height = HEIGHT_ONE;
+            height = HEIGHT_IDLE;
         }
 
-        int full1 = font.width(line1);
-        int full2 = font.width(line2);
-        int width = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.max(full1, full2) + PAD_X * 2));
-        int available = width - PAD_X * 2;
+        int width;
+        if (hasTrack) {
+            int textWidth = Math.max(font.width(line1), font.width(line2));
+            width = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH,
+                    textWidth + HudPaint26.TEXT_X + HudPaint26.PAD_RIGHT));
+        } else {
+            int textWidth = Math.max(font.width(line1), font.width(line2));
+            width = Math.max(MIN_IDLE_WIDTH, Math.min(320, textWidth + 28));
+        }
+        // 量化到 8px：歌词逐字变化时不会每次都重新烘焙一张纹理
+        width = Math.min(MAX_WIDTH, ((width + 7) / 8) * 8);
+        int available = width - HudPaint26.TEXT_X - HudPaint26.PAD_RIGHT;
+
         cached.line1 = line1;
         cached.line2 = line2;
         cached.shown1 = UiText26.fit(font, line1, available);
@@ -190,6 +235,8 @@ final class IslandHud26 {
         cached.width = width;
         cached.height = height;
         cached.hasLyric = lyricLine;
+        cached.line1Y = hasTrack ? 9 : 8;
+        cached.line2Y = hasTrack ? (lyricLine ? 24 : 22) : 20;
         return cached;
     }
 
@@ -224,7 +271,9 @@ final class IslandHud26 {
         String shown2 = "";
         int shown1Width;
         int shown2Width;
-        int width = MIN_WIDTH;
-        int height = HEIGHT_ONE;
+        int width = MIN_IDLE_WIDTH;
+        int height = HEIGHT_IDLE;
+        int line1Y = 8;
+        int line2Y = 20;
     }
 }

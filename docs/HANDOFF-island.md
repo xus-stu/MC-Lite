@@ -2,9 +2,9 @@
 
 最后更新：2026-11-07 21:5x（Asia/Shanghai）
 仓库：`/Users/xiaoxu/PycharmProjects/Java`
-当前 HEAD：`955bad3`（`Java2D HUD pill and stricter lyric matching; V1.4.18`）
-启动器版本：`1.4.18`
-模组版本：`0.3.2`
+当前 HEAD：`d84da2e` 之后（`V1.4.19`，灵动岛迷你播放器改版）
+启动器版本：`1.4.19`
+模组版本：`0.3.3`
 
 ## 1. 背景与用户目标
 
@@ -92,8 +92,8 @@ git push origin main && git push origin v<版本>
 
 ## 5. 已知问题 / 风险（优先看）
 
-1. **UI 用户仍不满意**：2026-11-07 最新反馈“仍然不好看”。当前 HUD 用 Java2D 烘焙胶囊（`UISurface26.get("hud", w, h, IslandHud26::paintPill)`），播放器/设置页用 `UISurface26` + `UiPaint26` 整页烘焙。未实机验证 Java2D 在 macOS 渲染线程首次烘焙的耗时/兼容性；如果卡顿，考虑预热或按宽度分桶缓存。
-2. **`island` workflow v1.4.18 失败**：release 本身成功（资产含 0.3.2 jar + manifest），但 `island` workflow 报 failure；日志需 admin 权限拿不到。先本地复现 `island.yml` 里的两条 Gradle 命令，再检查 artifact 路径。
+1. **UI 仍需实机复验**：0.3.3 把灵动岛改成「左侧渐变封面块 + 跳动电平条 + 左对齐标题/歌词 + 底部进度线」，底图抽到纯 AWT 的 `HudPaint26`，宽度量化到 8px 复用纹理。用户 0.3.1 实机截图显示旧胶囊太黑太平（`~/.dsh/attachments` 里 20:39/20:52 两张），已在 0.3.3 处理；等用户新截图确认。
+2. **`island` workflow v1.4.18 失败**：release 本身成功（资产含 0.3.2 jar + manifest），但 `island` workflow 报 failure；日志需 admin 权限拿不到。已修：v1.4.18 的 tag run（#32）与 main run（#31）同 commit 一个失败一个成功，属于腾讯 Gradle 镜像偶发断流；已在 `island.yml` 加 Gradle 缓存、HTTP 超时和 3 次重试，`networkTimeout` 提到 120s。v1.4.19 的 main run 已验证通过。
 3. **1.20.1 外壳未同步新 UI/B 站/声学**：只有本地播放的旧界面；用户主要在 26.1.2，但“1.20.1+ 所有加载器”仍未完成（Forge/NeoForge/1.21.1/26.1.2 NeoForge 都没有）。
 4. **26.x 3D 歌词未实现**：`threeDLyrics` 开关会保存但不渲染，26.x 渲染提交 API 重写，需要单独移植。1.20.1 有旧 3D billboard 实现。
 5. **B 站依赖系统 ffmpeg**：不是捆绑解码器。没有 ffmpeg 会明确报错；后续可考虑 JCodec（jar 里已含 `net/sourceforge/jaad` 类，但未接）。
@@ -118,7 +118,7 @@ git push origin main && git push origin v<版本>
 
 - 最新反馈：灵动岛仍觉得不圆/不好看，歌词有错配（已收紧匹配，未复验）。
 - 下一步优先级：
-  1. 让用户提供 0.3.2 实机截图 + GUI Scale + FPS；按截图调 HUD 宽度/圆角/字号；若 Java2D 有卡顿，量化宽度缓存或预热。
+  1. 让用户启动 0.3.3（已直接装进 `~/Desktop/MC/versions/26.1.2/mods`）看新 HUD，要一张实机截图；GUI Scale=3、约 160 FPS、islandScale=0.9。若还嫌大/小，调 `MIN_WIDTH/MAX_WIDTH/HEIGHT_*` 或加透明度设置。
   2. 修 `island` workflow 失败（本地跑 `island.yml` 两条命令）。
   3. 让用户列一首“歌词错配”的歌（文件名/标题/艺术家），按实际 LRCLIB 返回调整匹配或加文件名优先策略。
   4. 之后再补 1.20.1 UI/B 站、26.x 3D 歌词、Forge/NeoForge/1.21.1。

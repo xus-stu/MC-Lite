@@ -1,9 +1,9 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if not exist "dist\MCLite_v1.4.18.jar" (
-  echo MCLite_v1.4.18.jar not found.
+if not exist "dist\MCLite_v1.4.19.jar" (
+  echo MCLite_v1.4.19.jar not found.
   pause
   exit /b 1
 )
-java -Xms16m -Xmx192m -Xss512k -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=64m -XX:-UsePerfData -jar "dist\MCLite_v1.4.18.jar" %*
+java -Xms16m -Xmx192m -Xss512k -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=64m -XX:-UsePerfData -jar "dist\MCLite_v1.4.19.jar" %*
