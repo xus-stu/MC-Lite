@@ -40,14 +40,13 @@ final class IslandInstaller {
         byte[] bytes = null;
         IOException last = null;
         List<String> urls = new ArrayList<>(GithubSources.candidates(build.url()));
-        String fastest = net.pickFastest(urls, "MCLite 岛 v" + build.version());
-        if (!fastest.isBlank()) {
-            urls.remove(fastest);
-            urls.add(0, fastest);
+        // 上次成功的镜像优先，省掉每次重新猜
+        if (lastGoodUrl != null && urls.remove(lastGoodUrl)) {
+            urls.add(0, lastGoodUrl);
         }
         int attempts = 0;
         for (String url : urls) {
-            if (++attempts > 6) {
+            if (++attempts > 4) {
                 break;
             }
             if (progress != null) {
@@ -56,7 +55,7 @@ final class IslandInstaller {
             }
             try {
                 byte[] candidate = net.getUnverifiedBytesQuick(url,
-                        "MCLite 岛 v" + build.version(), 30);
+                        "MCLite 岛 v" + build.version(), 25);
                 if (candidate.length != build.size()) {
                     last = new IOException("组件大小校验失败: 期望 " + build.size()
                             + "，实际 " + candidate.length);
@@ -99,6 +98,8 @@ final class IslandInstaller {
         }
         return target;
     }
+
+    private static volatile String lastGoodUrl;
 
     private static String hostOf(String url) {
         try {
