@@ -31,12 +31,16 @@ public final class IslandConfig {
 
     // 灵动岛
     public boolean showIsland = true;
-    public int islandX = 8;
-    public int islandY = 8;
+    public int islandX = 0;
+    public int islandY = 0;
     public float islandScale = 1.0f;
     /** 播放音乐时是否也让 JEI/Jade 上下文占用灵动岛。 */
     public boolean contextWhilePlaying = false;
     public boolean showContext = true;
+    /** JEI 物品悬停集成（装了 JEI 才有效）。 */
+    public boolean useJei = true;
+    /** Jade 目标提示集成（装了 Jade 才有效）。 */
+    public boolean useJade = true;
 
     // 3D 歌词
     public boolean threeDLyrics = false;

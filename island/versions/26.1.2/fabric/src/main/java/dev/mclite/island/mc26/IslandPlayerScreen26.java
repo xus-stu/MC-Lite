@@ -24,7 +24,7 @@ final class IslandPlayerScreen26 extends Screen {
     private final IslandConfig config;
     private final Runnable saveConfig;
 
-    private List<Track> tracks;
+    private List<Track> tracks = List.of();
     private int scroll;
     private int listTop;
     private int listBottom;
@@ -49,6 +49,10 @@ final class IslandPlayerScreen26 extends Screen {
 
     @Override
     protected void init() {
+        // 打开界面时热扫描一次，刚放进去的 wav 不用重启
+        service.reloadLibrary();
+        tracks = service.playlist().tracks();
+
         int left = width / 2 - 200;
         int right = width / 2 + 200;
         int row1 = height - 30;
@@ -61,37 +65,40 @@ final class IslandPlayerScreen26 extends Screen {
         addRenderableWidget(Button.builder(text("上一首"), b -> {
             service.previous();
             refreshLabels();
-        }).bounds(left + 68, row1, 52, 20).build());
+        }).bounds(left + 72, row1, 52, 20).build());
         addRenderableWidget(Button.builder(text("下一首"), b -> {
             service.next(true);
             refreshLabels();
-        }).bounds(left + 124, row1, 52, 20).build());
+        }).bounds(left + 132, row1, 52, 20).build());
         modeButton = addRenderableWidget(Button.builder(text("模式"), b -> {
             service.cycleMode();
             refreshLabels();
             saveConfig.run();
-        }).bounds(left + 180, row1, 64, 20).build());
+        }).bounds(left + 192, row1, 64, 20).build());
+        addRenderableWidget(Button.builder(text("刷新列表"), b -> {
+            service.reloadLibrary();
+            tracks = service.playlist().tracks();
+            status = "已重新扫描，共 " + tracks.size() + " 首";
+            refreshLabels();
+        }).bounds(left + 264, row1, 64, 20).build());
+        addRenderableWidget(Button.builder(text("关闭"), b -> onClose())
+                .bounds(right - 44, row1, 44, 20).build());
+
         lyricsButton = addRenderableWidget(Button.builder(text("3D 歌词"), b -> {
             config.threeDLyrics = !config.threeDLyrics;
             refreshLabels();
             saveConfig.run();
-        }).bounds(left + 248, row1, 68, 20).build());
+        }).bounds(left, row2, 64, 20).build());
         addRenderableWidget(Button.builder(text("导入 LRC"), b -> importLyrics())
-                .bounds(left + 320, row1, 80, 20).build());
-        addRenderableWidget(Button.builder(text("关闭"), b -> onClose())
-                .bounds(right - 40, row1, 40, 20).build());
-
+                .bounds(left + 72, row2, 64, 20).build());
+        addRenderableWidget(Button.builder(text("设置"), b -> Minecraft.getInstance()
+                .setScreen(new IslandConfigScreen26(service, config, saveConfig)))
+                .bounds(left + 144, row2, 52, 20).build());
         addRenderableWidget(Button.builder(text("音乐目录"), b -> openFolder(service.musicDir()))
-                .bounds(left, row2, 64, 20).build());
+                .bounds(left + 204, row2, 64, 20).build());
         addRenderableWidget(Button.builder(text("歌词目录"), b -> openFolder(service.lyricsDir()))
-                .bounds(left + 68, row2, 64, 20).build());
-        int x = left + 140;
-        addRenderableWidget(Button.builder(text("←"), b -> moveIsland(-8, 0)).bounds(x, row2, 20, 20).build());
-        addRenderableWidget(Button.builder(text("→"), b -> moveIsland(8, 0)).bounds(x + 22, row2, 20, 20).build());
-        addRenderableWidget(Button.builder(text("↑"), b -> moveIsland(0, -6)).bounds(x + 44, row2, 20, 20).build());
-        addRenderableWidget(Button.builder(text("↓"), b -> moveIsland(0, 6)).bounds(x + 66, row2, 20, 20).build());
-        addRenderableWidget(Button.builder(text("缩小"), b -> scaleIsland(-0.1f)).bounds(x + 92, row2, 40, 20).build());
-        addRenderableWidget(Button.builder(text("放大"), b -> scaleIsland(0.1f)).bounds(x + 136, row2, 40, 20).build());
+                .bounds(left + 276, row2, 64, 20).build());
+
         refreshLabels();
     }
 
@@ -108,27 +115,12 @@ final class IslandPlayerScreen26 extends Screen {
         }
     }
 
-    private void moveIsland(int dx, int dy) {
-        config.islandX = Math.max(0, config.islandX + dx);
-        config.islandY = Math.max(0, config.islandY + dy);
-        saveConfig.run();
-    }
-
-    private void scaleIsland(float delta) {
-        config.islandScale = Math.max(0.5f, Math.min(3f, config.islandScale + delta));
-        saveConfig.run();
-    }
-
     private void openFolder(Path path) {
         try {
             Files.createDirectories(path);
-        } catch (Exception ignored) {
-            // 目录建不出来时只提示
-        }
-        try {
             java.awt.Desktop.getDesktop().open(path.toFile());
         } catch (Exception ignored) {
-            // 打不开目录时状态栏会提示
+            status = "打开目录失败: " + path;
         }
     }
 
@@ -144,6 +136,7 @@ final class IslandPlayerScreen26 extends Screen {
             dialog.setVisible(true);
             String name = dialog.getFile();
             String directory = dialog.getDirectory();
+            dialog.dispose();
             if (name == null || directory == null) {
                 return;
             }
@@ -167,8 +160,7 @@ final class IslandPlayerScreen26 extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
-        // 父类 extractRenderStateWithTooltipAndSubtitles 已经做过 extractBackground（含模糊），
-        // 这里再调一次会触发 "Can only blur once per frame" 崩溃。
+        // 父类已经做过 extractBackground（含模糊），子类不能再调
         if (--refreshTicks <= 0) {
             tracks = service.playlist().tracks();
             refreshTicks = 20;
@@ -209,11 +201,11 @@ final class IslandPlayerScreen26 extends Screen {
         if (!status.isBlank()) {
             extractor.text(font, status, 12, height - 66, 0xFFFFB74D, false);
         }
-        if (snap.lyric() != null && !snap.lyric().isBlank()) {
-            extractor.text(font, "♪ " + snap.lyric(), 12, height - 78, 0xFFB3E5FC, false);
-        }
+        String lyricInfo = snap.lyric() != null && !snap.lyric().isBlank()
+                ? "♪ " + snap.lyric() : "歌词: 无（同名 .lrc 或导入）";
+        extractor.text(font, font.plainSubstrByWidth(lyricInfo, width - 24), 12, height - 78,
+                snap.lyric() != null && !snap.lyric().isBlank() ? 0xFFB3E5FC : 0xFF9AA4B0, false);
         super.extractRenderState(extractor, mouseX, mouseY, delta);
-        refreshLabels();
     }
 
     @Override

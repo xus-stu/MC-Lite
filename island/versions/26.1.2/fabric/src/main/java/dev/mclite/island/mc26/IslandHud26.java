@@ -1,20 +1,22 @@
 package dev.mclite.island.mc26;
 
 import dev.mclite.island.core.IslandConfig;
-import dev.mclite.island.core.IslandLayout;
 import dev.mclite.island.core.IslandSnapshot;
 import dev.mclite.island.core.PlaybackService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
-/** 26.x 灵动岛：GuiGraphicsExtractor + Matrix3x2fStack，纯原版绘制。 */
+/** 26.x 灵动岛：居中顶部胶囊，纯原版绘制。 */
 final class IslandHud26 {
 
-    private static final int BG = 0xD0101418;
-    private static final int BORDER = 0x40FFFFFF;
+    private static final int BORDER = 0x55FFFFFF;
+    private static final int BG = 0xE612171D;
     private static final int TEXT = 0xFFFFFFFF;
     private static final int DIM = 0xFF9AA4B0;
     private static final int ACCENT = 0xFF7CC7FF;
+    private static final int BASE_WIDTH = 260;
+    private static final int BASE_HEIGHT = 30;
+    private static final int RADIUS = 14;
 
     private IslandHud26() {
     }
@@ -28,21 +30,20 @@ final class IslandHud26 {
             return;
         }
         IslandSnapshot snapshot = service.snapshot();
-        boolean idle = !snapshot.hasTrack() && !snapshot.hasContext();
-        int width = IslandLayout.BASE_WIDTH;
-        int height = IslandLayout.BASE_HEIGHT;
-        IslandLayout layout = IslandLayout.fromConfig(config)
-                .clampTo(client.getWindow().getGuiScaledWidth(),
-                        client.getWindow().getGuiScaledHeight());
+        int screenWidth = client.getWindow().getGuiScaledWidth();
+        int width = BASE_WIDTH;
+        int height = BASE_HEIGHT;
+        int x = (screenWidth - width) / 2 + config.islandX;
+        int y = 6 + config.islandY;
 
         var pose = extractor.pose();
         pose.pushMatrix();
-        pose.translate(layout.x(), layout.y());
-        pose.scale(layout.scale(), layout.scale());
+        pose.translate(x, y);
+        pose.scale(config.islandScale, config.islandScale);
 
-        extractor.fill(0, 0, width, height, BG);
-        extractor.fill(0, 0, width, 1, BORDER);
-        extractor.fill(0, height - 1, width, height, BORDER);
+        // 外圈 = 描边，内圈 = 背景，用逐行填充伪造圆角
+        fillRounded(extractor, 0, 0, width, height, RADIUS, BORDER);
+        fillRounded(extractor, 1, 1, width - 2, height - 2, RADIUS - 1, BG);
 
         var font = client.font;
         String line1;
@@ -63,22 +64,42 @@ final class IslandHud26 {
             line1 = "MCLite Island";
             line2 = service.playlist().isEmpty() ? "M 打开 · 音乐目录为空" : "M 打开播放器";
         }
-        extractor.text(font, trim(font, line1, width - 12), 6, 5, TEXT, false);
-        extractor.text(font, trim(font, line2, width - 12), 6, 16,
-                snapshot.hasTrack() ? ACCENT : DIM, false);
+
+        int innerWidth = width - 24;
+        String shown1 = trim(font, line1, innerWidth);
+        String shown2 = trim(font, line2, innerWidth);
+        int color2 = snapshot.hasTrack() ? ACCENT : DIM;
+        extractor.text(font, shown1, (width - font.width(shown1)) / 2, 5, TEXT, false);
+        extractor.text(font, shown2, (width - font.width(shown2)) / 2, 16, color2, false);
 
         if (snapshot.hasTrack()) {
-            String time = formatTime(snapshot.positionMs());
-            extractor.text(font, time, width - 6 - font.width(time), 5, DIM, false);
             long duration = snapshot.durationMs();
             if (duration > 0L) {
-                int bar = (int) (width * Math.min(1f, snapshot.positionMs() / (float) duration));
-                if (bar > 0) {
-                    extractor.fill(0, height - 3, bar, height - 1, ACCENT);
+                int barWidth = (int) ((width - 40) * Math.min(1f,
+                        snapshot.positionMs() / (float) duration));
+                if (barWidth > 0) {
+                    int barY = height - 5;
+                    int barX = 20;
+                    extractor.fill(barX, barY, barX + barWidth, barY + 2, ACCENT);
                 }
             }
         }
         pose.popMatrix();
+    }
+
+    private static void fillRounded(GuiGraphicsExtractor extractor, int x, int y,
+                                    int width, int height, int radius, int color) {
+        int safeRadius = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+        for (int row = 0; row < height; row++) {
+            int edge = Math.min(row, height - 1 - row);
+            int inset = 0;
+            if (edge < safeRadius) {
+                int dx = safeRadius - edge;
+                inset = safeRadius - (int) Math.round(
+                        Math.sqrt(Math.max(0, safeRadius * safeRadius - dx * dx)));
+            }
+            extractor.fill(x + inset, y + row, x + width - inset, y + row + 1, color);
+        }
     }
 
     private static String trim(net.minecraft.client.gui.Font font, String text, int width) {
@@ -89,10 +110,5 @@ final class IslandHud26 {
             return text;
         }
         return font.plainSubstrByWidth(text, width - font.width("…")) + "…";
-    }
-
-    private static String formatTime(long millis) {
-        long seconds = Math.max(0L, millis) / 1000L;
-        return String.format("%d:%02d", seconds / 60, seconds % 60);
     }
 }
