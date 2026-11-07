@@ -104,8 +104,12 @@ public final class McliteIsland26Client implements ClientModInitializer {
         while (keyPause.consumeClick()) {
             service.togglePlay();
         }
-        if (client.level != null && config.showContext) {
+        if (client.level == null) {
+            service.clearContext();
+        } else if (config.showContext) {
             updateContext(client);
+        } else {
+            service.clearContext();
         }
     }
 

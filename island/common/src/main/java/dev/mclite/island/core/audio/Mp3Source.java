@@ -23,6 +23,7 @@ final class Mp3Source implements PcmSource {
     private byte[] pending;
     private int pendingOffset;
     private long decodedFrames;
+    private volatile long durationMs = -1L;
     private boolean finished;
 
     Mp3Source(Path file, long startMs) throws Exception {
@@ -40,6 +41,7 @@ final class Mp3Source implements PcmSource {
         }
         this.format = new AudioFormat(buffer.getSampleFrequency(), 16,
                 buffer.getChannelCount(), true, false);
+        estimateDuration(first);
         // 第一帧已经解出来了，留作首个数据块
         this.pending = toLittleEndian(buffer);
         this.pendingOffset = 0;
@@ -62,7 +64,22 @@ final class Mp3Source implements PcmSource {
             if (chunk == null) {
                 return;
             }
-            decodedFrames += chunk.length / Math.max(1, format.getFrameSize());
+            // decodedFrames 已在 nextChunk() 内累加，这里不能再加一次
+        }
+    }
+
+    private void estimateDuration(Header header) {
+        try {
+            int index = header.bitrate_index();
+            int version = header.version();
+            int layer = Math.max(0, Math.min(2, 3 - header.layer()));
+            int kbps = Header.bitrates[version][layer][index];
+            long bytes = Files.size(file);
+            if (kbps > 0 && bytes > 0) {
+                durationMs = (long) (bytes * 8.0 / (kbps * 1000.0) * 1000.0);
+            }
+        } catch (Throwable ignored) {
+            // 估不出来就保持 -1
         }
     }
 

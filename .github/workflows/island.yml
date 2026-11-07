@@ -24,7 +24,7 @@ jobs:
       - name: Common tests
         run: |
           cd island
-          ./gradlew :common:test --no-daemon
+          ./gradlew :common:test --no-daemon --configure-on-demand
 
   build:
     runs-on: ubuntu-latest

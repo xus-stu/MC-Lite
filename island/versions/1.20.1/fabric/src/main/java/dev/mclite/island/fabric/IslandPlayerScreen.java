@@ -202,6 +202,9 @@ final class IslandPlayerScreen extends Screen {
             graphics.drawString(font, font.plainSubstrByWidth(name, width - 32), 8, y, 0xFFE6E6E6, false);
         }
 
+        if (status.isBlank() && service.lastError() != null && !service.lastError().isBlank()) {
+            status = "音频错误: " + service.lastError();
+        }
         if (!status.isBlank()) {
             graphics.drawString(font, status, 12, height - 66, 0xFFFFB74D, false);
         }

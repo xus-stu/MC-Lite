@@ -132,6 +132,7 @@ final class IslandInstaller {
                     continue;
                 }
                 Path backup = jar.resolveSibling(jar.getFileName() + ".bak");
+                Files.deleteIfExists(backup);
                 Files.move(jar, backup, StandardCopyOption.REPLACE_EXISTING);
             }
         }

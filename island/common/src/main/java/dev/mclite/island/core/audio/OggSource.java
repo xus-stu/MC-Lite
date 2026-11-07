@@ -40,6 +40,7 @@ final class OggSource implements PcmSource {
     private boolean headersDone;
     private boolean finished;
     private long decodedFrames;
+    private volatile long durationMs = -1L;
     private byte[] pending;
     private int pendingOffset;
 
@@ -80,6 +81,7 @@ final class OggSource implements PcmSource {
         block = new Block(dsp);
         format = new AudioFormat(info.rate, 16, info.channels, true, false);
         headersDone = true;
+        estimateDuration();
     }
 
     private boolean readPage() throws IOException {
@@ -104,6 +106,25 @@ final class OggSource implements PcmSource {
     @Override
     public AudioFormat format() {
         return format;
+    }
+
+    @Override
+    public long durationMs() {
+        return durationMs;
+    }
+
+    private void estimateDuration() {
+        try {
+            java.lang.reflect.Field nominal = Info.class.getDeclaredField("bitrate_nominal");
+            nominal.setAccessible(true);
+            int bitrate = nominal.getInt(info);
+            long bytes = Files.size(file);
+            if (bitrate > 0 && bytes > 0) {
+                durationMs = (long) (bytes * 8.0 / bitrate * 1000.0);
+            }
+        } catch (Throwable ignored) {
+            // 估不出来就保持 -1，HUD 只显示已播时间
+        }
     }
 
     @Override
@@ -163,7 +184,7 @@ final class OggSource implements PcmSource {
                 int p = 0;
                 for (int i = 0; i < samples; i++) {
                     for (int ch = 0; ch < channels; ch++) {
-                        int value = (int) (pcm[0][ch][i] * 32767f);
+                        int value = (int) (pcm[0][ch][offsets[ch] + i] * 32767f);
                         value = Math.max(-32768, Math.min(32767, value));
                         out[p++] = (byte) (value & 0xFF);
                         out[p++] = (byte) ((value >> 8) & 0xFF);

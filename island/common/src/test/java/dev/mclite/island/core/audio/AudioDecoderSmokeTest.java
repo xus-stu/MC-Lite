@@ -54,6 +54,31 @@ class AudioDecoderSmokeTest {
             assertEquals(0, process.exitValue(), "ffmpeg 转换失败: " + ext);
             assertDecodes(target, ext);
         }
+
+        // FLAC 无损：解码结果应与原始 WAV 的 PCM 完全一致（防止字节序/位移错误）
+        byte[] reference = readPcm(wav, 8192);
+        byte[] flac = readPcm(dir.resolve("tone.flac"), 8192);
+        org.junit.jupiter.api.Assertions.assertArrayEquals(reference, flac,
+                "FLAC 解码 PCM 应与 WAV 一致");
+    }
+
+    private static byte[] readPcm(Path file, int limit) throws Exception {
+        try (PcmSource source = AudioDecoders.open(file, 0L)) {
+            byte[] buffer = new byte[limit];
+            int total = 0;
+            while (total < limit) {
+                byte[] chunk = new byte[limit - total];
+                int read = source.read(chunk);
+                if (read < 0) {
+                    break;
+                }
+                System.arraycopy(chunk, 0, buffer, total, read);
+                total += read;
+            }
+            byte[] result = new byte[total];
+            System.arraycopy(buffer, 0, result, 0, total);
+            return result;
+        }
     }
 
     private static void assertDecodes(Path file, String label) throws Exception {

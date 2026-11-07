@@ -67,8 +67,12 @@ class LrcParserTest {
         Files.writeString(lrc, "[00:00]hi");
         assertEquals(lrc, LrcParser.findSidecar(new Track(audio, "song", ""), lyricsDir));
 
+        // 两边都有时，导入到 lyrics 目录的版本优先
         Path sidecar = dir.resolve("song.lrc");
         Files.writeString(sidecar, "[00:00]hi");
+        assertEquals(lrc, LrcParser.findSidecar(new Track(audio, "song", ""), lyricsDir));
+
+        Files.delete(lrc);
         assertEquals(sidecar, LrcParser.findSidecar(new Track(audio, "song", ""), lyricsDir));
     }
 }

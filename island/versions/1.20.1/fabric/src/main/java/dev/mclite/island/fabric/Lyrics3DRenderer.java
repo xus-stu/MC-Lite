@@ -1,6 +1,7 @@
 package dev.mclite.island.fabric;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
 import dev.mclite.island.core.IslandConfig;
 import dev.mclite.island.core.IslandSnapshot;
 import dev.mclite.island.core.PlaybackService;
@@ -54,11 +55,9 @@ final class Lyrics3DRenderer {
         pose.scale(-scale, -scale, scale);
         Matrix4f matrix = pose.last().pose();
 
-        MultiBufferSource buffer = context.consumers();
-        if (buffer == null) {
-            pose.popPose();
-            return;
-        }
+        // 只 flush 自己的立即缓冲，不碰全局 bufferSource
+        MultiBufferSource.BufferSource buffer =
+                MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
         Font font = client.font;
         int color = config.lyricsColor;
         float x = -font.width(text) / 2f;
@@ -71,6 +70,7 @@ final class Lyrics3DRenderer {
             font.drawInBatch(next, -font.width(next) / 2f, 12f, nextColor, true, matrix, buffer,
                     Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
         }
+        buffer.endBatch();
         pose.popPose();
     }
 }

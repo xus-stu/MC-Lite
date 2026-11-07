@@ -202,6 +202,9 @@ final class IslandPlayerScreen26 extends Screen {
             extractor.text(font, font.plainSubstrByWidth(name, width - 32), 8, y, 0xFFE6E6E6, false);
         }
 
+        if (status.isBlank() && service.lastError() != null && !service.lastError().isBlank()) {
+            status = "音频错误: " + service.lastError();
+        }
         if (!status.isBlank()) {
             extractor.text(font, status, 12, height - 66, 0xFFFFB74D, false);
         }
