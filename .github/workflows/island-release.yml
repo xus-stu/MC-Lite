@@ -34,7 +34,9 @@ jobs:
           cd island
           gradle :versions:1.20.1:fabric:bundledJar --no-daemon --stacktrace
           mkdir -p "$GITHUB_WORKSPACE/dist"
-          cp versions/1.20.1/fabric/build/libs/mclite-island-1.20.1-fabric-*-bundled.jar "$GITHUB_WORKSPACE/dist/"
+          for f in versions/1.20.1/fabric/build/libs/mclite-island-1.20.1-fabric-*-bundled.jar; do
+            cp "$f" "$GITHUB_WORKSPACE/dist/$(basename "$f" -bundled.jar).jar"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: island-1201
@@ -65,7 +67,9 @@ jobs:
           for attempt in 1 2 3; do
             if ./gradlew bundledJar --no-daemon --stacktrace 2>&1 | tee /tmp/gradle-26.log; then
               mkdir -p "$GITHUB_WORKSPACE/dist"
-              cp build/libs/mclite-island-26.1.2-fabric-*-bundled.jar "$GITHUB_WORKSPACE/dist/"
+              for f in build/libs/mclite-island-26.1.2-fabric-*-bundled.jar; do
+                cp "$f" "$GITHUB_WORKSPACE/dist/$(basename "$f" -bundled.jar).jar"
+              done
               exit 0
             fi
             echo "attempt ${attempt} failed; retrying in 15s" >&2
