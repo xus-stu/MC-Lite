@@ -21,7 +21,9 @@ import org.lwjgl.glfw.GLFW;
 /** B 站浏览：搜索 / 收藏夹，点歌后加入播放队列并立即播放。 */
 final class BiliBrowseScreen26 extends Screen {
 
-    private static final int ROW_HEIGHT = 24;
+    private static final int ROW_HEIGHT = 32;
+    private static final int COVER_W = 44;
+    private static final int COVER_H = 25;
     private static final int TEXT = 0xFFF2F5F8;
     private static final int DIM = 0xFF93A0AD;
     private static final int MUTED = 0xFF6B7885;
@@ -36,6 +38,9 @@ final class BiliBrowseScreen26 extends Screen {
     private volatile Row[] rows = new Row[0];
     private volatile String status = "输入关键字搜索，或打开收藏夹";
     private volatile boolean loading;
+    private volatile String avatarUrl = "";
+    private volatile String avatarName = "";
+    private boolean avatarRequested;
     private boolean favoritesTab;
     private int scroll;
 
@@ -94,6 +99,28 @@ final class BiliBrowseScreen26 extends Screen {
                 this::onClose));
 
         status = client.biliCookies().loggedIn() ? "已登录，可搜索或打开收藏夹" : "未登录，在线播放仍可用";
+        requestProfile();
+    }
+
+    /** 头像/昵称单独拉一次，失败就继续显示“已登录”，不阻塞界面。 */
+    private void requestProfile() {
+        if (avatarRequested || !client.biliCookies().loggedIn()) {
+            return;
+        }
+        avatarRequested = true;
+        new Thread(() -> {
+            try {
+                BiliApi.Profile profile = client.bili().profile();
+                if (!profile.face().isBlank()) {
+                    avatarUrl = profile.face();
+                }
+                if (!profile.name().isBlank()) {
+                    avatarName = profile.name();
+                }
+            } catch (Exception ignored) {
+                // 头像只是装饰，失败不打扰用户
+            }
+        }, "mclite-island-bili-profile").start();
     }
 
     private void search() {
@@ -156,14 +183,14 @@ final class BiliBrowseScreen26 extends Screen {
     private void setLoaded(List<BiliApi.Video> videos) {
         Row[] built = new Row[videos.size()];
         Font font = minecraft.font;
-        int titleWidth = listW - 190;
+        int titleWidth = listW - 62 - 18;
         for (int i = 0; i < videos.size(); i++) {
             BiliApi.Video video = videos.get(i);
             String author = video.author() == null ? "" : video.author();
             String meta = author + " · " + formatDuration(video.durationSeconds());
             built[i] = new Row(video,
                     UiText26.fit(font, video.title(), titleWidth),
-                    UiText26.fit(font, meta, 150));
+                    UiText26.fit(font, meta, listW - 62 - 18));
         }
         rows = built;
         scroll = 0;
@@ -177,7 +204,8 @@ final class BiliBrowseScreen26 extends Screen {
                 BiliApi.AudioStream stream = client.bili().playUrl(view.bvid(), view.cid(),
                         config.biliQuality);
                 Track track = Track.remote(view.bvid(), view.cid(), stream.audioId(),
-                        stream.url(), view.title(), view.owner(), view.durationSeconds() * 1000L);
+                        stream.url(), view.title(), view.owner(),
+                        view.durationSeconds() * 1000L, video.cover());
                 Minecraft.getInstance().execute(() -> {
                     service.playlist().replace(List.of(track));
                     service.playAt(0);
@@ -209,9 +237,19 @@ final class BiliBrowseScreen26 extends Screen {
         drawScaledText(extractor, font, "B 站音乐", panelX + 44, panelY + 16, 1.25f, TEXT);
         extractor.text(font, "搜索 · 收藏夹 · 点歌", panelX + 44, panelY + 37, DIM, false);
         boolean loggedIn = client.biliCookies().loggedIn();
-        String account = loggedIn ? "已登录" : "未登录";
-        UiDraw26.textRight(extractor, font, account, panelX + 566, panelY + 22,
-                loggedIn ? ACCENT : DIM);
+        if (loggedIn && !avatarUrl.isBlank()) {
+            BiliImage26.Entry avatar = BiliImage26.get(avatarUrl, 22, 22, true);
+            int avatarX = panelX + 494;
+            int avatarY = panelY + 16;
+            extractor.fill(avatarX, avatarY, avatarX + 22, avatarY + 22, 0xFF1B2632);
+            BiliImage26.draw(extractor, avatar, avatarX, avatarY, 22, 22);
+            String name = UiText26.fit(font, avatarName.isBlank() ? "已登录" : avatarName, 54);
+            extractor.text(font, name, avatarX + 28, avatarY + 7, ACCENT, false);
+        } else {
+            String account = loggedIn ? "已登录" : "未登录";
+            UiDraw26.textRight(extractor, font, account, panelX + 566, panelY + 22,
+                    loggedIn ? ACCENT : DIM);
+        }
 
         drawRows(extractor, font, mouseX, mouseY);
         if (loading) {
@@ -253,6 +291,8 @@ final class BiliBrowseScreen26 extends Screen {
             int y = listTop + row * ROW_HEIGHT;
             boolean hover = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= y - 1 && mouseY < y + ROW_HEIGHT - 2;
+            int coverY = y + (ROW_HEIGHT - COVER_H) / 2;
+            int coverX = listX + 6;
             boolean playing = current != null && current.bvid() != null
                     && current.bvid().equals(item.video().bvid());
             if (hover || playing) {
@@ -260,11 +300,20 @@ final class BiliBrowseScreen26 extends Screen {
                         listX + 2, y - 1, listW - 8, ROW_HEIGHT - 2);
             }
             if (playing) {
-                extractor.fill(listX + 6, y + 5, listX + 8, y + 19, 0xFF6CC6FF);
+                extractor.fill(listX + 1, y + 5, listX + 3, y + ROW_HEIGHT - 7, 0xFF6CC6FF);
             }
-            extractor.text(font, item.title(), listX + 14, y + 3,
+            BiliImage26.Entry cover = BiliImage26.get(item.video().cover(),
+                    COVER_W, COVER_H, false);
+            if (cover == null) {
+                extractor.fill(coverX, coverY, coverX + COVER_W, coverY + COVER_H, 0xFF1C2632);
+                extractor.fill(coverX + 16, coverY + 8, coverX + 28, coverY + 9, 0xFF33465A);
+            } else {
+                BiliImage26.draw(extractor, cover, coverX, coverY, COVER_W, COVER_H);
+            }
+            int textX = coverX + COVER_W + 10;
+            extractor.text(font, item.title(), textX, y + 4,
                     playing ? ACCENT : TEXT, false);
-            UiDraw26.textRight(extractor, font, item.meta(), listX + listW - 12, y + 3, DIM);
+            extractor.text(font, item.meta(), textX, y + 17, DIM, false);
         }
 
         if (maxScroll > 0) {

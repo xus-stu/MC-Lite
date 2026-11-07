@@ -153,6 +153,21 @@ public final class BiliApi {
         return str(data, "uname");
     }
 
+    public record Profile(String name, String face, long mid) {
+    }
+
+    /** 当前登录账号的头像/昵称。未登录时返回空 Profile，绝不抛异常给界面线程。 */
+    public Profile profile() throws IOException {
+        if (!cookies.loggedIn()) {
+            return new Profile("", "", 0L);
+        }
+        JsonObject data = getJson(API + "/x/web-interface/nav", true).data();
+        if (!bool(data, "isLogin", false)) {
+            return new Profile("", "", 0L);
+        }
+        return new Profile(str(data, "uname"), str(data, "face"), lng(data, "mid"));
+    }
+
     // ------------------------------------------------------------ WBI
 
     private void ensureMixinKey() throws IOException {
@@ -280,13 +295,14 @@ public final class BiliApi {
 
     // ------------------------------------------------------------ 播放
 
-    public record View(String bvid, int cid, String title, String owner, long durationSeconds) {
+    public record View(String bvid, int cid, String title, String owner, long durationSeconds,
+                       String cover) {
     }
 
     public View view(String bvid) throws IOException {
         JsonObject data = getJson(API + "/x/web-interface/view?bvid=" + enc(bvid), true).data();
         return new View(bvid, integer(data, "cid", 0), str(data, "title"),
-                str(obj(data, "owner"), "name"), lng(data, "duration"));
+                str(obj(data, "owner"), "name"), lng(data, "duration"), str(data, "pic"));
     }
 
     public record AudioStream(int audioId, String url, long durationMs, String codecs) {
