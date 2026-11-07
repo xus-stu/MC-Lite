@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.mclite'
-version = '0.1.5'
+version = '0.2.0'
 
 base {
     archivesName = 'mclite-island-26.1.2-fabric'
@@ -24,6 +24,9 @@ sourceSets {
         java {
             srcDir rootProject.file('../../../common/src/main/java')
         }
+        resources {
+            srcDir rootProject.file('../../../common/src/main/resources')
+        }
     }
 }
 
@@ -42,6 +45,7 @@ dependencies {
     implementation 'javazoom:jlayer:1.0.1'
     implementation 'org.jflac:jflac-codec:1.5.2'
     implementation 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+    implementation 'com.google.zxing:core:3.5.3'
 
     // JEI 可选：只编译用，运行时由 JEI 入口点决定是否加载
     compileOnly 'maven.modrinth:jei:DJdKi2Zw'
@@ -55,6 +59,7 @@ dependencies {
     embed 'javazoom:jlayer:1.0.1'
     embed 'org.jflac:jflac-codec:1.5.2'
     embed 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+    embed 'com.google.zxing:core:3.5.3'
 }
 
 processResources {

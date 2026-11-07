@@ -3,6 +3,7 @@ package dev.mclite.island.core;
 import dev.mclite.island.core.audio.AudioEngine;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,6 +29,7 @@ public final class PlaybackService {
     private volatile String contextTitle = "";
     private volatile String contextSubtitle = "";
     private volatile String lastError = "";
+    private volatile RemoteAudioResolver remoteResolver;
 
     public PlaybackService(Path gameDir, IslandConfig config, AudioEngine engine) {
         this.gameDir = Objects.requireNonNull(gameDir, "gameDir");
@@ -56,6 +58,10 @@ public final class PlaybackService {
 
     public String lastError() {
         return lastError;
+    }
+
+    public void setRemoteResolver(RemoteAudioResolver resolver) {
+        this.remoteResolver = resolver;
     }
 
     /** 重新扫描音乐目录；尽量保留当前曲目。 */
@@ -160,7 +166,17 @@ public final class PlaybackService {
                     return;
                 }
                 try {
-                    engine.play(track.file(), startMs);
+                    Path audio;
+                    if (track.isRemote()) {
+                        RemoteAudioResolver resolver = remoteResolver;
+                        if (resolver == null) {
+                            throw new IllegalStateException("在线音源未就绪");
+                        }
+                        audio = resolver.resolve(track);
+                    } else {
+                        audio = track.file();
+                    }
+                    engine.play(audio, startMs);
                     Lyrics loaded = lyricsFor(track);
                     if (generation == playGeneration.get()) {
                         currentLyrics = loaded;
@@ -179,8 +195,21 @@ public final class PlaybackService {
     }
 
     private Lyrics lyricsFor(Track track) {
-        return lyricCache.computeIfAbsent(track.file(), path -> {
-            Path sidecar = LrcParser.findSidecar(track, lyricsDir());
+        Path key = track.file();
+        if (key == null && track.bvid() != null) {
+            key = lyricsDir().resolve("bili_" + track.bvid() + "_" + track.cid() + ".lrc");
+        }
+        if (key == null) {
+            return Lyrics.EMPTY;
+        }
+        Path cacheKey = key;
+        return lyricCache.computeIfAbsent(cacheKey, path -> {
+            Path sidecar;
+            if (track.isRemote()) {
+                sidecar = Files.isRegularFile(cacheKey) ? cacheKey : null;
+            } else {
+                sidecar = LrcParser.findSidecar(track, lyricsDir());
+            }
             if (sidecar == null) {
                 return Lyrics.EMPTY;
             }
@@ -194,9 +223,13 @@ public final class PlaybackService {
 
     /** 清掉某个曲目的歌词缓存，导入新歌词后调用。 */
     public void invalidateLyrics(Path audioFile) {
+        if (currentLyrics != null && audioFile == null) {
+            currentLyrics = Lyrics.EMPTY;
+            return;
+        }
         lyricCache.remove(audioFile);
         Track current = playlist.current();
-        if (current != null && current.file().equals(audioFile)) {
+        if (current != null && audioFile.equals(current.file())) {
             currentLyrics = lyricsFor(current);
         }
     }

@@ -23,6 +23,7 @@ final class IslandPlayerScreen26 extends Screen {
     private final PlaybackService service;
     private final IslandConfig config;
     private final Runnable saveConfig;
+    private final McliteIsland26Client client;
 
     private List<Track> tracks = List.of();
     private int scroll;
@@ -35,11 +36,13 @@ final class IslandPlayerScreen26 extends Screen {
     private Button modeButton;
     private Button lyricsButton;
 
-    IslandPlayerScreen26(PlaybackService service, IslandConfig config, Runnable saveConfig) {
+    IslandPlayerScreen26(PlaybackService service, IslandConfig config, Runnable saveConfig,
+                         McliteIsland26Client client) {
         super(Component.literal("MCLite Island"));
         this.service = service;
         this.config = config;
         this.saveConfig = saveConfig;
+        this.client = client;
         this.tracks = service.playlist().tracks();
     }
 
@@ -91,13 +94,16 @@ final class IslandPlayerScreen26 extends Screen {
         }).bounds(left, row2, 64, 20).build());
         addRenderableWidget(Button.builder(text("导入 LRC"), b -> importLyrics())
                 .bounds(left + 72, row2, 64, 20).build());
-        addRenderableWidget(Button.builder(text("设置"), b -> Minecraft.getInstance()
-                .setScreen(new IslandConfigScreen26(service, config, saveConfig)))
+        addRenderableWidget(Button.builder(text("B站"), b -> Minecraft.getInstance()
+                        .setScreen(new BiliBrowseScreen26(client, service, config)))
                 .bounds(left + 144, row2, 52, 20).build());
+        addRenderableWidget(Button.builder(text("设置"), b -> Minecraft.getInstance()
+                .setScreen(new IslandConfigScreen26(client, service, config, saveConfig)))
+                .bounds(left + 200, row2, 52, 20).build());
         addRenderableWidget(Button.builder(text("音乐目录"), b -> openFolder(service.musicDir()))
-                .bounds(left + 204, row2, 64, 20).build());
+                .bounds(left + 256, row2, 64, 20).build());
         addRenderableWidget(Button.builder(text("歌词目录"), b -> openFolder(service.lyricsDir()))
-                .bounds(left + 276, row2, 64, 20).build());
+                .bounds(left + 324, row2, 64, 20).build());
 
         refreshLabels();
     }

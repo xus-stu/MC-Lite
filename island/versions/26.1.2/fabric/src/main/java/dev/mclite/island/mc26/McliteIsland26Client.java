@@ -3,6 +3,9 @@ package dev.mclite.island.mc26;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mclite.island.core.IslandConfig;
 import dev.mclite.island.core.PlaybackService;
+import dev.mclite.island.bili.BiliApi;
+import dev.mclite.island.bili.BiliAudioCache;
+import dev.mclite.island.bili.BiliCookies;
 import dev.mclite.island.core.audio.JavaSoundEngine;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -33,6 +36,11 @@ public final class McliteIsland26Client implements ClientModInitializer {
     private PlaybackService service;
     private Path configFile;
 
+    private BiliApi bili;
+    private BiliCookies biliCookies;
+    private BiliAudioCache biliCache;
+    private Path biliCookieFile;
+
     private KeyMapping keyOpen;
     private KeyMapping keyToggle3d;
     private KeyMapping keyPrev;
@@ -54,6 +62,13 @@ public final class McliteIsland26Client implements ClientModInitializer {
         }
         service = new PlaybackService(gameDir, config, new JavaSoundEngine());
         service.setVolume(config.volume);
+
+        biliCookieFile = gameDir.resolve("config").resolve("mclite-island").resolve("bilibili.json");
+        biliCookies = BiliCookies.load(biliCookieFile);
+        bili = new BiliApi(biliCookies);
+        biliCache = new BiliAudioCache(gameDir.resolve("mclite-island").resolve("cache").resolve("bili"),
+                bili, config.biliQuality);
+        service.setRemoteResolver(biliCache);
 
         registerKeys();
         ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
@@ -81,7 +96,7 @@ public final class McliteIsland26Client implements ClientModInitializer {
 
     private void onTick(Minecraft client) {
         while (keyOpen.consumeClick()) {
-            client.setScreen(new IslandPlayerScreen26(service, config, this::saveConfig));
+            client.setScreen(new IslandPlayerScreen26(service, config, this::saveConfig, this));
         }
         while (keyToggle3d.consumeClick()) {
             config.threeDLyrics = !config.threeDLyrics;
@@ -169,6 +184,32 @@ public final class McliteIsland26Client implements ClientModInitializer {
             // JEI 版本不匹配时静默降级到准星探针
             return null;
         }
+    }
+
+    BiliApi bili() {
+        return bili;
+    }
+
+    BiliCookies biliCookies() {
+        return biliCookies;
+    }
+
+    Path biliCookieFile() {
+        return biliCookieFile;
+    }
+
+    BiliAudioCache biliCache() {
+        return biliCache;
+    }
+
+    void logoutBili() {
+        biliCookies.clear();
+        try {
+            java.nio.file.Files.deleteIfExists(biliCookieFile);
+        } catch (Exception ignored) {
+            // 文件删不掉也不影响内存登出
+        }
+        bili.setCookies(biliCookies);
     }
 
     private void saveConfig() {
