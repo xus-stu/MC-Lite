@@ -167,7 +167,8 @@ final class IslandPlayerScreen26 extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
-        extractBackground(extractor, mouseX, mouseY, delta);
+        // 父类 extractRenderStateWithTooltipAndSubtitles 已经做过 extractBackground（含模糊），
+        // 这里再调一次会触发 "Can only blur once per frame" 崩溃。
         if (--refreshTicks <= 0) {
             tracks = service.playlist().tracks();
             refreshTicks = 20;
