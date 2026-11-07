@@ -50,13 +50,23 @@ public final class IslandConfig {
             dev.mclite.island.bili.BiliQuality.AUTO;
     public int biliCacheLimitMb = 2048;
 
+    // 歌词
+    public boolean autoLyrics = true;
+    public long lyricsOffsetMs = 0L;
+
+    // 场景声学
+    public boolean acousticsEnabled = true;
+    public boolean acousticsSubmersion = true;
+    public boolean acousticsEnclosure = true;
+    public boolean acousticsRainfall = true;
+    public int acousticsStrength = 100;
+
     // 3D 歌词
     public boolean threeDLyrics = false;
     public float lyricsDistance = 2.5f;
     public float lyricsScale = 1.0f;
     public int lyricsColor = 0xFFFFFFFF;
     public int lyricsMaxLines = 2;
-    public long lyricsOffsetMs = 0L;
     /** 3D 歌词显示在视线下方多少格（0 表示视线中心）。 */
     public float lyricsVerticalOffset = -0.35f;
 
@@ -111,6 +121,7 @@ public final class IslandConfig {
         if (playMode == null) {
             playMode = PlayMode.SEQUENTIAL;
         }
+        acousticsStrength = Math.max(0, Math.min(100, acousticsStrength));
         if (biliQuality == null) {
             biliQuality = dev.mclite.island.bili.BiliQuality.AUTO;
         }

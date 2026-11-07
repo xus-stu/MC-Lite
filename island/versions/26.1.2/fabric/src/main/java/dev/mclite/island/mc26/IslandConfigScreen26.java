@@ -76,6 +76,27 @@ final class IslandConfigScreen26 extends Screen {
                     Minecraft.getInstance().setScreen(new IslandConfigScreen26(
                             client, service, config, saveConfig));
                 }));
+        addRenderableWidget(UiButton26.ghost(label("水下混响", config.acousticsSubmersion),
+                left, y + 180, 150, 22, () -> {
+                    config.acousticsSubmersion = !config.acousticsSubmersion;
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost(label("室内混响", config.acousticsEnclosure),
+                left, y + 210, 150, 22, () -> {
+                    config.acousticsEnclosure = !config.acousticsEnclosure;
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost(label("雨声混响", config.acousticsRainfall),
+                left, y + 240, 150, 22, () -> {
+                    config.acousticsRainfall = !config.acousticsRainfall;
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
         addRenderableWidget(UiButton26.ghost("3D 歌词（26.x 暂未支持）", left, y + 150, 150, 22,
                 () -> {
                     config.threeDLyrics = !config.threeDLyrics;
@@ -104,6 +125,39 @@ final class IslandConfigScreen26 extends Screen {
         }));
         addRenderableWidget(UiButton26.ghost("音量 +", right + 72, y + 60, 64, 22, () -> {
             service.setVolume(config.volume + 0.1f);
+            saveConfig.run();
+        }));
+        addRenderableWidget(UiButton26.ghost(label("场景声学", config.acousticsEnabled),
+                right, y + 120, 136, 22, () -> {
+                    config.acousticsEnabled = !config.acousticsEnabled;
+                    client.acousticsEnabled(config.acousticsEnabled);
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost("强度 -", right, y + 150, 64, 22, () -> {
+            config.acousticsStrength = Math.max(0, config.acousticsStrength - 10);
+            client.acousticsEnabled(config.acousticsEnabled);
+            saveConfig.run();
+        }));
+        addRenderableWidget(UiButton26.ghost("强度 +", right + 72, y + 150, 64, 22, () -> {
+            config.acousticsStrength = Math.min(100, config.acousticsStrength + 10);
+            client.acousticsEnabled(config.acousticsEnabled);
+            saveConfig.run();
+        }));
+        addRenderableWidget(UiButton26.ghost(label("自动歌词", config.autoLyrics),
+                right, y + 180, 136, 22, () -> {
+                    config.autoLyrics = !config.autoLyrics;
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost("歌词 -100ms", right, y + 210, 64, 22, () -> {
+            config.lyricsOffsetMs -= 100;
+            saveConfig.run();
+        }));
+        addRenderableWidget(UiButton26.ghost("歌词 +100ms", right + 72, y + 210, 64, 22, () -> {
+            config.lyricsOffsetMs += 100;
             saveConfig.run();
         }));
         addRenderableWidget(UiButton26.ghost("居中复位", right, y + 90, 136, 22, () -> {

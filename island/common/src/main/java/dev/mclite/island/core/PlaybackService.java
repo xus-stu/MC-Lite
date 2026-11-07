@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import dev.mclite.island.lyrics.AutoLyrics;
 import java.util.Map;
 import java.util.Objects;
 
@@ -30,6 +32,13 @@ public final class PlaybackService {
     private volatile String contextSubtitle = "";
     private volatile String lastError = "";
     private volatile RemoteAudioResolver remoteResolver;
+    private volatile OnlineLyricsProvider onlineLyricsProvider;
+    private final AtomicLong lyricsGeneration = new AtomicLong();
+
+    /** B 站等在线源的歌词（字幕）由外壳提供。 */
+    public interface OnlineLyricsProvider {
+        String lrc(Track track);
+    }
 
     public PlaybackService(Path gameDir, IslandConfig config, AudioEngine engine) {
         this.gameDir = Objects.requireNonNull(gameDir, "gameDir");
@@ -62,6 +71,20 @@ public final class PlaybackService {
 
     public void setRemoteResolver(RemoteAudioResolver resolver) {
         this.remoteResolver = resolver;
+    }
+
+    public void setOnlineLyricsProvider(OnlineLyricsProvider provider) {
+        this.onlineLyricsProvider = provider;
+    }
+
+    /** 手动刷新歌词：清缓存并重读当前曲目。 */
+    public void reloadLyrics() {
+        lyricCache.clear();
+        Track current = playlist.current();
+        currentLyrics = current == null ? Lyrics.EMPTY : lyricsFor(current);
+        if (current != null) {
+            maybeAutoLyrics(current);
+        }
     }
 
     /** 重新扫描音乐目录；尽量保留当前曲目。 */
@@ -185,6 +208,7 @@ public final class PlaybackService {
                         currentLyrics = loaded;
                         lastError = "";
                     }
+                    maybeAutoLyrics(track);
                 } catch (Exception ex) {
                     if (generation == playGeneration.get()) {
                         lastError = String.valueOf(ex.getMessage());
@@ -193,6 +217,52 @@ public final class PlaybackService {
                 }
             }
         }, "mclite-island-play");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void maybeAutoLyrics(Track track) {
+        if (!config.autoLyrics) {
+            return;
+        }
+        long generation = playGeneration.get();
+        long lyricGen = lyricsGeneration.incrementAndGet();
+        Thread worker = new Thread(() -> {
+            try {
+                Path cache = lyricsDir().resolve(AutoLyrics.cacheName(track));
+                String lrc = null;
+                if (Files.isRegularFile(cache)) {
+                    lrc = Files.readString(cache, java.nio.charset.StandardCharsets.UTF_8);
+                }
+                if (lrc == null || lrc.isBlank()) {
+                    if (track.isRemote()) {
+                        OnlineLyricsProvider provider = onlineLyricsProvider;
+                        lrc = provider == null ? null : provider.lrc(track);
+                    }
+                    if (lrc == null || lrc.isBlank()) {
+                        AutoLyrics.Result result = AutoLyrics.fetch(track);
+                        lrc = result == null ? null : result.lrc();
+                    }
+                    if (lrc != null && !lrc.isBlank()) {
+                        Files.createDirectories(cache.getParent());
+                        Files.writeString(cache, lrc, java.nio.charset.StandardCharsets.UTF_8);
+                    }
+                }
+                if (lrc == null || lrc.isBlank()) {
+                    return;
+                }
+                Lyrics parsed = new Lyrics(LrcParser.parse(lrc).lines());
+                Track current = playlist.current();
+                synchronized (PlaybackService.this) {
+                    if (generation == playGeneration.get() && lyricGen == lyricsGeneration.get()
+                            && current != null && current.equals(track) && currentLyrics.isEmpty()) {
+                        currentLyrics = parsed;
+                    }
+                }
+            } catch (Exception ignored) {
+                // 自动歌词失败不影响播放
+            }
+        }, "mclite-island-lyrics");
         worker.setDaemon(true);
         worker.start();
     }
