@@ -15,8 +15,13 @@ import java.util.Map;
  */
 final class IslandCatalog {
 
-    /** 与 release 工作流约定：每次发布都带上这个资产。 */
+    /**
+     * 固定的 island-latest release：模组更新只覆盖这里的资产，不再需要发启动器版本。
+     * 旧的 releases/latest 作为过渡期回退，老启动器仍然能读到清单。
+     */
     static final String MANIFEST_URL =
+            "https://github.com/xus-stu/MC-Lite/releases/download/island-latest/island-manifest.json";
+    static final String LEGACY_MANIFEST_URL =
             "https://github.com/xus-stu/MC-Lite/releases/latest/download/island-manifest.json";
 
     private IslandCatalog() {
@@ -37,12 +42,14 @@ final class IslandCatalog {
 
     static Manifest fetch(Net net) throws IOException {
         IOException last = null;
-        for (String url : GithubSources.candidates(MANIFEST_URL)) {
-            try {
-                byte[] bytes = net.getUnverifiedBytes(url, "MCLite 岛组件清单");
-                return parse(new String(bytes, StandardCharsets.UTF_8));
-            } catch (IOException ex) {
-                last = ex;
+        for (String base : List.of(MANIFEST_URL, LEGACY_MANIFEST_URL)) {
+            for (String url : GithubSources.candidates(base)) {
+                try {
+                    byte[] bytes = net.getUnverifiedBytes(url, "MCLite 岛组件清单");
+                    return parse(new String(bytes, StandardCharsets.UTF_8));
+                } catch (IOException ex) {
+                    last = ex;
+                }
             }
         }
         throw last == null ? new IOException("组件清单下载失败") : last;

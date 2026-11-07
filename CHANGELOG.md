@@ -1,5 +1,11 @@
 # MC Lite 更新记录
 
+## v1.4.21
+
+- 启动器插件清单改为固定地址 `releases/download/island-latest/island-manifest.json`；以后只发模组（tag `island-v*` → `island-release` workflow）就会覆盖这个 release，不再需要同步 bump 启动器。旧地址保留为回退。
+- MCLite 岛 0.3.5：B 站头像失败会 5 秒后重试，图片没加载出来时先显示昵称首字占位；封面/头像纹理只在 5 秒未使用后才释放，避免同一帧 blit 的纹理被提前 destroy。
+- 模组版本 0.3.5。
+
 ## v1.4.20
 
 - MCLite 岛 0.3.4：播放器重做为「播放队列 + 正在播放大封面 + 底部传输栏」布局，队列行显示 B 站视频封面/本地渐变占位，传输按钮改为自绘圆形图标（圆底/ hover 态各烘焙一张小纹理，每帧只 blit + 少量 fill）。
