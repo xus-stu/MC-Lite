@@ -12,6 +12,9 @@
   "entrypoints": {
     "client": [
       "dev.mclite.island.mc26.McliteIsland26Client"
+    ],
+    "jei_mod_plugin": [
+      "dev.mclite.island.mc26.JeiCompat"
     ]
   },
   "depends": {

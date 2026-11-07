@@ -520,6 +520,10 @@ public final class SelfTest {
                     InstalledInstance.LOADER_FORGE, work);
             check(IslandCatalog.compatible(manifest, fabric).size() == 1
                     && IslandCatalog.compatible(manifest, forge).isEmpty(), "岛组件兼容过滤");
+            String foreignUrl = catalogJson.replace(
+                    "https://github.com/xus-stu/MC-Lite/releases/download/",
+                    "https://example.com/");
+            check(IslandCatalog.parse(foreignUrl).builds().isEmpty(), "岛组件只接受官方 release URL");
             check(IslandInstaller.safeFileName(build).equals(
                     "mclite-island-1.20.1-fabric-0.1.0.jar"), "岛组件文件名");
             IslandCatalog.Build traversal = new IslandCatalog.Build("0.1.0", "1.20.1", "fabric", 17,
@@ -527,13 +531,18 @@ public final class SelfTest {
             String safe = IslandInstaller.safeFileName(traversal);
             check(safe.startsWith("mclite-island-") && !safe.contains("/") && !safe.contains(".."),
                     "岛组件文件名防穿越");
+            IslandCatalog.Build evilVersion = new IslandCatalog.Build("../../x\\y", "1.20.1",
+                    "fabric", 17, "https://example.com/evil.jar", sha, 1, "");
+            String safeVersion = IslandInstaller.safeFileName(evilVersion);
+            check(safeVersion.startsWith("mclite-island-") && !safeVersion.contains("/")
+                    && !safeVersion.contains("\\"), "岛组件版本号路径穿越");
             check(IslandInstaller.sha256Hex("abc".getBytes(StandardCharsets.UTF_8))
                     .equals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
                     "SHA-256 校验");
         } catch (Exception ex) {
             check(false, "岛组件清单: " + ex.getMessage());
         }
-        passed += 5;
+        passed += 7;
 
         Path islandInstanceDir = work.resolve("versions/inst-island");
         writeFile(islandInstanceDir.resolve("inst-island.json"),

@@ -28,6 +28,22 @@ final class WavSource implements PcmSource {
     }
 
     @Override
+    public long durationMs() {
+        AudioFormat format = format();
+        long frames = stream.getFrameLength();
+        float rate = format.getFrameRate();
+        if (frames <= 0 || rate <= 0) {
+            return -1L;
+        }
+        return (long) (frames / (double) rate * 1000.0);
+    }
+
+    @Override
+    public boolean canSeek() {
+        return true;
+    }
+
+    @Override
     public boolean seek(long positionMs) throws IOException {
         // 重新打开后再按字节跳，兼容全部 PCM WAV。
         AudioFormat format = format();

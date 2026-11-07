@@ -35,7 +35,9 @@
 
 ## 灵动岛
 
-- 顶部胶囊：播放中显示歌名 + 当前歌词；没有播放时显示准星目标（方块/实体名、mod id、血量）
+- 播放中显示歌名 + 当前歌词；没有播放时显示上下文信息
+- 上下文优先级：**JEI 物品列表悬停**（装了 JEI 时）→ **Jade 目标提示**（装了 Jade 时）→ 自带射线探针（方块/实体名、mod id、血量）
+- optional：JEI/Jade 未安装或版本不匹配时自动降级，不会崩
 - 位置/缩放保存在配置里；F1 隐藏 GUI 时一并隐藏
 - 纯原版绘制，无模糊/后处理；空闲时整帧跳过
 
@@ -45,16 +47,16 @@
 
 ## 版本支持
 
-| MC | Fabric | Forge | NeoForge | 3D 歌词 |
-|---|---|---|---|---|
-| 1.20.1 | ✅ | 待做 | 待做 | ✅ |
-| 26.1.2 | ✅ | — | 待做 | 待做（26.x 渲染 API 重写） |
+| MC | Fabric | Forge | NeoForge | 3D 歌词 | JEI/Jade |
+|---|---|---|---|---|---|
+| 1.20.1 | ✅ | 待做 | 待做 | ✅ | 仅自带探针 |
+| 26.1.2 | ✅ | — | 待做 | 待做（26.x 渲染 API 重写） | ✅（可选） |
 
 ## 从源码构建
 
 ```bash
 cd island && ./gradlew :versions:1.20.1:fabric:bundledJar    # JDK 21，Gradle 8.10
-cd island/versions/26.1.2/fabric && ./gradlew bundledJar     # JDK 25，Gradle 9.6.1
+cd island/versions/26.1.2/fabric && JAVA_HOME=/path/to/jdk25 ./gradlew bundledJar   # JDK 25，Gradle 9.6.1
 ```
 
 产物：`build/libs/mclite-island-<mc>-<loader>-<版本>-bundled.jar`。

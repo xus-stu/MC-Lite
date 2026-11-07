@@ -69,6 +69,9 @@ def main() -> int:
             }
         )
 
+    if not builds:
+        print("没有可写入的构建", file=sys.stderr)
+        return 1
     builds.sort(key=lambda item: (item["mc"], item["loader"], item["version"]))
     manifest = {"schema": 1, "builds": builds}
     out = Path(args.out)

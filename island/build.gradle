@@ -1,11 +1,12 @@
 allprojects {
     group = 'dev.mclite'
-    version = '0.1.0'
+    version = '0.1.1'
 }
 
 subprojects {
     repositories {
         maven { url = 'https://maven.aliyun.com/repository/public' }
         maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+        maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
     }
 }

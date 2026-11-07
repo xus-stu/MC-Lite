@@ -46,6 +46,7 @@ public final class IslandInstallDialog extends JDialog {
     private IslandCatalog.Manifest manifest = IslandCatalog.Manifest.EMPTY;
     private boolean loading;
     private boolean busy;
+    private boolean manifestFailed;
 
     public IslandInstallDialog(Window owner, Config config, GamePaths paths) {
         super(owner, "扩展组件 · MCLite 岛", ModalityType.APPLICATION_MODAL);
@@ -185,11 +186,13 @@ public final class IslandInstallDialog extends JDialog {
                 loading = false;
                 try {
                     manifest = get();
+                    manifestFailed = false;
                     status.setText(manifest.builds().isEmpty()
                             ? "清单里没有可用构建"
                             : "清单已更新：" + manifest.builds().size() + " 个构建");
                 } catch (Exception ex) {
                     manifest = IslandCatalog.Manifest.EMPTY;
+                    manifestFailed = true;
                     status.setText("获取失败：" + rootMessage(ex));
                 }
                 refreshForInstance();
@@ -211,7 +214,7 @@ public final class IslandInstallDialog extends JDialog {
         for (IslandCatalog.Build build : IslandCatalog.compatible(manifest, instance)) {
             builds.addElement(build);
         }
-        if (builds.isEmpty() && !loading) {
+        if (builds.isEmpty() && !loading && !manifestFailed) {
             status.setText("该实例没有匹配构建（需要 MC " + instance.mcVersion()
                     + " / " + instance.loader() + "）");
         }
@@ -239,6 +242,8 @@ public final class IslandInstallDialog extends JDialog {
         installButton.setEnabled(!busy && !loading && hasInstance && hasBuild);
         uninstallButton.setEnabled(!busy && hasInstance);
         refreshButton.setEnabled(!busy && !loading);
+        instanceBox.setEnabled(!busy);
+        buildList.setEnabled(!busy);
     }
 
     private void installSelected() {
@@ -266,7 +271,7 @@ public final class IslandInstallDialog extends JDialog {
                 } catch (Exception ex) {
                     status.setText("安装失败：" + rootMessage(ex));
                 }
-                refreshForInstance();
+                refreshInstalled(instance);
                 updateButtons();
             }
         };

@@ -58,7 +58,7 @@ final class IslandCatalog {
                 long size = Json.lng(map, "size", -1L);
                 int java = Json.integer(map, "java", 0);
                 if (version.isEmpty() || mc.isEmpty() || loader.isEmpty()
-                        || !url.startsWith("https://")
+                        || !url.startsWith("https://github.com/xus-stu/MC-Lite/releases/download/")
                         || !sha256.matches("[0-9a-f]{64}")
                         || size <= 0) {
                     continue;

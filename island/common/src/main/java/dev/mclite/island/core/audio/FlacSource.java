@@ -31,6 +31,7 @@ final class FlacSource implements PcmSource {
     private final Thread producer;
     private volatile AudioFormat format;
     private volatile int bits = 16;
+    private volatile long durationMs = -1L;
     private volatile boolean closed;
     private byte[] pending;
     private int pendingOffset;
@@ -46,6 +47,10 @@ final class FlacSource implements PcmSource {
                     bits = info.getBitsPerSample();
                     format = new AudioFormat(info.getSampleRate(), bits,
                             info.getChannels(), true, false);
+                    if (info.getTotalSamples() > 0L && info.getSampleRate() > 0) {
+                        durationMs = (long) (info.getTotalSamples()
+                                / (double) info.getSampleRate() * 1000.0);
+                    }
                 }
                 headerLatch.countDown();
             }
@@ -99,6 +104,11 @@ final class FlacSource implements PcmSource {
     @Override
     public AudioFormat format() {
         return format;
+    }
+
+    @Override
+    public long durationMs() {
+        return durationMs;
     }
 
     @Override

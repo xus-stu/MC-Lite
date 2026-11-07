@@ -27,6 +27,10 @@ class AudioDecoderSmokeTest {
         writeToneWav(wav);
 
         assertDecodes(wav, "wav");
+        try (PcmSource source = AudioDecoders.open(wav, 0L)) {
+            assertTrue(source.canSeek(), "WAV 应支持 seek");
+            assertTrue(source.durationMs() >= 900L, "WAV 时长应接近 1 秒");
+        }
 
         String ffmpeg = ffmpeg();
         if (ffmpeg == null) {

@@ -21,7 +21,8 @@ public final class JavaSoundEngine implements AudioEngine {
     private volatile boolean stopped = true;
     private volatile boolean paused;
     private volatile long positionBytes;
-    private volatile long durationBytes = -1L;
+    private volatile long durationMs = -1L;
+    private volatile boolean ended;
     private volatile float volume = 0.7f;
     private volatile Runnable onEnd;
     private Path currentFile;
@@ -32,6 +33,7 @@ public final class JavaSoundEngine implements AudioEngine {
             stopLocked();
             PcmSource opened = AudioDecoders.open(file, Math.max(0L, startMs));
             AudioFormat format = opened.format();
+            long effectiveStart = opened.canSeek() ? Math.max(0L, startMs) : 0L;
             SourceDataLine newLine;
             try {
                 newLine = AudioSystem.getSourceDataLine(format);
@@ -48,11 +50,12 @@ public final class JavaSoundEngine implements AudioEngine {
             this.currentFile = file;
             this.stopped = false;
             this.paused = false;
-            this.durationBytes = -1L;
+            this.ended = false;
+            this.durationMs = opened.durationMs();
             long frameSize = Math.max(1, format.getFrameSize());
             float frameRate = format.getFrameRate();
             this.positionBytes = frameRate > 0
-                    ? (long) (Math.max(0L, startMs) / 1000.0 * frameRate * frameSize)
+                    ? (long) (effectiveStart / 1000.0 * frameRate * frameSize)
                     : 0L;
 
             Runnable body = () -> runPlayback(opened, newLine);
@@ -73,6 +76,7 @@ public final class JavaSoundEngine implements AudioEngine {
                 }
                 int read = opened.read(buffer);
                 if (read < 0) {
+                    ended = true;
                     break;
                 }
                 if (read == 0) {
@@ -159,6 +163,8 @@ public final class JavaSoundEngine implements AudioEngine {
     private void stopLocked() {
         stopped = true;
         paused = false;
+        ended = false;
+        durationMs = -1L;
         Thread current = worker;
         if (current != null && current != Thread.currentThread()) {
             current.interrupt();
@@ -185,7 +191,7 @@ public final class JavaSoundEngine implements AudioEngine {
     @Override
     public void seek(long positionMs) {
         Path file = currentFile;
-        if (file == null) {
+        if (file == null || stopped || source == null) {
             return;
         }
         boolean wasPaused = paused;
@@ -221,7 +227,7 @@ public final class JavaSoundEngine implements AudioEngine {
 
     @Override
     public boolean isPlaying() {
-        return !stopped;
+        return !stopped && !ended;
     }
 
     @Override
@@ -247,7 +253,7 @@ public final class JavaSoundEngine implements AudioEngine {
 
     @Override
     public long durationMs() {
-        return durationBytes < 0 ? -1L : durationBytes;
+        return durationMs;
     }
 
     @Override

@@ -21,6 +21,9 @@ public final class PlaybackService {
     private final Playlist playlist = new Playlist();
     private final Map<Path, Lyrics> lyricCache = new HashMap<>();
 
+    private final Object playLock = new Object();
+    private final java.util.concurrent.atomic.AtomicLong playGeneration =
+            new java.util.concurrent.atomic.AtomicLong();
     private volatile Lyrics currentLyrics = Lyrics.EMPTY;
     private volatile String contextTitle = "";
     private volatile String contextSubtitle = "";
@@ -144,15 +147,35 @@ public final class PlaybackService {
         contextSubtitle = "";
     }
 
+    /**
+     * 解码器打开/解析头信息可能阻塞（FLAC 等最多几秒），不能在渲染或 tick 线程做。
+     * 每次切换递增代号；真正打开时如果代号已经过期就放弃，避免旧任务盖掉新歌。
+     */
     private void playTrack(Track track, long startMs) {
-        try {
-            engine.play(track.file(), startMs);
-            currentLyrics = lyricsFor(track);
-            lastError = "";
-        } catch (Exception ex) {
-            lastError = String.valueOf(ex.getMessage());
-            currentLyrics = Lyrics.EMPTY;
-        }
+        long generation = playGeneration.incrementAndGet();
+        currentLyrics = Lyrics.EMPTY;
+        Thread worker = new Thread(() -> {
+            synchronized (playLock) {
+                if (generation != playGeneration.get()) {
+                    return;
+                }
+                try {
+                    engine.play(track.file(), startMs);
+                    Lyrics loaded = lyricsFor(track);
+                    if (generation == playGeneration.get()) {
+                        currentLyrics = loaded;
+                        lastError = "";
+                    }
+                } catch (Exception ex) {
+                    if (generation == playGeneration.get()) {
+                        lastError = String.valueOf(ex.getMessage());
+                        currentLyrics = Lyrics.EMPTY;
+                    }
+                }
+            }
+        }, "mclite-island-play");
+        worker.setDaemon(true);
+        worker.start();
     }
 
     private Lyrics lyricsFor(Track track) {

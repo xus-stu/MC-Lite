@@ -45,6 +45,11 @@ final class Mp3Source implements PcmSource {
         this.pendingOffset = 0;
         this.decodedFrames = buffer.getBufferLength() / Math.max(1, buffer.getChannelCount());
         skipToStart();
+        if (startMs > 0) {
+            // 探测格式用的首帧不能留在 seek 后的播放里
+            pending = null;
+            pendingOffset = 0;
+        }
     }
 
     private void skipToStart() throws Exception {
