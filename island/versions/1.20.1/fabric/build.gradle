@@ -11,6 +11,9 @@ sourceSets {
         java {
             srcDir rootProject.file('common/src/main/java')
         }
+        resources {
+            srcDir rootProject.file('common/src/main/resources')
+        }
     }
 }
 
@@ -48,10 +51,12 @@ dependencies {
     implementation 'javazoom:jlayer:1.0.1'
     implementation 'org.jflac:jflac-codec:1.5.2'
     implementation 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+    implementation 'com.google.zxing:core:3.5.3'
 
     embed 'javazoom:jlayer:1.0.1'
     embed 'org.jflac:jflac-codec:1.5.2'
     embed 'com.googlecode.soundlibs:jorbis:0.0.17.4'
+    embed 'com.google.zxing:core:3.5.3'
 }
 
 tasks.register('bundledJar', Jar) {

@@ -42,6 +42,12 @@ public final class IslandConfig {
     /** Jade 目标提示集成（装了 Jade 才有效）。 */
     public boolean useJade = true;
 
+    // B 站
+    public boolean biliEnabled = true;
+    public dev.mclite.island.bili.BiliQuality biliQuality =
+            dev.mclite.island.bili.BiliQuality.AUTO;
+    public int biliCacheLimitMb = 2048;
+
     // 3D 歌词
     public boolean threeDLyrics = false;
     public float lyricsDistance = 2.5f;
@@ -102,6 +108,9 @@ public final class IslandConfig {
         islandY = Math.max(0, Math.min(4096, islandY));
         if (playMode == null) {
             playMode = PlayMode.SEQUENTIAL;
+        }
+        if (biliQuality == null) {
+            biliQuality = dev.mclite.island.bili.BiliQuality.AUTO;
         }
         if (musicFolder == null || musicFolder.isBlank()) {
             musicFolder = "mclite-island/music";

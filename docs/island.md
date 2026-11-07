@@ -45,12 +45,21 @@
 
 支持 `[mm:ss]`、`[mm:ss.xx]`、一行多个时间标签、`[offset:]`、`[ti:]`、`[ar:]`；UTF-8 / GBK 自动识别。
 
+## B 站登录与在线音乐
+
+- 播放器界面点「B站」→ 搜索或打开收藏夹；「登录」打开扫码页，用 B 站 App 扫码。
+- 登录 cookie 只保存在实例目录 `config/mclite-island/bilibili.json`（权限 600），可随时在设置页退出登录。
+- 在线音频是 AAC/DASH，需要本机有 **ffmpeg** 转成 WAV（macOS：`brew install ffmpeg`；Windows 把 `ffmpeg.exe` 放进 PATH 或设置环境变量 `MCLITE_FFMPEG`）。没有 ffmpeg 时会给出明确提示，其余本地播放不受影响。
+- 音质在设置页选择（AUTO/64K/132K/192K），只支持 AAC 音轨；不支持大会员/地区限制绕过。
+- 缓存位置 `mclite-island/cache/bili/`，设置页可清空。
+- 仅使用你自己的账号与本地 cookie，请遵守 B 站服务条款；不要分发缓存内容。
+
 ## 版本支持
 
 | MC | Fabric | Forge | NeoForge | 3D 歌词 | JEI/Jade |
 |---|---|---|---|---|---|
 | 1.20.1 | ✅ | 待做 | 待做 | ✅ | 仅自带探针 |
-| 26.1.2 | ✅ | — | 待做 | 待做（26.x 渲染 API 重写） | ✅（可选） |
+| 26.1.2 | ✅ | — | 待做 | 待做（26.x 渲染 API 重写） | ✅（可选；B 站需 ffmpeg） |
 
 ## 从源码构建
 

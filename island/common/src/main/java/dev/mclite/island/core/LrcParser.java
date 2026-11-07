@@ -123,6 +123,9 @@ public final class LrcParser {
      * 找同名的 .lrc：优先与音频同目录，其次在歌词目录按文件名主干匹配。
      */
     public static Path findSidecar(Track track, Path lyricsDir) {
+        if (track.file() == null) {
+            return null;
+        }
         String name = track.file().getFileName().toString();
         int dot = name.lastIndexOf('.');
         String stem = dot > 0 ? name.substring(0, dot) : name;
