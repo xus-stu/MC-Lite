@@ -481,6 +481,8 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel.add(configPage.build(), "config");
         settingsPage = new SettingsPage(this, config, taskCenter, this::updateLaunchInfo,
                 this::canRestartUi);
+        launcherPluginsPanel.setPythonActions(settingsPage::installPythonModule,
+                settingsPage::startPythonBridge);
         contentCardsPanel.add(settingsPage.build(), "settings");
         updateButtons();
 
