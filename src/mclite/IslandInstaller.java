@@ -125,7 +125,7 @@ final class IslandInstaller {
         return cleaned.isBlank() ? "unknown" : cleaned;
     }
 
-    private static void cleanupOldJars(Path mods, String keepName) throws IOException {
+    static void cleanupOldJars(Path mods, String keepName) throws IOException {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(mods, PREFIX + "*.jar")) {
             for (Path jar : stream) {
                 if (jar.getFileName().toString().equals(keepName)) {

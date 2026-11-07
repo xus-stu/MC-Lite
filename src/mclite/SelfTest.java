@@ -565,10 +565,21 @@ public final class SelfTest {
             check(IslandInstaller.uninstall(islandConfig, parsedInstance) == 1
                     && IslandInstaller.installedJars(islandConfig, parsedInstance).isEmpty(),
                     "岛组件卸载");
+
+            Path keep = mods.resolve("mclite-island-1.20.1-fabric-0.1.4.jar");
+            Path old = mods.resolve("mclite-island-1.20.1-fabric-0.1.3.jar");
+            Files.writeString(keep, "new");
+            Files.writeString(old, "old");
+            Files.writeString(mods.resolve("unrelated-1.0.jar"), "x");
+            IslandInstaller.cleanupOldJars(mods, keep.getFileName().toString());
+            check(Files.isRegularFile(keep) && !Files.isRegularFile(old)
+                    && Files.isRegularFile(mods.resolve(old.getFileName() + ".bak"))
+                    && Files.isRegularFile(mods.resolve("unrelated-1.0.jar")),
+                    "岛组件升级只留新 jar");
         } catch (Exception ex) {
             check(false, "岛组件安装目录: " + ex.getMessage());
         }
-        passed += 2;
+        passed += 3;
 
         return passed;
     }
