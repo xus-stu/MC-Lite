@@ -41,15 +41,26 @@ final class IslandCatalog {
     }
 
     static Manifest fetch(Net net) throws IOException {
+        List<String> urls = new ArrayList<>();
+        urls.addAll(GithubSources.candidates(MANIFEST_URL));
+        urls.addAll(GithubSources.candidates(LEGACY_MANIFEST_URL));
+        // 先并行测速选最快镜像，再单次短超时抓取；避免逐个超时把界面拖几分钟。
+        String fastest = net.pickFastest(urls, "MCLite 岛组件清单");
+        if (!fastest.isBlank()) {
+            urls.remove(fastest);
+            urls.add(0, fastest);
+        }
         IOException last = null;
-        for (String base : List.of(MANIFEST_URL, LEGACY_MANIFEST_URL)) {
-            for (String url : GithubSources.candidates(base)) {
-                try {
-                    byte[] bytes = net.getUnverifiedBytes(url, "MCLite 岛组件清单");
-                    return parse(new String(bytes, StandardCharsets.UTF_8));
-                } catch (IOException ex) {
-                    last = ex;
-                }
+        int attempts = 0;
+        for (String url : urls) {
+            if (++attempts > 6) {
+                break;
+            }
+            try {
+                byte[] bytes = net.getUnverifiedBytesQuick(url, "MCLite 岛组件清单", 8);
+                return parse(new String(bytes, StandardCharsets.UTF_8));
+            } catch (IOException ex) {
+                last = ex;
             }
         }
         throw last == null ? new IOException("组件清单下载失败") : last;
