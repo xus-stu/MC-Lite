@@ -5,19 +5,15 @@ import dev.mclite.island.core.PlaybackService;
 import dev.mclite.island.core.Track;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
-import java.awt.FileDialog;
-import java.awt.Frame;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
-/** 26.x 播放器界面：extractRenderState 新渲染模型。 */
+/** 26.x 播放器：圆角双栏布局。 */
 final class IslandPlayerScreen26 extends Screen {
 
     private final PlaybackService service;
@@ -29,12 +25,11 @@ final class IslandPlayerScreen26 extends Screen {
     private int scroll;
     private int listTop;
     private int listBottom;
-    private final int rowHeight = 14;
+    private int panelX;
+    private int panelY;
+    private final int rowHeight = 20;
     private String status = "";
     private int refreshTicks;
-    private Button playButton;
-    private Button modeButton;
-    private Button lyricsButton;
 
     IslandPlayerScreen26(PlaybackService service, IslandConfig config, Runnable saveConfig,
                          McliteIsland26Client client) {
@@ -52,175 +47,161 @@ final class IslandPlayerScreen26 extends Screen {
 
     @Override
     protected void init() {
-        // 打开界面时热扫描一次，刚放进去的 wav 不用重启
         service.reloadLibrary();
         tracks = service.playlist().tracks();
+        int w = 700;
+        int h = 470;
+        panelX = (width - w) / 2;
+        panelY = (height - h) / 2;
+        int left = panelX + 20;
+        int row1 = panelY + 392;
+        int row2 = panelY + 422;
 
-        int left = width / 2 - 200;
-        int right = width / 2 + 200;
-        int row1 = height - 30;
-        int row2 = height - 54;
-
-        playButton = addRenderableWidget(Button.builder(text("播放"), b -> {
+        addRenderableWidget(UiButton26.primary("播放", left, row1, 60, 24, () -> {
             service.togglePlay();
-            refreshLabels();
-        }).bounds(left, row1, 64, 20).build());
-        addRenderableWidget(Button.builder(text("上一首"), b -> {
-            service.previous();
-            refreshLabels();
-        }).bounds(left + 72, row1, 52, 20).build());
-        addRenderableWidget(Button.builder(text("下一首"), b -> {
-            service.next(true);
-            refreshLabels();
-        }).bounds(left + 132, row1, 52, 20).build());
-        modeButton = addRenderableWidget(Button.builder(text("模式"), b -> {
-            service.cycleMode();
-            refreshLabels();
-            saveConfig.run();
-        }).bounds(left + 192, row1, 64, 20).build());
-        addRenderableWidget(Button.builder(text("刷新列表"), b -> {
+        }));
+        addRenderableWidget(UiButton26.ghost("上一首", left + 68, row1, 56, 24, service::previous));
+        addRenderableWidget(UiButton26.ghost("下一首", left + 132, row1, 56, 24,
+                () -> service.next(true)));
+        addRenderableWidget(UiButton26.ghost("模式: " + config.playMode.label(), left + 196,
+                row1, 96, 24, () -> {
+                    service.cycleMode();
+                    saveConfig.run();
+                }));
+        addRenderableWidget(UiButton26.ghost("刷新", left + 300, row1, 56, 24, () -> {
             service.reloadLibrary();
             tracks = service.playlist().tracks();
             status = "已重新扫描，共 " + tracks.size() + " 首";
-            refreshLabels();
-        }).bounds(left + 264, row1, 64, 20).build());
-        addRenderableWidget(Button.builder(text("关闭"), b -> onClose())
-                .bounds(right - 44, row1, 44, 20).build());
+        }));
+        addRenderableWidget(UiButton26.ghost("关闭", left + 620, row1, 56, 24, this::onClose));
 
-        lyricsButton = addRenderableWidget(Button.builder(text("3D 歌词"), b -> {
-            config.threeDLyrics = !config.threeDLyrics;
-            refreshLabels();
-            saveConfig.run();
-        }).bounds(left, row2, 64, 20).build());
-        addRenderableWidget(Button.builder(text("导入 LRC"), b -> importLyrics())
-                .bounds(left + 72, row2, 64, 20).build());
-        addRenderableWidget(Button.builder(text("B站"), b -> Minecraft.getInstance()
-                        .setScreen(new BiliBrowseScreen26(client, service, config)))
-                .bounds(left + 144, row2, 52, 20).build());
-        addRenderableWidget(Button.builder(text("设置"), b -> Minecraft.getInstance()
-                .setScreen(new IslandConfigScreen26(client, service, config, saveConfig)))
-                .bounds(left + 200, row2, 52, 20).build());
-        addRenderableWidget(Button.builder(text("音乐目录"), b -> openFolder(service.musicDir()))
-                .bounds(left + 256, row2, 64, 20).build());
-        addRenderableWidget(Button.builder(text("歌词目录"), b -> openFolder(service.lyricsDir()))
-                .bounds(left + 324, row2, 64, 20).build());
+        addRenderableWidget(UiButton26.ghost("B站", left, row2, 56, 24, () -> Minecraft.getInstance()
+                .setScreen(new BiliBrowseScreen26(client, service, config))));
+        addRenderableWidget(UiButton26.ghost("导入歌词", left + 64, row2, 76, 24,
+                () -> Minecraft.getInstance().setScreen(
+                        new LrcImportScreen26(service, saveConfig))));
+        addRenderableWidget(UiButton26.ghost("设置", left + 148, row2, 56, 24,
+                () -> Minecraft.getInstance().setScreen(
+                        new IslandConfigScreen26(client, service, config, saveConfig))));
+        addRenderableWidget(UiButton26.ghost("音乐目录", left + 212, row2, 76, 24,
+                () -> openFolder(service.musicDir())));
+        addRenderableWidget(UiButton26.ghost("歌词目录", left + 296, row2, 76, 24,
+                () -> openFolder(service.lyricsDir())));
 
-        refreshLabels();
-    }
-
-    private void refreshLabels() {
-        if (playButton != null) {
-            var snap = service.snapshot();
-            playButton.setMessage(text(snap.playing() && !snap.paused() ? "暂停" : "播放"));
-        }
-        if (modeButton != null) {
-            modeButton.setMessage(text("模式:" + config.playMode.label()));
-        }
-        if (lyricsButton != null) {
-            lyricsButton.setMessage(text(config.threeDLyrics ? "3D 歌词:开" : "3D 歌词:关"));
-        }
+        listTop = panelY + 112;
+        listBottom = panelY + 372;
     }
 
     private void openFolder(Path path) {
         try {
             Files.createDirectories(path);
             java.awt.Desktop.getDesktop().open(path.toFile());
-        } catch (Exception ignored) {
-            status = "打开目录失败: " + path;
-        }
-    }
-
-    private void importLyrics() {
-        Track current = service.playlist().current();
-        if (current == null) {
-            status = "先播放一首歌，再导入同名 LRC";
-            return;
-        }
-        Thread thread = new Thread(() -> {
-            FileDialog dialog = new FileDialog((Frame) null, "选择 LRC 歌词", FileDialog.LOAD);
-            dialog.setFilenameFilter((dir, name) -> name.toLowerCase().endsWith(".lrc"));
-            dialog.setVisible(true);
-            String name = dialog.getFile();
-            String directory = dialog.getDirectory();
-            dialog.dispose();
-            if (name == null || directory == null) {
-                return;
-            }
+            status = "已打开: " + path;
+        } catch (Exception ex) {
             try {
-                Path source = Path.of(directory, name);
-                String stem = current.fileName();
-                int dot = stem.lastIndexOf('.');
-                stem = dot > 0 ? stem.substring(0, dot) : stem;
-                Path target = service.lyricsDir().resolve(stem + ".lrc");
-                Files.createDirectories(target.getParent());
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-                service.invalidateLyrics(current.file());
-                Minecraft.getInstance().execute(() -> status = "已导入歌词: " + target.getFileName());
-            } catch (Exception ex) {
-                Minecraft.getInstance().execute(() -> status = "导入失败: " + ex.getMessage());
+                Minecraft.getInstance().keyboardHandler.setClipboard(path.toString());
+            } catch (Exception ignored) {
+                // 剪贴板不可用
             }
-        }, "mclite-island-import-lrc");
-        thread.setDaemon(true);
-        thread.start();
+            status = "打不开目录（路径已复制）: " + path;
+        }
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
-        // 父类已经做过 extractBackground（含模糊），子类不能再调
         if (--refreshTicks <= 0) {
             tracks = service.playlist().tracks();
             refreshTicks = 20;
         }
+        UiDraw26.panel(extractor, UiDraw26.CARD, panelX, panelY, 700, 470, 20);
         var font = minecraft.font;
+        extractor.text(font, "MCLite Island", panelX + 20, panelY + 18, 0xFFF2F5F8, false);
+        extractor.text(font, "本地音乐 · B站 · 3D 歌词", panelX + 20, panelY + 40, 0xFF93A0AD, false);
+        String count = tracks.size() + " 首";
+        extractor.text(font, count, panelX + 680 - font.width(count), panelY + 18, 0xFF93A0AD, false);
 
-        extractor.text(font, "MCLite Island · 本地音乐", 12, 10, 0xFFFFFFFF, false);
-        String hint = "共 " + tracks.size() + " 首 · " + config.playMode.label()
-                + (config.threeDLyrics ? " · 3D 歌词开" : "");
-        extractor.text(font, hint, 12, 24, 0xFF9AA4B0, false);
-
-        var snap = service.snapshot();
-        String now = snap.hasTrack() ? (snap.paused() ? "已暂停 " : "") + snap.title() : "未在播放";
-        extractor.text(font, now, 12, 38, 0xFF7CC7FF, false);
-
-        listTop = 56;
-        listBottom = height - 64;
+        // 左栏队列卡片
+        int listX = panelX + 20;
+        int listW = 380;
+        UiDraw26.panel(extractor, UiDraw26.DARK, listX, panelY + 68, listW, 300, 14);
+        extractor.text(font, "播放队列", listX + 12, panelY + 78, 0xFF93A0AD, false);
         int visible = Math.max(1, (listBottom - listTop) / rowHeight);
         int maxScroll = Math.max(0, tracks.size() - visible);
         scroll = Math.max(0, Math.min(scroll, maxScroll));
-        int currentIndex = service.playlist().index();
+        int current = service.playlist().index();
         for (int i = 0; i < visible; i++) {
             int index = scroll + i;
             if (index >= tracks.size()) {
                 break;
             }
             int y = listTop + i * rowHeight;
-            if (index == currentIndex) {
-                extractor.fill(4, y - 2, width - 4, y + rowHeight - 2, 0x40007CC7);
+            if (index == current) {
+                UiDraw26.panel(extractor, UiDraw26.SOFT, listX + 6, y - 2, listW - 12, 18, 8);
             }
             String name = (index + 1) + ". " + tracks.get(index).displayName();
-            extractor.text(font, font.plainSubstrByWidth(name, width - 32), 8, y, 0xFFE6E6E6, false);
+            extractor.text(font, font.plainSubstrByWidth(name, listW - 28), listX + 14, y,
+                    index == current ? 0xFF6CC6FF : 0xFFF2F5F8, false);
+        }
+        if (tracks.isEmpty()) {
+            extractor.text(font, "音乐目录为空 · 点「音乐目录」放入 wav/mp3",
+                    listX + 14, listTop + 8, 0xFF93A0AD, false);
         }
 
-        if (status.isBlank() && service.lastError() != null && !service.lastError().isBlank()) {
-            status = "音频错误: " + service.lastError();
+        // 右栏正在播放
+        int nowX = panelX + 412;
+        int nowW = 268;
+        UiDraw26.panel(extractor, UiDraw26.DARK, nowX, panelY + 68, nowW, 300, 14);
+        var snap = service.snapshot();
+        extractor.text(font, "正在播放", nowX + 12, panelY + 78, 0xFF93A0AD, false);
+        if (snap.hasTrack()) {
+            String title = snap.title();
+            extractor.text(font, font.plainSubstrByWidth(title, nowW - 24), nowX + 12,
+                    panelY + 102, 0xFFF2F5F8, false);
+            extractor.text(font, font.plainSubstrByWidth(snap.artist(), nowW - 24), nowX + 12,
+                    panelY + 118, 0xFF93A0AD, false);
+            String lyric = snap.lyric() == null || snap.lyric().isBlank() ? "♪ 暂无歌词" : snap.lyric();
+            extractor.text(font, font.plainSubstrByWidth(lyric, nowW - 24), nowX + 12,
+                    panelY + 160, 0xFF6CC6FF, false);
+            String next = snap.nextLyric();
+            if (next != null && !next.isBlank()) {
+                extractor.text(font, font.plainSubstrByWidth(next, nowW - 24), nowX + 12,
+                        panelY + 178, 0xFF93A0AD, false);
+            }
+            long duration = snap.durationMs();
+            float p = duration > 0 ? Math.min(1f, snap.positionMs() / (float) duration) : 0f;
+            extractor.fill(nowX + 12, panelY + 230, nowX + nowW - 12, panelY + 234, 0x33FFFFFF);
+            if (p > 0) {
+                extractor.fill(nowX + 12, panelY + 230,
+                        nowX + 12 + (int) ((nowW - 24) * p), panelY + 234, 0xFF6CC6FF);
+            }
+            String pos = format(snap.positionMs());
+            String dur = duration > 0 ? format(duration) : "--:--";
+            extractor.text(font, pos, nowX + 12, panelY + 240, 0xFF93A0AD, false);
+            extractor.text(font, dur, nowX + nowW - 12 - font.width(dur), panelY + 240,
+                    0xFF93A0AD, false);
+        } else {
+            extractor.text(font, "未在播放", nowX + 12, panelY + 110, 0xFF93A0AD, false);
         }
-        if (!status.isBlank()) {
-            extractor.text(font, status, 12, height - 66, 0xFFFFB74D, false);
+
+        String message = status.isBlank() && service.lastError() != null
+                && !service.lastError().isBlank() ? "音频错误: " + service.lastError() : status;
+        if (!message.isBlank()) {
+            extractor.text(font, font.plainSubstrByWidth(message, 660), panelX + 20,
+                    panelY + 452,
+                    message.contains("错误") || message.startsWith("打不开") ? 0xFFFF6B6B
+                            : 0xFF93A0AD, false);
         }
-        String lyricInfo = snap.lyric() != null && !snap.lyric().isBlank()
-                ? "♪ " + snap.lyric() : "歌词: 无（同名 .lrc 或导入）";
-        extractor.text(font, font.plainSubstrByWidth(lyricInfo, width - 24), 12, height - 78,
-                snap.lyric() != null && !snap.lyric().isBlank() ? 0xFFB3E5FC : 0xFF9AA4B0, false);
         super.extractRenderState(extractor, mouseX, mouseY, delta);
     }
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (event.button() == 0 && event.y() >= listTop && event.y() < listBottom) {
+        int listX = panelX + 20;
+        if (event.button() == 0 && event.x() >= listX && event.x() <= listX + 380
+                && event.y() >= listTop && event.y() < listBottom) {
             int index = scroll + (int) ((event.y() - listTop) / rowHeight);
             if (index >= 0 && index < tracks.size()) {
                 service.playAt(index);
-                refreshLabels();
                 return true;
             }
         }
@@ -231,6 +212,11 @@ final class IslandPlayerScreen26 extends Screen {
     public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY) {
         scroll -= (int) Math.signum(deltaY) * 3;
         return true;
+    }
+
+    private static String format(long millis) {
+        long seconds = Math.max(0L, millis) / 1000L;
+        return String.format("%d:%02d", seconds / 60, seconds % 60);
     }
 
     @Override

@@ -41,6 +41,8 @@ public final class IslandConfig {
     public boolean useJei = true;
     /** Jade 目标提示集成（装了 Jade 才有效）。 */
     public boolean useJade = true;
+    /** 没装/关掉 JEI/Jade 时，是否用自带准星探针显示方块/实体信息。 */
+    public boolean useOwnProbe = true;
 
     // B 站
     public boolean biliEnabled = true;

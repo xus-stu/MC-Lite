@@ -147,6 +147,10 @@ public final class McliteIsland26Client implements ClientModInitializer {
                 return;
             }
         }
+        if (!config.useOwnProbe) {
+            service.clearContext();
+            return;
+        }
         HitResult hit = client.hitResult;
         if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
             var state = client.level.getBlockState(blockHit.getBlockPos());
