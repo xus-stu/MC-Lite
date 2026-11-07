@@ -38,6 +38,8 @@ public final class LauncherPluginsPanel extends JPanel {
     private final JButton installButton;
     private final JButton uninstallButton;
     private final JButton refreshButton;
+    private Runnable pythonInstall;
+    private Runnable pythonStart;
 
     private IslandCatalog.Manifest manifest = IslandCatalog.Manifest.EMPTY;
     private boolean loading;
@@ -51,6 +53,7 @@ public final class LauncherPluginsPanel extends JPanel {
         this.paths = paths;
         setOpaque(false);
         setLayout(new BorderLayout());
+        setBorder(new EmptyBorder(6, 6, 6, 6));
 
         root = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 18);
         root.setLayout(new BorderLayout(0, 12));
@@ -112,6 +115,26 @@ public final class LauncherPluginsPanel extends JPanel {
         uninstallButton = Ui.smallButton("卸载", Ui.AccentButton.Style.DANGER);
         refreshButton = Ui.smallButton("刷新清单", Ui.AccentButton.Style.GHOST);
         JButton openMusic = Ui.smallButton("打开音乐目录", Ui.AccentButton.Style.GHOST);
+        JButton installPython = Ui.smallButton("安装 Python 模块…", Ui.AccentButton.Style.GHOST);
+        JButton startPython = Ui.smallButton("启动 Python Bridge", Ui.AccentButton.Style.GHOST);
+        installPython.addActionListener(e -> {
+            if (pythonInstall != null) {
+                pythonInstall.run();
+            }
+        });
+        startPython.addActionListener(e -> {
+            if (pythonStart != null) {
+                pythonStart.run();
+            }
+        });
+
+        JPanel pythonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        pythonRow.setOpaque(false);
+        pythonRow.add(Ui.label("Python Bridge 模块", Theme.SMALL, Theme.MUTED));
+        pythonRow.add(installPython);
+        pythonRow.add(startPython);
+        center.add(Ui.vgap(10));
+        center.add(pythonRow);
 
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         footer.setOpaque(false);
@@ -132,6 +155,11 @@ public final class LauncherPluginsPanel extends JPanel {
         refreshButton.addActionListener(e -> loadManifest());
         openMusic.addActionListener(e -> openMusicFolder());
         updateButtons();
+    }
+
+    public void setPythonActions(Runnable install, Runnable start) {
+        this.pythonInstall = install;
+        this.pythonStart = start;
     }
 
     private boolean loaded;

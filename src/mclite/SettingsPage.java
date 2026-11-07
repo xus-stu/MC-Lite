@@ -662,7 +662,7 @@ final class SettingsPage {
         restartFrame();
     }
 
-    private void startPythonBridge() {
+    void startPythonBridge() {
         String classPath = System.getProperty("java.class.path", "");
         java.nio.file.Path jar = classPath.endsWith(".jar") ? java.nio.file.Path.of(classPath) : null;
         if (jar == null || !java.nio.file.Files.isRegularFile(jar)) {
@@ -685,7 +685,7 @@ final class SettingsPage {
         }
     }
 
-    private void installPythonModule() {
+    void installPythonModule() {
         java.util.List<PythonLocator.Interpreter> interpreters = PythonLocator.detectPycharm();
         java.util.List<String> labels = new java.util.ArrayList<>();
         for (PythonLocator.Interpreter interpreter : interpreters) {
