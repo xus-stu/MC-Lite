@@ -115,7 +115,7 @@ public final class McliteIsland26Client implements ClientModInitializer {
 
     private void updateContext(Minecraft client) {
         // JEI 列表悬停优先；JEI 缺失时连类都不会去解析。
-        if (FabricLoader.getInstance().isModLoaded("jei")) {
+        if (config.useJei && FabricLoader.getInstance().isModLoaded("jei")) {
             String hovered = jeiHovered();
             if (hovered != null) {
                 int split = hovered.indexOf('|');
@@ -125,7 +125,7 @@ public final class McliteIsland26Client implements ClientModInitializer {
                 return;
             }
         }
-        if (FabricLoader.getInstance().isModLoaded("jade")) {
+        if (config.useJade && FabricLoader.getInstance().isModLoaded("jade")) {
             String jade = JadeCompat.targetLine();
             if (jade != null) {
                 service.setContext(jade, "Jade");
