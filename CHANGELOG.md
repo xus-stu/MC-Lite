@@ -1,5 +1,11 @@
 # MC Lite 更新记录
 
+## v1.4.8
+
+- 「启动器插件」改为卡片列表：MCLite Island、Python Bridge 模块各一张卡片，点进去是详情页。
+- 详情页简介从 GitHub raw 拉取（`docs/island.md`、`python/README.md`），失败回退内置文案；含返回、安装/卸载、打开音乐目录、Python 安装/启动。
+- 模组版本 0.1.4（26.1.2 按 M 崩溃与灵动岛空态提示）。
+
 ## v1.4.7
 
 - 修复 26.1.2 按 M 打开播放器崩溃：`Screen` 父类已经做过一次 `extractBackground`（含模糊），子类重复调用触发 `Can only blur once per frame`；已移除重复调用。

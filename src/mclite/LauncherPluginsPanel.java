@@ -10,141 +10,69 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
 import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Component;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 下载中心「启动器插件」页：从 release 清单里挑构建，装进选中实例。
- *
- * <p>启动器本身不包含任何 mod jar；这里只做可选的联网下载 + 校验 + 安装。
+ * 下载中心「启动器插件」：每个插件一张卡片，点进去是详情页。
+ * 详情简介从 GitHub raw 拉取（失败用内置文案）。
  */
 public final class LauncherPluginsPanel extends JPanel {
 
+    private static final String ISLAND_DESC_URL =
+            "https://raw.githubusercontent.com/xus-stu/MC-Lite/main/docs/island.md";
+    private static final String PYTHON_DESC_URL =
+            "https://raw.githubusercontent.com/xus-stu/MC-Lite/main/python/README.md";
+
+    private static final Map<String, String> DESC_CACHE = new HashMap<>();
+
     private final Config config;
     private final GamePaths paths;
-    private final JComboBox<InstalledInstance> instanceBox = new Ui.DarkCombo<>();
-    private final DefaultListModel<IslandCatalog.Build> builds = new DefaultListModel<>();
-    private final JList<IslandCatalog.Build> buildList = new JList<>(builds);
-    private final JLabel status = new JLabel("正在获取组件清单…");
-    private final JLabel installed = new JLabel(" ");
-    private final JButton installButton;
-    private final JButton uninstallButton;
-    private final JButton refreshButton;
+    private final CardLayout cards = new CardLayout();
+    private final JPanel deck = new JPanel(cards);
     private Runnable pythonInstall;
     private Runnable pythonStart;
 
     private IslandCatalog.Manifest manifest = IslandCatalog.Manifest.EMPTY;
-    private boolean loading;
-    private boolean busy;
-    private boolean manifestFailed;
+    private boolean manifestLoading;
+    private boolean manifestLoaded;
 
-    private final JPanel root;
+    // 岛详情页控件
+    private final JComboBox<InstalledInstance> instanceBox = new Ui.DarkCombo<>();
+    private final DefaultListModel<IslandCatalog.Build> builds = new DefaultListModel<>();
+    private final JList<IslandCatalog.Build> buildList = new JList<>(builds);
+    private final JLabel islandStatus = new JLabel(" ");
+    private final JLabel installedLabel = new JLabel(" ");
+    private final JButton installButton;
+    private final JButton uninstallButton;
 
     public LauncherPluginsPanel(Config config, GamePaths paths) {
         this.config = config;
         this.paths = paths;
         setOpaque(false);
         setLayout(new BorderLayout());
-        setBorder(new EmptyBorder(6, 6, 6, 6));
-
-        root = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 20);
-        root.setLayout(new BorderLayout(0, 12));
-        root.setBorder(new EmptyBorder(18, 18, 16, 18));
-        add(root, BorderLayout.CENTER);
-
-        JPanel header = new JPanel();
-        header.setOpaque(false);
-        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
-        header.add(Ui.label("扩展组件 · MCLite 岛", Theme.TITLE, Theme.TEXT));
-        header.add(Ui.vgap(3));
-        header.add(Ui.label("本地音乐 + 3D 歌词 + 灵动岛；可选下载，不随启动器打包。",
-                Theme.SMALL, Theme.MUTED));
-        root.add(header, BorderLayout.NORTH);
-
-        JPanel center = new JPanel();
-        center.setOpaque(false);
-        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
-
-        JPanel instanceRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        instanceRow.setOpaque(false);
-        instanceRow.add(Ui.label("目标实例", Theme.SMALL, Theme.MUTED));
-        instanceBox.setPreferredSize(new Dimension(380, 30));
-        instanceRow.add(instanceBox);
-        center.add(instanceRow);
-        center.add(Ui.vgap(10));
-
-        buildList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        buildList.setOpaque(false);
-        buildList.setForeground(Theme.TEXT);
-        buildList.setCellRenderer(new RoundedBuildCellRenderer());
-        JScrollPane scroll = Ui.scroll(buildList);
-        scroll.setPreferredSize(new Dimension(520, 170));
-        Ui.RoundedPanel listCard = new Ui.RoundedPanel(Theme.BG, Theme.BORDER_LIGHT, 14);
-        listCard.setLayout(new BorderLayout());
-        listCard.setBorder(new EmptyBorder(8, 8, 8, 8));
-        listCard.add(scroll, BorderLayout.CENTER);
-        center.add(listCard);
-        center.add(Ui.vgap(8));
-        installed.setForeground(Theme.MUTED);
-        center.add(installed);
-        status.setForeground(Theme.MUTED);
-        center.add(status);
-        root.add(center, BorderLayout.CENTER);
+        deck.setOpaque(false);
+        deck.add(buildCatalog(), "catalog");
+        deck.add(new JPanel(), "detail");
+        add(deck, BorderLayout.CENTER);
 
         installButton = Ui.smallButton("安装所选", Ui.AccentButton.Style.PRIMARY);
         uninstallButton = Ui.smallButton("卸载", Ui.AccentButton.Style.DANGER);
-        refreshButton = Ui.smallButton("刷新清单", Ui.AccentButton.Style.GHOST);
-        JButton openMusic = Ui.smallButton("打开音乐目录", Ui.AccentButton.Style.GHOST);
-        JButton installPython = Ui.smallButton("安装 Python 模块…", Ui.AccentButton.Style.GHOST);
-        JButton startPython = Ui.smallButton("启动 Python Bridge", Ui.AccentButton.Style.GHOST);
-        installPython.addActionListener(e -> {
-            if (pythonInstall != null) {
-                pythonInstall.run();
-            }
-        });
-        startPython.addActionListener(e -> {
-            if (pythonStart != null) {
-                pythonStart.run();
-            }
-        });
-
-        JPanel pythonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        pythonRow.setOpaque(false);
-        pythonRow.add(Ui.label("Python Bridge 模块", Theme.SMALL, Theme.MUTED));
-        pythonRow.add(installPython);
-        pythonRow.add(startPython);
-        center.add(Ui.vgap(10));
-        center.add(pythonRow);
-
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        footer.setOpaque(false);
-        footer.add(refreshButton);
-        footer.add(openMusic);
-        footer.add(uninstallButton);
-        footer.add(installButton);
-        root.add(footer, BorderLayout.SOUTH);
-
-        for (InstalledInstance instance : InstalledInstance.scan(paths)) {
-            instanceBox.addItem(instance);
-        }
-        selectDefaultInstance();
-        instanceBox.addActionListener(e -> refreshForInstance());
-        buildList.addListSelectionListener(e -> updateButtons());
         installButton.addActionListener(e -> installSelected());
         uninstallButton.addActionListener(e -> uninstallSelected());
-        refreshButton.addActionListener(e -> loadManifest());
-        openMusic.addActionListener(e -> openMusicFolder());
-        updateButtons();
     }
 
     public void setPythonActions(Runnable install, Runnable start) {
@@ -152,15 +80,258 @@ public final class LauncherPluginsPanel extends JPanel {
         this.pythonStart = start;
     }
 
-    private boolean loaded;
-
-    /** 切到「启动器插件」页时调用；只拉一次清单。 */
+    /** 切到插件页时调用；清单在打开岛详情时再拉。 */
     public void ensureLoaded() {
-        if (!loaded) {
-            loaded = true;
-            loadManifest();
-        }
+        showCatalog();
     }
+
+    public void showCatalog() {
+        cards.show(deck, "catalog");
+    }
+
+    // ---------------------------------------------------------------- 列表页
+
+    private JPanel buildCatalog() {
+        JPanel outer = new JPanel(new BorderLayout());
+        outer.setOpaque(false);
+        outer.setBorder(new EmptyBorder(6, 6, 6, 6));
+
+        Ui.RoundedPanel card = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 20);
+        card.setLayout(new BorderLayout(0, 12));
+        card.setBorder(new EmptyBorder(18, 18, 18, 18));
+
+        JPanel head = new JPanel();
+        head.setOpaque(false);
+        head.setLayout(new BoxLayout(head, BoxLayout.Y_AXIS));
+        head.add(Ui.label("启动器插件", Theme.TITLE, Theme.TEXT));
+        head.add(Ui.vgap(3));
+        head.add(Ui.label("点开查看详情；插件不随启动器打包，按需下载。", Theme.SMALL, Theme.MUTED));
+        card.add(head, BorderLayout.NORTH);
+
+        JPanel list = new JPanel();
+        list.setOpaque(false);
+        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+        list.add(pluginCard("MCLite Island", "本地音乐 + 3D 歌词 + 灵动岛",
+                "零登录、零联网的本地音乐播放器，支持 JEI/Jade 目标信息与可导入 LRC。",
+                () -> openIslandDetail()));
+        list.add(Ui.vgap(10));
+        list.add(pluginCard("Python Bridge 模块", "让 PyCharm / 外部脚本连接启动器",
+                "把 mclite_bridge 安装到指定 Python 解释器，并可一键启动 Bridge 服务。",
+                () -> openPythonDetail()));
+        card.add(list, BorderLayout.CENTER);
+        outer.add(card, BorderLayout.CENTER);
+        return outer;
+    }
+
+    private JPanel pluginCard(String title, String subtitle, String intro, Runnable onOpen) {
+        Ui.RoundedPanel card = new Ui.RoundedPanel(Theme.CARD_ALT, Theme.BORDER_LIGHT, 14);
+        card.setLayout(new BorderLayout(10, 0));
+        card.setBorder(new EmptyBorder(14, 16, 14, 16));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 96));
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        text.add(Ui.label(title, Theme.H2, Theme.TEXT));
+        text.add(Ui.vgap(2));
+        text.add(Ui.label(subtitle, Theme.SMALL, Theme.ACCENT));
+        text.add(Ui.vgap(4));
+        text.add(Ui.label(intro, Theme.SMALL, Theme.MUTED));
+        card.add(text, BorderLayout.CENTER);
+
+        JButton open = Ui.smallButton("查看详情", Ui.AccentButton.Style.GHOST);
+        open.addActionListener(e -> onOpen.run());
+        card.add(open, BorderLayout.EAST);
+        card.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        card.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                onOpen.run();
+            }
+        });
+        return card;
+    }
+
+    // ---------------------------------------------------------------- 岛详情
+
+    private void openIslandDetail() {
+        JPanel detail = detailShell("MCLite Island", this::showCatalog);
+        JPanel body = new JPanel();
+        body.setOpaque(false);
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+
+        JTextArea intro = descriptionArea(
+                "零登录、零联网的本地音乐播放器：歌单、LRC 歌词、3D 歌词与灵动岛。",
+                ISLAND_DESC_URL);
+        body.add(intro);
+        body.add(Ui.vgap(10));
+
+        JPanel instanceRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        instanceRow.setOpaque(false);
+        instanceRow.add(Ui.label("目标实例", Theme.SMALL, Theme.MUTED));
+        instanceBox.setPreferredSize(new Dimension(380, 30));
+        instanceBox.removeAllItems();
+        for (InstalledInstance instance : InstalledInstance.scan(paths)) {
+            instanceBox.addItem(instance);
+        }
+        instanceBox.addActionListener(e -> refreshForInstance());
+        instanceRow.add(instanceBox);
+        body.add(instanceRow);
+        body.add(Ui.vgap(8));
+
+        buildList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        buildList.setOpaque(false);
+        buildList.setCellRenderer(new RoundedBuildCellRenderer());
+        JScrollPane scroll = Ui.scroll(buildList);
+        scroll.setPreferredSize(new Dimension(520, 150));
+        Ui.RoundedPanel listCard = new Ui.RoundedPanel(Theme.BG, Theme.BORDER_LIGHT, 14);
+        listCard.setLayout(new BorderLayout());
+        listCard.setBorder(new EmptyBorder(8, 8, 8, 8));
+        listCard.add(scroll, BorderLayout.CENTER);
+        body.add(listCard);
+        body.add(Ui.vgap(6));
+        installedLabel.setForeground(Theme.MUTED);
+        islandStatus.setForeground(Theme.MUTED);
+        body.add(installedLabel);
+        body.add(islandStatus);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actions.setOpaque(false);
+        JButton refresh = Ui.smallButton("刷新清单", Ui.AccentButton.Style.GHOST);
+        JButton openMusic = Ui.smallButton("打开音乐目录", Ui.AccentButton.Style.GHOST);
+        JButton uninstall = uninstallButton;
+        JButton install = installButton;
+        refresh.addActionListener(e -> loadManifest());
+        openMusic.addActionListener(e -> openMusicFolder());
+        actions.add(refresh);
+        actions.add(openMusic);
+        actions.add(uninstall);
+        actions.add(install);
+        body.add(Ui.vgap(8));
+        body.add(actions);
+
+        JPanel card = (JPanel) detail.getClientProperty("card");
+        card.add(body, BorderLayout.CENTER);
+        replaceDetail(detail);
+        selectDefaultInstance();
+        loadManifest();
+    }
+
+    // ---------------------------------------------------------------- Python 详情
+
+    private void openPythonDetail() {
+        JPanel detail = detailShell("Python Bridge 模块", this::showCatalog);
+        JPanel body = new JPanel();
+        body.setOpaque(false);
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.add(descriptionArea(
+                "安装 Python 客户端后，PyCharm 可以直接 import mclite_bridge；Bridge 启动后才能调用 API。",
+                PYTHON_DESC_URL));
+        body.add(Ui.vgap(12));
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        actions.setOpaque(false);
+        JButton install = Ui.smallButton("安装 Python 模块…", Ui.AccentButton.Style.PRIMARY);
+        JButton start = Ui.smallButton("启动 Python Bridge", Ui.AccentButton.Style.GHOST);
+        install.addActionListener(e -> {
+            if (pythonInstall != null) {
+                pythonInstall.run();
+            }
+        });
+        start.addActionListener(e -> {
+            if (pythonStart != null) {
+                pythonStart.run();
+            }
+        });
+        actions.add(install);
+        actions.add(start);
+        body.add(actions);
+        JPanel card = (JPanel) detail.getClientProperty("card");
+        card.add(body, BorderLayout.CENTER);
+        replaceDetail(detail);
+    }
+
+    private JPanel detailShell(String title, Runnable onBack) {
+        JPanel outer = new JPanel(new BorderLayout());
+        outer.setOpaque(false);
+        outer.setBorder(new EmptyBorder(6, 6, 6, 6));
+        Ui.RoundedPanel card = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 20);
+        card.setLayout(new BorderLayout(0, 12));
+        card.setBorder(new EmptyBorder(18, 18, 18, 18));
+
+        JPanel head = new JPanel(new BorderLayout());
+        head.setOpaque(false);
+        JButton back = Ui.smallButton("< 插件列表", Ui.AccentButton.Style.GHOST);
+        back.addActionListener(e -> onBack.run());
+        JPanel titleBox = new JPanel();
+        titleBox.setOpaque(false);
+        titleBox.setLayout(new BoxLayout(titleBox, BoxLayout.Y_AXIS));
+        titleBox.add(Ui.label(title, Theme.TITLE, Theme.TEXT));
+        head.add(back, BorderLayout.WEST);
+        head.add(titleBox, BorderLayout.CENTER);
+        card.add(head, BorderLayout.NORTH);
+        outer.add(card, BorderLayout.CENTER);
+        outer.putClientProperty("card", card);
+        return outer;
+    }
+
+    private void replaceDetail(JPanel detail) {
+        deck.removeAll();
+        deck.add(buildCatalog(), "catalog");
+        deck.add(detail, "detail");
+        deck.revalidate();
+        deck.repaint();
+        cards.show(deck, "detail");
+    }
+
+    private JTextArea descriptionArea(String fallback, String url) {
+        JTextArea area = new JTextArea(fallback);
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setOpaque(false);
+        area.setForeground(Theme.MUTED);
+        area.setFont(Theme.SMALL);
+        area.setRows(3);
+        area.setBorder(BorderFactory.createEmptyBorder());
+        loadDescription(area, fallback, url);
+        return area;
+    }
+
+    private void loadDescription(JTextArea area, String fallback, String url) {
+        String cached = DESC_CACHE.get(url);
+        if (cached != null) {
+            area.setText(cached);
+            return;
+        }
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                Net net = new Net(ProgressSink.NOOP, new CancellationToken());
+                byte[] bytes = net.getUnverifiedBytes(url, "插件简介");
+                String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                // 只取正文前几段，避免把整篇 README 塞进详情
+                String trimmed = text.replace("\r", "").trim();
+                if (trimmed.length() > 900) {
+                    trimmed = trimmed.substring(0, 900).trim() + " …";
+                }
+                return trimmed.isBlank() ? fallback : trimmed;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    String text = get();
+                    DESC_CACHE.put(url, text);
+                    area.setText(text);
+                } catch (Exception ignored) {
+                    area.setText(fallback);
+                }
+            }
+        }.execute();
+    }
+
+    // ---------------------------------------------------------------- 安装逻辑
 
     private void selectDefaultInstance() {
         String last = config.lastVersion();
@@ -180,13 +351,13 @@ public final class LauncherPluginsPanel extends JPanel {
     }
 
     private void loadManifest() {
-        if (loading) {
+        if (manifestLoading) {
             return;
         }
-        loading = true;
-        status.setText("正在获取组件清单…");
-        updateButtons();
-        SwingWorker<IslandCatalog.Manifest, Void> worker = new SwingWorker<>() {
+        manifestLoading = true;
+        islandStatus.setText("正在获取组件清单…");
+        installButton.setEnabled(false);
+        new SwingWorker<IslandCatalog.Manifest, Void>() {
             @Override
             protected IslandCatalog.Manifest doInBackground() throws Exception {
                 Net net = new Net(ProgressSink.NOOP, new CancellationToken());
@@ -195,67 +366,52 @@ public final class LauncherPluginsPanel extends JPanel {
 
             @Override
             protected void done() {
-                loading = false;
+                manifestLoading = false;
                 try {
                     manifest = get();
-                    manifestFailed = false;
-                    status.setText(manifest.builds().isEmpty()
-                            ? "清单里没有可用构建"
-                            : "清单已更新：" + manifest.builds().size() + " 个构建");
+                    manifestLoaded = true;
+                    islandStatus.setText(manifest.builds().isEmpty()
+                            ? "清单里没有可用构建" : "清单已更新：" + manifest.builds().size() + " 个构建");
                 } catch (Exception ex) {
                     manifest = IslandCatalog.Manifest.EMPTY;
-                    manifestFailed = true;
-                    status.setText("获取失败：" + rootMessage(ex));
+                    islandStatus.setText("获取失败：" + ex.getMessage());
                 }
                 refreshForInstance();
-                updateButtons();
             }
-        };
-        worker.execute();
+        }.execute();
     }
 
     private void refreshForInstance() {
         InstalledInstance instance = selectedInstance();
         builds.clear();
         if (instance == null) {
-            installed.setText("没有已安装的实例");
-            status.setText("先在实例页安装一个版本，再回来装扩展");
-            updateButtons();
+            installedLabel.setText("没有已安装的实例，请先在版本列表里安装 MC");
+            buildList.setEnabled(false);
+            installButton.setEnabled(false);
+            uninstallButton.setEnabled(false);
             return;
         }
+        buildList.setEnabled(true);
         for (IslandCatalog.Build build : IslandCatalog.compatible(manifest, instance)) {
             builds.addElement(build);
         }
-        if (builds.isEmpty() && !loading && !manifestFailed) {
-            status.setText("该实例没有匹配构建（需要 MC " + instance.mcVersion()
-                    + " / " + instance.loader() + "）");
-        }
-        refreshInstalled(instance);
         if (builds.size() == 1) {
             buildList.setSelectedIndex(0);
+        }
+        try {
+            List<Path> jars = IslandInstaller.installedJars(config, instance);
+            installedLabel.setText(jars.isEmpty()
+                    ? "当前实例未安装" : "已安装：" + jars.get(0).getFileName());
+        } catch (Exception ex) {
+            installedLabel.setText("读取 mods 失败：" + ex.getMessage());
         }
         updateButtons();
     }
 
-    private void refreshInstalled(InstalledInstance instance) {
-        try {
-            List<Path> jars = IslandInstaller.installedJars(config, instance);
-            installed.setText(jars.isEmpty()
-                    ? "当前实例未安装"
-                    : "当前实例已安装：" + jars.get(0).getFileName());
-        } catch (Exception ex) {
-            installed.setText("读取 mods 目录失败：" + rootMessage(ex));
-        }
-    }
-
     private void updateButtons() {
-        boolean hasInstance = selectedInstance() != null;
-        boolean hasBuild = buildList.getSelectedValue() != null;
-        installButton.setEnabled(!busy && !loading && hasInstance && hasBuild);
-        uninstallButton.setEnabled(!busy && hasInstance);
-        refreshButton.setEnabled(!busy && !loading);
-        instanceBox.setEnabled(!busy);
-        buildList.setEnabled(!busy);
+        installButton.setEnabled(!manifestLoading && selectedInstance() != null
+                && buildList.getSelectedValue() != null);
+        uninstallButton.setEnabled(selectedInstance() != null);
     }
 
     private void installSelected() {
@@ -264,10 +420,9 @@ public final class LauncherPluginsPanel extends JPanel {
         if (instance == null || build == null) {
             return;
         }
-        busy = true;
-        updateButtons();
-        status.setText("正在下载 " + build.displayName() + " …");
-        SwingWorker<Path, Void> worker = new SwingWorker<>() {
+        installButton.setEnabled(false);
+        islandStatus.setText("正在下载 " + build.displayName() + " …");
+        new SwingWorker<Path, Void>() {
             @Override
             protected Path doInBackground() throws Exception {
                 Net net = new Net(ProgressSink.NOOP, new CancellationToken());
@@ -276,18 +431,15 @@ public final class LauncherPluginsPanel extends JPanel {
 
             @Override
             protected void done() {
-                busy = false;
                 try {
                     Path jar = get();
-                    status.setText("已安装：" + jar.getFileName() + "（重启游戏生效）");
+                    islandStatus.setText("已安装：" + jar.getFileName() + "（重启游戏生效）");
                 } catch (Exception ex) {
-                    status.setText("安装失败：" + rootMessage(ex));
+                    islandStatus.setText("安装失败：" + ex.getMessage());
                 }
-                refreshInstalled(instance);
-                updateButtons();
+                refreshForInstance();
             }
-        };
-        worker.execute();
+        }.execute();
     }
 
     private void uninstallSelected() {
@@ -301,12 +453,11 @@ public final class LauncherPluginsPanel extends JPanel {
         }
         try {
             int removed = IslandInstaller.uninstall(config, instance);
-            status.setText(removed == 0 ? "没有找到可卸载的组件" : "已卸载 " + removed + " 个文件");
+            islandStatus.setText(removed == 0 ? "没有找到可卸载的组件" : "已卸载 " + removed + " 个文件");
         } catch (Exception ex) {
-            status.setText("卸载失败：" + rootMessage(ex));
+            islandStatus.setText("卸载失败：" + ex.getMessage());
         }
-        refreshInstalled(instance);
-        updateButtons();
+        refreshForInstance();
     }
 
     private void openMusicFolder() {
@@ -319,20 +470,10 @@ public final class LauncherPluginsPanel extends JPanel {
             Files.createDirectories(dir);
             java.awt.Desktop.getDesktop().open(dir.toFile());
         } catch (Exception ex) {
-            ModernDialogs.message(this, "打开目录失败", "路径：" + dir + "\n" + rootMessage(ex));
+            ModernDialogs.message(this, "打开目录失败", "路径：" + dir + "\n" + ex.getMessage());
         }
     }
 
-    private static String rootMessage(Throwable error) {
-        Throwable current = error;
-        while (current.getCause() != null && current.getCause() != current) {
-            current = current.getCause();
-        }
-        String message = current.getMessage();
-        return message == null || message.isBlank() ? current.getClass().getSimpleName() : message;
-    }
-
-    /** 列表项也用圆角高亮，避免默认矩形选中条。 */
     private static final class RoundedBuildCellRenderer extends JLabel
             implements javax.swing.ListCellRenderer<IslandCatalog.Build> {
         private boolean selected;
@@ -354,8 +495,8 @@ public final class LauncherPluginsPanel extends JPanel {
         }
 
         @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
+        protected void paintComponent(java.awt.Graphics g) {
+            java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
             g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
                     java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
             if (selected) {
