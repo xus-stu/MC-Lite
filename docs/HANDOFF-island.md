@@ -2,9 +2,9 @@
 
 最后更新：2026-11-07 21:5x（Asia/Shanghai）
 仓库：`/Users/xiaoxu/PycharmProjects/Java`
-当前 HEAD：`ee052f6` 之后（`V1.4.20`，播放器重做 + B 站头像/封面）
-启动器版本：`1.4.20`
-模组版本：`0.3.4`
+当前 HEAD：`e62fc8c` 之后（`V1.4.21`，插件独立发布 + B 站头像/封面）
+启动器版本：`1.4.21`
+模组版本：`0.3.5`
 
 ## 1. 背景与用户目标
 
@@ -93,7 +93,8 @@ git push origin main && git push origin v<版本>
 ## 5. 已知问题 / 风险（优先看）
 
 1. **播放器/灵动岛新版待实机复验**：0.3.4 播放器改为「队列 + 大封面 + 底部传输栏」；传输按钮是自绘圆形图标（`UiIconButton26`，圆底烘焙、每帧 blit + fill）。B 站页新增头像（圆形）/视频封面（`BiliImage26`，后台 2 线程 + ImageIO + LRU 120 张）。重点看：740x490 面板在 guiScale=3 下是否贴边、封面异步加载会不会闪、圆形按钮点击热区。
-2. **`island` / `release` workflow 断流**：v1.4.18 的 island tag run 与 main run 同 commit 一失败一成功，确认是腾讯 Gradle 镜像偶发断流；v1.4.19 的 release 也因此在「Build island mods」失败（tag 已推但没发出去）。两个 workflow 都已加 Gradle 缓存、HTTP 超时和 3 次重试，v1.4.20 的 release 用来验证补发。
+2. **模组独立发布**：`.github/workflows/island-release.yml` 监听 tag `island-v*`（也可手动 workflow_dispatch），把 jar + manifest 覆盖到固定 release `island-latest`（prerelease，不占 latest）。启动器 1.4.21 起读取 `releases/download/island-latest/island-manifest.json`，旧地址作为回退；以后改模组只需打 `island-v0.3.x` tag + 跑该 workflow，不用 bump 启动器。
+3. **`island` / `release` workflow 断流**：v1.4.18 的 island tag run 与 main run 同 commit 一失败一成功，确认是腾讯 Gradle 镜像偶发断流；v1.4.19 的 release 也因此在「Build island mods」失败（tag 已推但没发出去）。两个 workflow 都已加 Gradle 缓存、HTTP 超时和 3 次重试，v1.4.20 的 release 用来验证补发。
 3. **1.20.1 外壳未同步新 UI/B 站/声学**：只有本地播放的旧界面；用户主要在 26.1.2，但“1.20.1+ 所有加载器”仍未完成（Forge/NeoForge/1.21.1/26.1.2 NeoForge 都没有）。
 4. **26.x 3D 歌词未实现**：`threeDLyrics` 开关会保存但不渲染，26.x 渲染提交 API 重写，需要单独移植。1.20.1 有旧 3D billboard 实现。
 5. **B 站依赖系统 ffmpeg**：不是捆绑解码器。没有 ffmpeg 会明确报错；后续可考虑 JCodec（jar 里已含 `net/sourceforge/jaad` 类，但未接）。
@@ -118,7 +119,7 @@ git push origin main && git push origin v<版本>
 
 - 最新反馈：灵动岛仍觉得不圆/不好看，歌词有错配（已收紧匹配，未复验）。
 - 下一步优先级：
-  1. 让用户启动 0.3.4（已直接装进 `~/Desktop/MC/versions/26.1.2/mods`）看新播放器 + B 站头像/封面，要一张实机截图；GUI Scale=3、约 160 FPS、islandScale=0.9。
+  1. 让用户启动 0.3.5（已直接装进 `~/Desktop/MC/versions/26.1.2/mods`）看新播放器 + B 站头像/封面，要一张实机截图；GUI Scale=3、约 160 FPS、islandScale=0.9。如果 B 站头像仍不显示，先看 `latest.log` 里 `[mclite-island] B 站图片` 报错，再用 `curl` 验证 i2.hdslb.com 是否可达。
   2. 若玩家嫌面板太满，可把 `PLAYER_W/H` 从 740x490 降到 720x470，或做按屏幕宽度自适应缩放。
   2. 修 `island` workflow 失败（本地跑 `island.yml` 两条命令）。
   3. 让用户列一首“歌词错配”的歌（文件名/标题/艺术家），按实际 LRCLIB 返回调整匹配或加文件名优先策略。

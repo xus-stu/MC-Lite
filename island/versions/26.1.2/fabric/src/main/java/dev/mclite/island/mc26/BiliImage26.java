@@ -47,6 +47,7 @@ final class BiliImage26 {
     private static final Map<String, Entry> CACHE =
             new LinkedHashMap<>(32, 0.75f, true);
     private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
+    private static final Map<String, Long> RETRY_AFTER = new ConcurrentHashMap<>();
     private static final AtomicInteger SERIAL = new AtomicInteger();
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2, task -> {
         Thread thread = new Thread(task, "mclite-island-bili-image");
@@ -62,6 +63,7 @@ final class BiliImage26 {
         final DynamicTexture texture;
         final int width;
         final int height;
+        volatile long lastAccessMs = System.currentTimeMillis();
 
         private Entry(Identifier id, DynamicTexture texture, int width, int height) {
             this.id = id;
@@ -90,7 +92,12 @@ final class BiliImage26 {
         String key = key(url, width, height, circle);
         Entry existing = CACHE.get(key);
         if (existing != null && !existing.view().isClosed()) {
+            existing.lastAccessMs = System.currentTimeMillis();
             return existing;
+        }
+        Long retryAt = RETRY_AFTER.get(key);
+        if (retryAt != null && System.currentTimeMillis() < retryAt) {
+            return null;
         }
         if (!PENDING.add(key)) {
             return null;
@@ -104,6 +111,7 @@ final class BiliImage26 {
                 Minecraft.getInstance().execute(() -> register(key, image, width, height));
             } catch (Throwable failure) {
                 PENDING.remove(key);
+                RETRY_AFTER.put(key, System.currentTimeMillis() + 60_000L);
                 if (FAILED.add(key)) {
                     System.err.println("[mclite-island] B 站图片加载失败 " + source
                             + ": " + failure);
@@ -134,8 +142,10 @@ final class BiliImage26 {
                     () -> "mclite-island bili image " + key, nativeImage);
             Minecraft.getInstance().getTextureManager().register(id, texture);
             CACHE.put(key, new Entry(id, texture, width, height));
+            RETRY_AFTER.remove(key);
             trim();
         } catch (Throwable failure) {
+            RETRY_AFTER.put(key, System.currentTimeMillis() + 60_000L);
             FAILED.add(key);
             System.err.println("[mclite-island] B 站图片注册失败: " + failure);
         }
@@ -182,12 +192,18 @@ final class BiliImage26 {
     }
 
     private static void trim() {
+        // 同一帧里刚 blit 过的纹理不能立刻 release，否则 GPU 可能读到已释放的纹理；
+        // 只回收 5 秒内没被用过的条目，缓存偶尔超过上限也没关系。
+        long now = System.currentTimeMillis();
         while (CACHE.size() > MAX_ENTRIES) {
             var iterator = CACHE.entrySet().iterator();
             if (!iterator.hasNext()) {
                 return;
             }
             Entry oldest = iterator.next().getValue();
+            if (now - oldest.lastAccessMs < 5_000L) {
+                return;
+            }
             iterator.remove();
             try {
                 Minecraft.getInstance().getTextureManager().release(oldest.id);

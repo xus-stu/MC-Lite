@@ -40,7 +40,8 @@ final class BiliBrowseScreen26 extends Screen {
     private volatile boolean loading;
     private volatile String avatarUrl = "";
     private volatile String avatarName = "";
-    private boolean avatarRequested;
+    private volatile boolean profileLoading;
+    private long profileRetryAt;
     private boolean favoritesTab;
     private int scroll;
 
@@ -104,10 +105,11 @@ final class BiliBrowseScreen26 extends Screen {
 
     /** 头像/昵称单独拉一次，失败就继续显示“已登录”，不阻塞界面。 */
     private void requestProfile() {
-        if (avatarRequested || !client.biliCookies().loggedIn()) {
+        if (profileLoading || !client.biliCookies().loggedIn()
+                || System.currentTimeMillis() < profileRetryAt) {
             return;
         }
-        avatarRequested = true;
+        profileLoading = true;
         new Thread(() -> {
             try {
                 BiliApi.Profile profile = client.bili().profile();
@@ -118,7 +120,10 @@ final class BiliBrowseScreen26 extends Screen {
                     avatarName = profile.name();
                 }
             } catch (Exception ignored) {
-                // 头像只是装饰，失败不打扰用户
+                // 头像只是装饰；登录态刚写入时 cookie 可能还没同步，稍后重试
+                profileRetryAt = System.currentTimeMillis() + 5_000L;
+            } finally {
+                profileLoading = false;
             }
         }, "mclite-island-bili-profile").start();
     }
@@ -243,12 +248,19 @@ final class BiliBrowseScreen26 extends Screen {
             int avatarY = panelY + 16;
             extractor.fill(avatarX, avatarY, avatarX + 22, avatarY + 22, 0xFF1B2632);
             BiliImage26.draw(extractor, avatar, avatarX, avatarY, 22, 22);
+            if (avatar == null) {
+                String initial = avatarName.isBlank() ? "B" : avatarName.substring(0, 1);
+                extractor.text(font, initial, avatarX + 8, avatarY + 7, ACCENT, false);
+            }
             String name = UiText26.fit(font, avatarName.isBlank() ? "已登录" : avatarName, 54);
             extractor.text(font, name, avatarX + 28, avatarY + 7, ACCENT, false);
         } else {
             String account = loggedIn ? "已登录" : "未登录";
             UiDraw26.textRight(extractor, font, account, panelX + 566, panelY + 22,
                     loggedIn ? ACCENT : DIM);
+        }
+        if (loggedIn && avatarUrl.isBlank()) {
+            requestProfile();
         }
 
         drawRows(extractor, font, mouseX, mouseY);

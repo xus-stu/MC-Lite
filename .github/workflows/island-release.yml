@@ -1,0 +1,84 @@
+name: island-release
+
+# 只发模组：把 jar + manifest 覆盖到固定的 island-latest release。
+# 启动器从 .../releases/download/island-latest/island-manifest.json 读取，
+# 因此日常模组更新不需要再 bump 启动器版本。
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'island-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: island-release
+  cancel-in-progress: false
+
+env:
+  GRADLE_OPTS: >-
+    -Dorg.gradle.internal.http.connectionTimeout=120000
+    -Dorg.gradle.internal.http.socketTimeout=120000
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-island-release-${{ runner.os }}-${{ hashFiles('island/gradle/wrapper/gradle-wrapper.properties', 'island/versions/26.1.2/fabric/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-island-release-${{ runner.os }}-
+      - name: Build island mods
+        run: |
+          set -euo pipefail
+          chmod +x island/gradlew island/versions/26.1.2/fabric/gradlew
+          test -n "$JAVA_HOME_25_X64" || { echo "JAVA_HOME_25_X64 未设置" >&2; exit 1; }
+          retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              if "$@"; then return 0; fi
+              echo "attempt ${attempt} failed; retrying in 15s" >&2
+              sleep 15
+            done
+            return 1
+          }
+          (cd island && retry ./gradlew :versions:1.20.1:fabric:bundledJar --no-daemon --stacktrace)
+          (cd island/versions/26.1.2/fabric && retry env JAVA_HOME="$JAVA_HOME_25_X64" ./gradlew bundledJar --no-daemon --stacktrace -Dorg.gradle.java.home="$JAVA_HOME_25_X64")
+          mkdir -p dist
+          for f in island/versions/*/*/build/libs/mclite-island-*-bundled.jar; do
+            cp "$f" "dist/$(basename "$f" -bundled.jar).jar"
+          done
+          python3 island/tools/gen_manifest.py --out dist/island-manifest.json --tag island-latest dist/mclite-island-*.jar
+          (cd dist && sha256sum mclite-island-*.jar island-manifest.json > SHA256SUMS.txt)
+          cat dist/island-manifest.json
+
+      - name: Publish rolling island release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: island-latest
+          name: MCLite Island (latest)
+          prerelease: true
+          make_latest: 'false'
+          files: |
+            dist/mclite-island-*.jar
+            dist/island-manifest.json
+            dist/SHA256SUMS.txt
+          body: |
+            MCLite 岛最新构建，独立于启动器发布。
+
+            启动器「下载中心 → 启动器插件」会读取这里的 `island-manifest.json`；
+            该 release 标记为 prerelease，不会占用启动器的 latest release。
