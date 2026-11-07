@@ -7,21 +7,19 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
 /**
- * 圆形传输按钮（上一首/播放/暂停/下一首）。
+ * 传输按钮：只有图标，没有圆底/胶囊底。
  *
- * <p>圆底和 hover 态各烘焙成一张小纹理，每帧只 blit 一次 + 用 fill 画
- * 十几个矩形拼图标，不依赖字体里的 emoji，也不会每帧重画圆形。</p>
+ * <p>播放键用主题粉色，上一首/下一首用浅灰；hover 只提亮图标颜色，
+ * 不再画一整块底色，保持现代播放器的干净感。</p>
  */
 final class UiIconButton26 extends AbstractWidget {
 
     enum Icon { PREV, PLAY, PAUSE, NEXT }
 
-    private static final UISurface26.Painter NORMAL =
-            (g, w, h) -> UiPaint26.transportButton(g, w, h, 0);
-    private static final UISurface26.Painter HOVER =
-            (g, w, h) -> UiPaint26.transportButton(g, w, h, 1);
-    private static final UISurface26.Painter ACCENT =
-            (g, w, h) -> UiPaint26.transportButton(g, w, h, 2);
+    private static final int ACCENT = 0xFFFF7FB8;
+    private static final int ACCENT_HOVER = 0xFFFFB3D1;
+    private static final int PLAIN = 0xFFE8EDF3;
+    private static final int PLAIN_HOVER = 0xFFFFFFFF;
 
     private final Runnable action;
     private final boolean primary;
@@ -55,37 +53,32 @@ final class UiIconButton26 extends AbstractWidget {
     protected void extractWidgetRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY,
                                             float delta) {
         boolean hover = isHovered() && active;
-        UISurface26.Painter painter = primary ? ACCENT : hover ? HOVER : NORMAL;
-        String key = primary ? "transport/accent" : hover ? "transport/hover" : "transport/normal";
-        UISurface26.Surface surface = UISurface26.get(key, getWidth(), getHeight(), painter,
-                UiScale26.current());
-        UISurface26.draw(extractor, surface, getX(), getY());
-        int color = primary ? 0xFF0B1720 : 0xFFEAF2F8;
+        int color = primary ? (hover ? ACCENT_HOVER : ACCENT) : (hover ? PLAIN_HOVER : PLAIN);
         int cx = getX() + getWidth() / 2;
         int cy = getY() + getHeight() / 2;
         switch (icon) {
-            case PLAY -> triangle(extractor, cx - 4, cy, 11, 13, color);
+            case PLAY -> triangle(extractor, cx - 7, cy, 15, 19, color);
             case PAUSE -> {
-                extractor.fill(cx - 5, cy - 6, cx - 2, cy + 6, color);
-                extractor.fill(cx + 2, cy - 6, cx + 5, cy + 6, color);
+                extractor.fill(cx - 6, cy - 9, cx - 2, cy + 9, color);
+                extractor.fill(cx + 2, cy - 9, cx + 6, cy + 9, color);
             }
             case PREV -> {
-                extractor.fill(cx - 7, cy - 6, cx - 5, cy + 6, color);
-                triangleLeft(extractor, cx + 5, cy, 10, 12, color);
+                extractor.fill(cx - 10, cy - 8, cx - 8, cy + 8, color);
+                triangleLeft(extractor, cx + 6, cy, 14, 17, color);
             }
             case NEXT -> {
-                triangle(extractor, cx - 5, cy, 10, 12, color);
-                extractor.fill(cx + 5, cy - 6, cx + 7, cy + 6, color);
+                triangle(extractor, cx - 6, cy, 14, 17, color);
+                extractor.fill(cx + 8, cy - 8, cx + 10, cy + 8, color);
             }
         }
     }
 
-    /** 右向三角形：一列一列填，边缘靠 2px 步进保持干净。 */
+    /** 右向三角形：一列一列填。 */
     private static void triangle(GuiGraphicsExtractor extractor, int left, int cy,
                                  int width, int height, int color) {
         int half = height / 2;
         for (int i = 0; i < width; i += 2) {
-            int h = Math.max(1, half - i / 2);
+            int h = Math.max(1, half - i * half / width);
             extractor.fill(left + i, cy - h, left + i + 2, cy + h, color);
         }
     }
@@ -94,7 +87,7 @@ final class UiIconButton26 extends AbstractWidget {
                                      int width, int height, int color) {
         int half = height / 2;
         for (int i = 0; i < width; i += 2) {
-            int h = Math.max(1, half - i / 2);
+            int h = Math.max(1, half - i * half / width);
             extractor.fill(right - i - 2, cy - h, right - i, cy + h, color);
         }
     }
