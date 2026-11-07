@@ -28,9 +28,7 @@ final class IslandHud26 {
             return;
         }
         IslandSnapshot snapshot = service.snapshot();
-        if (!snapshot.hasTrack() && !snapshot.hasContext()) {
-            return;
-        }
+        boolean idle = !snapshot.hasTrack() && !snapshot.hasContext();
         int width = IslandLayout.BASE_WIDTH;
         int height = IslandLayout.BASE_HEIGHT;
         IslandLayout layout = IslandLayout.fromConfig(config)
@@ -58,9 +56,12 @@ final class IslandHud26 {
             } else {
                 line2 = snapshot.artist();
             }
-        } else {
+        } else if (snapshot.hasContext()) {
             line1 = snapshot.contextTitle();
             line2 = snapshot.contextSubtitle();
+        } else {
+            line1 = "MCLite Island";
+            line2 = service.playlist().isEmpty() ? "M 打开 · 音乐目录为空" : "M 打开播放器";
         }
         extractor.text(font, trim(font, line1, width - 12), 6, 5, TEXT, false);
         extractor.text(font, trim(font, line2, width - 12), 6, 16,

@@ -30,9 +30,6 @@ final class IslandHud {
         IslandSnapshot snapshot = service.snapshot();
         boolean music = snapshot.hasTrack();
         boolean context = snapshot.hasContext();
-        if (!music && !context) {
-            return;
-        }
 
         IslandLayout layout = IslandLayout.fromConfig(config)
                 .clampTo(graphics.guiWidth(), graphics.guiHeight());
@@ -59,9 +56,12 @@ final class IslandHud {
             } else {
                 line2 = snapshot.artist();
             }
-        } else {
+        } else if (context) {
             line1 = snapshot.contextTitle();
             line2 = snapshot.contextSubtitle();
+        } else {
+            line1 = "MCLite Island";
+            line2 = service.playlist().isEmpty() ? "M 打开 · 音乐目录为空" : "M 打开播放器";
         }
 
         int maxText = width - 12;
