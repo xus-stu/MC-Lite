@@ -21,6 +21,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Verify tag matches VERSION
+        run: |
+          test "v$(cat VERSION)" = "${GITHUB_REF_NAME}" || {
+            echo "tag ${GITHUB_REF_NAME} 与 VERSION v$(cat VERSION) 不一致" >&2
+            exit 1
+          }
+
       - name: Build
         run: |
           chmod +x build.sh
@@ -38,12 +45,13 @@ jobs:
         run: |
           chmod +x island/gradlew island/versions/26.1.2/fabric/gradlew
           (cd island && ./gradlew :versions:1.20.1:fabric:bundledJar --no-daemon)
+          test -n "$JAVA_HOME_25_X64" || { echo "JAVA_HOME_25_X64 未设置" >&2; exit 1; }
           (cd island/versions/26.1.2/fabric && JAVA_HOME="$JAVA_HOME_25_X64" ./gradlew bundledJar --no-daemon -Dorg.gradle.java.home="$JAVA_HOME_25_X64")
           mkdir -p dist
           for f in island/versions/*/*/build/libs/mclite-island-*-bundled.jar; do
             cp "$f" "dist/$(basename "$f" -bundled.jar).jar"
           done
-          python3 island/tools/gen_manifest.py --out dist/island-manifest.json --tag "v$(cat VERSION)" dist/mclite-island-*.jar
+          python3 island/tools/gen_manifest.py --out dist/island-manifest.json --tag "${GITHUB_REF_NAME}" dist/mclite-island-*.jar
 
       - name: Prepare release notes
         run: |

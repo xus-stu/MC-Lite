@@ -126,10 +126,7 @@ public final class LrcParser {
         String name = track.file().getFileName().toString();
         int dot = name.lastIndexOf('.');
         String stem = dot > 0 ? name.substring(0, dot) : name;
-        Path nextToAudio = track.file().resolveSibling(stem + ".lrc");
-        if (Files.isRegularFile(nextToAudio)) {
-            return nextToAudio;
-        }
+        // 导入到 lyrics 目录的优先；用户显式导入应当覆盖音频旁旧 sidecar
         if (lyricsDir != null) {
             Path inLyrics = lyricsDir.resolve(stem + ".lrc");
             if (Files.isRegularFile(inLyrics)) {
@@ -140,6 +137,10 @@ public final class LrcParser {
             if (Files.isRegularFile(upper)) {
                 return upper;
             }
+        }
+        Path nextToAudio = track.file().resolveSibling(stem + ".lrc");
+        if (Files.isRegularFile(nextToAudio)) {
+            return nextToAudio;
         }
         return null;
     }

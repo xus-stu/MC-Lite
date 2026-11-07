@@ -38,13 +38,14 @@ public final class JavaSoundEngine implements AudioEngine {
 
     private final Object lock = new Object();
     private final AtomicLong generation = new AtomicLong();
+    private final AtomicLong requestCounter = new AtomicLong();
     private volatile Session session;
     private volatile float volume = 0.7f;
     private volatile Runnable onEnd;
 
     @Override
     public void play(Path file, long startMs) throws Exception {
-        long requestGeneration = generation.incrementAndGet();
+        long request = requestCounter.incrementAndGet();
         lastFile = file;
 
         // 可能阻塞：解码器初始化、设备打开。放在锁外。
@@ -60,7 +61,6 @@ public final class JavaSoundEngine implements AudioEngine {
             throw new IllegalStateException("无法打开音频设备: " + format, ex);
         }
         applyVolume(line, volume);
-        line.start();
 
         Session next = new Session(opened, line, opened.durationMs());
         long frameSize = Math.max(1, format.getFrameSize());
@@ -70,19 +70,22 @@ public final class JavaSoundEngine implements AudioEngine {
                 : 0L;
 
         Session previous;
+        long requestGeneration;
         synchronized (lock) {
-            if (requestGeneration != generation.get()) {
-                // 打开设备期间用户已经切歌，这次结果作废
+            if (request != requestCounter.get()) {
+                // 打开设备期间用户已经切歌，这次结果作废；当前会话继续播
                 closeQuietly(line);
                 closeQuietly(opened);
                 return;
             }
+            requestGeneration = generation.incrementAndGet();
             previous = session;
             session = next;
         }
         if (previous != null) {
             retire(previous);
         }
+        line.start();
         Thread worker = new Thread(() -> runSession(requestGeneration, next),
                 "mclite-island-audio");
         worker.setDaemon(true);
@@ -186,6 +189,7 @@ public final class JavaSoundEngine implements AudioEngine {
     }
 
     private void retireCurrent() {
+        requestCounter.incrementAndGet();
         generation.incrementAndGet();
         Session current;
         synchronized (lock) {
@@ -276,7 +280,7 @@ public final class JavaSoundEngine implements AudioEngine {
     @Override
     public long durationMs() {
         Session current = session;
-        return current == null ? -1L : current.durationMs;
+        return current == null ? -1L : current.source.durationMs();
     }
 
     @Override

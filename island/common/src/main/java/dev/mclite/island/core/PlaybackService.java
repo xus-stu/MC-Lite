@@ -81,7 +81,7 @@ public final class PlaybackService {
         return config.resolveLyricsDir(gameDir);
     }
 
-    public void playAt(int index) {
+    public synchronized void playAt(int index) {
         Track track = playlist.at(index);
         if (track == null) {
             return;
@@ -90,7 +90,7 @@ public final class PlaybackService {
         playTrack(track, 0L);
     }
 
-    public void togglePlay() {
+    public synchronized void togglePlay() {
         if (engine.isPlaying() && !engine.isPaused()) {
             engine.pause();
             return;
@@ -107,7 +107,7 @@ public final class PlaybackService {
         }
     }
 
-    public void next(boolean manual) {
+    public synchronized void next(boolean manual) {
         Track next = playlist.advance(manual);
         if (next == null) {
             engine.stop();
@@ -117,7 +117,7 @@ public final class PlaybackService {
         playTrack(next, 0L);
     }
 
-    public void previous() {
+    public synchronized void previous() {
         Track previous = playlist.previous();
         if (previous != null) {
             playTrack(previous, 0L);
