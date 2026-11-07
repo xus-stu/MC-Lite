@@ -12,6 +12,19 @@ on:
       - 'docs/island.md'
       - '.github/workflows/island.yml'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: island-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 腾讯镜像偶发限速/断流：放宽 Gradle 的 HTTP 超时，并配合下面的重试。
+  GRADLE_OPTS: >-
+    -Dorg.gradle.internal.http.connectionTimeout=120000
+    -Dorg.gradle.internal.http.socketTimeout=120000
+
 jobs:
   common:
     runs-on: ubuntu-latest
@@ -21,10 +34,23 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-common-${{ runner.os }}-${{ hashFiles('island/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-common-${{ runner.os }}-
       - name: Common tests
         run: |
           cd island
-          ./gradlew :common:test --no-daemon --configure-on-demand
+          for attempt in 1 2 3; do
+            ./gradlew :common:test --no-daemon --configure-on-demand --stacktrace && exit 0
+            echo "attempt ${attempt} failed; retrying in 15s" >&2
+            sleep 15
+          done
+          exit 1
 
   build:
     runs-on: ubuntu-latest
@@ -38,15 +64,40 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-build-${{ runner.os }}-${{ hashFiles('island/gradle/wrapper/gradle-wrapper.properties', 'island/versions/26.1.2/fabric/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-build-${{ runner.os }}-
       - name: Build 1.20.1 Fabric
         run: |
           cd island
-          ./gradlew :versions:1.20.1:fabric:bundledJar --no-daemon
+          for attempt in 1 2 3; do
+            ./gradlew :versions:1.20.1:fabric:bundledJar --no-daemon --stacktrace && exit 0
+            echo "attempt ${attempt} failed; retrying in 15s" >&2
+            sleep 15
+          done
+          exit 1
       - name: Build 26.1.2 Fabric
         run: |
+          test -n "$JAVA_HOME_25_X64" || {
+            echo "JAVA_HOME_25_X64 未设置（runner 架构不是 x64？）" >&2
+            exit 1
+          }
           cd island/versions/26.1.2/fabric
-          JAVA_HOME="$JAVA_HOME_25_X64" ./gradlew bundledJar --no-daemon -Dorg.gradle.java.home="$JAVA_HOME_25_X64"
-      - uses: actions/upload-artifact@v4
+          for attempt in 1 2 3; do
+            JAVA_HOME="$JAVA_HOME_25_X64" ./gradlew bundledJar --no-daemon --stacktrace \
+              -Dorg.gradle.java.home="$JAVA_HOME_25_X64" && exit 0
+            echo "attempt ${attempt} failed; retrying in 15s" >&2
+            sleep 15
+          done
+          exit 1
+      - name: Upload jars
+        uses: actions/upload-artifact@v4
         with:
           name: mclite-island-jars
           path: island/versions/*/*/build/libs/*-bundled.jar
+          if-no-files-found: error
