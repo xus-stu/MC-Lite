@@ -240,7 +240,17 @@ public final class PlaybackService {
                         lrc = provider == null ? null : provider.lrc(track);
                     }
                     if (lrc == null || lrc.isBlank()) {
-                        AutoLyrics.Result result = AutoLyrics.fetch(track);
+                        long duration = track.durationMs();
+                        if (duration <= 0) {
+                            for (int i = 0; i < 20; i++) {
+                                duration = engine.durationMs();
+                                if (duration > 0) {
+                                    break;
+                                }
+                                Thread.sleep(100L);
+                            }
+                        }
+                        AutoLyrics.Result result = AutoLyrics.fetch(track, duration);
                         lrc = result == null ? null : result.lrc();
                     }
                     if (lrc != null && !lrc.isBlank()) {
