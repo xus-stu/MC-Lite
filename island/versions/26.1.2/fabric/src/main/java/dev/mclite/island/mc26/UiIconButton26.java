@@ -57,7 +57,8 @@ final class UiIconButton26 extends AbstractWidget {
         boolean hover = isHovered() && active;
         UISurface26.Painter painter = primary ? ACCENT : hover ? HOVER : NORMAL;
         String key = primary ? "transport/accent" : hover ? "transport/hover" : "transport/normal";
-        UISurface26.Surface surface = UISurface26.get(key, getWidth(), getHeight(), painter);
+        UISurface26.Surface surface = UISurface26.get(key, getWidth(), getHeight(), painter,
+                UiScale26.current());
         UISurface26.draw(extractor, surface, getX(), getY());
         int color = primary ? 0xFF0B1720 : 0xFFEAF2F8;
         int cx = getX() + getWidth() / 2;
