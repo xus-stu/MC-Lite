@@ -44,6 +44,11 @@ final class IslandCatalog {
         List<String> urls = new ArrayList<>();
         urls.addAll(GithubSources.candidates(MANIFEST_URL));
         urls.addAll(GithubSources.candidates(LEGACY_MANIFEST_URL));
+        // 清单会被 release 覆盖，镜像也可能缓存旧版本；加时间戳强制回源。
+        String bust = "?ts=" + System.currentTimeMillis();
+        for (int i = 0; i < urls.size(); i++) {
+            urls.set(i, urls.get(i) + bust);
+        }
         // 8 个镜像并行竞速，谁先返回完整清单用谁；不再逐个等超时。
         byte[] bytes = net.getFirstBytes(urls, "MCLite 岛组件清单", 8);
         return parse(new String(bytes, StandardCharsets.UTF_8));

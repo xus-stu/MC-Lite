@@ -50,6 +50,7 @@ public final class LauncherPluginsPanel extends JPanel {
 
     private IslandCatalog.Manifest manifest = IslandCatalog.Manifest.EMPTY;
     private boolean manifestLoading;
+    private long manifestAt;
     private TaskCenter taskCenter;
     private boolean manifestLoaded;
 
@@ -489,6 +490,7 @@ public final class LauncherPluginsPanel extends JPanel {
                 try {
                     manifest = get();
                     manifestLoaded = true;
+                    manifestAt = System.currentTimeMillis();
                     islandStatus.setText(manifest.builds().isEmpty()
                             ? "清单里没有可用构建" : "清单已更新：" + manifest.builds().size() + " 个构建");
                 } catch (Exception ex) {
@@ -557,7 +559,19 @@ public final class LauncherPluginsPanel extends JPanel {
             @Override
             protected Path doInBackground() throws Exception {
                 Net net = new Net(progress, new CancellationToken());
-                return IslandInstaller.install(net, config, instance, build, progress);
+                try {
+                    return IslandInstaller.install(net, config, instance, build, progress);
+                } catch (Exception first) {
+                    // 清单可能缓存了已删除的旧版本：强制刷新后，用同实例的最新构建再试一次
+                    progress.reset("刷新清单后重试…");
+                    IslandCatalog.Manifest fresh = IslandCatalog.fetch(net);
+                    IslandCatalog.Build latest = IslandCatalog.compatible(fresh, instance).stream()
+                            .findFirst().orElse(null);
+                    if (latest == null) {
+                        throw first;
+                    }
+                    return IslandInstaller.install(net, config, instance, latest, progress);
+                }
             }
 
             @Override
