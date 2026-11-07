@@ -14,7 +14,6 @@ final class IslandHud26 {
     private static final int TEXT = 0xFFFFFFFF;
     private static final int DIM = 0xFF9AA4B0;
     private static final int ACCENT = 0xFF7CC7FF;
-    private static final int BASE_WIDTH = 200;
     private static final int BASE_HEIGHT = 24;
     private static final int RADIUS = 12;
 
@@ -31,18 +30,7 @@ final class IslandHud26 {
         }
         IslandSnapshot snapshot = service.snapshot();
         int screenWidth = client.getWindow().getGuiScaledWidth();
-        int width = BASE_WIDTH;
         int height = BASE_HEIGHT;
-        int x = (screenWidth - width) / 2 + config.islandX;
-        int y = 6 + config.islandY;
-
-        var pose = extractor.pose();
-        pose.pushMatrix();
-        pose.translate(x, y);
-        pose.scale(config.islandScale, config.islandScale);
-
-        UiDraw26.panel(extractor, UiDraw26.DARK, 0, 0, width, height);
-
         var font = client.font;
         String line1;
         String line2;
@@ -62,6 +50,17 @@ final class IslandHud26 {
             line1 = "MCLite Island";
             line2 = service.playlist().isEmpty() ? "M 打开 · 音乐目录为空" : "M 打开播放器";
         }
+        int contentWidth = Math.max(font.width(line1), font.width(line2)) + 24;
+        int width = Math.max(160, Math.min(360, contentWidth));
+        int x = (screenWidth - width) / 2 + config.islandX;
+        int y = 6 + config.islandY;
+
+        var pose = extractor.pose();
+        pose.pushMatrix();
+        pose.translate(x, y);
+        pose.scale(config.islandScale, config.islandScale);
+
+        UiDraw26.panel(extractor, UiDraw26.DARK, 0, 0, width, height);
 
         int innerWidth = width - 24;
         String shown1 = trim(font, line1, innerWidth);

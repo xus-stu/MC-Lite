@@ -365,6 +365,71 @@ public final class BiliApi {
         }
     }
 
+    /** B 站官方字幕转 LRC；没有字幕返回 null。 */
+    public String subtitleLrc(String bvid, int cid) {
+        try {
+            String url = API + "/x/player/v2?bvid=" + enc(bvid) + "&cid=" + cid;
+            JsonObject data = getJson(url, true).data();
+            JsonObject subtitle = obj(data, "subtitle");
+            JsonArray subtitles = arr(subtitle, "subtitles");
+            if (subtitles.isEmpty()) {
+                return null;
+            }
+            JsonObject picked = null;
+            for (JsonElement element : subtitles) {
+                JsonObject item = element.getAsJsonObject();
+                String lan = str(item, "lan");
+                if (picked == null || lan.startsWith("zh")) {
+                    picked = item;
+                    if (lan.startsWith("zh")) {
+                        break;
+                    }
+                }
+            }
+            String subtitleUrl = str(picked, "subtitle_url");
+            if (subtitleUrl.isBlank()) {
+                return null;
+            }
+            if (subtitleUrl.startsWith("//")) {
+                subtitleUrl = "https:" + subtitleUrl;
+            }
+            JsonObject root = JsonParser.parseString(downloadText(subtitleUrl)).getAsJsonObject();
+            JsonArray body = arr(root, "body");
+            StringBuilder lrc = new StringBuilder();
+            for (JsonElement element : body) {
+                JsonObject cue = element.getAsJsonObject();
+                double from = cue.has("from") ? cue.get("from").getAsDouble() : 0;
+                String content = str(cue, "content").replace("\n", " ").trim();
+                if (content.isEmpty()) {
+                    continue;
+                }
+                long total = Math.max(0L, (long) (from * 1000));
+                lrc.append(String.format("[%02d:%02d.%02d]%s\n",
+                        total / 60_000, total / 1000 % 60, total % 1000 / 10, content));
+            }
+            return lrc.length() == 0 ? null : lrc.toString();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String downloadText(String url) throws IOException {
+        java.net.URLConnection connection = URI.create(url).toURL().openConnection();
+        connection.setConnectTimeout(8_000);
+        connection.setReadTimeout(12_000);
+        connection.setRequestProperty("User-Agent", UA);
+        connection.setRequestProperty("Referer", REFERER);
+        try (java.io.InputStream in = connection.getInputStream();
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            byte[] buffer = new byte[32 * 1024];
+            int read;
+            while ((read = in.read(buffer)) >= 0) {
+                out.write(buffer, 0, read);
+            }
+            return out.toString(java.nio.charset.StandardCharsets.UTF_8);
+        }
+    }
+
     public void saveCookies(Path file) throws IOException {
         cookies.save(file);
     }

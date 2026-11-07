@@ -6,6 +6,7 @@ import javax.sound.sampled.FloatControl;
 import javax.sound.sampled.SourceDataLine;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
+import dev.mclite.island.audio.PcmEffect;
 
 /**
  * Java Sound 播放引擎。独立于 Minecraft 的声音引擎，
@@ -42,6 +43,7 @@ public final class JavaSoundEngine implements AudioEngine {
     private volatile Session session;
     private volatile float volume = 0.7f;
     private volatile Runnable onEnd;
+    private volatile PcmEffect effect;
 
     @Override
     public void play(Path file, long startMs) throws Exception {
@@ -110,6 +112,14 @@ public final class JavaSoundEngine implements AudioEngine {
                 }
                 if (read == 0) {
                     continue;
+                }
+                PcmEffect fx = effect;
+                if (fx != null) {
+                    try {
+                        fx.process(buffer, read, own.source.format());
+                    } catch (Exception ignored) {
+                        // 效果失败不影响播放
+                    }
                 }
                 own.line.write(buffer, 0, read);
                 own.positionBytes += read;
@@ -286,6 +296,11 @@ public final class JavaSoundEngine implements AudioEngine {
     @Override
     public void setOnEnd(Runnable listener) {
         this.onEnd = listener;
+    }
+
+    /** 音频线程上的原地效果（混响等）；null 表示直通。 */
+    public void setEffect(PcmEffect effect) {
+        this.effect = effect;
     }
 
     private static void closeQuietly(AutoCloseable closeable) {

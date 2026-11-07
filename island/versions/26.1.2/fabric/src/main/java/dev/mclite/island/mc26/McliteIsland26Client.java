@@ -6,6 +6,8 @@ import dev.mclite.island.core.PlaybackService;
 import dev.mclite.island.bili.BiliApi;
 import dev.mclite.island.bili.BiliAudioCache;
 import dev.mclite.island.bili.BiliCookies;
+import dev.mclite.island.audio.AcousticEnvironment;
+import dev.mclite.island.audio.ReverbEffect;
 import dev.mclite.island.core.audio.JavaSoundEngine;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -39,6 +41,9 @@ public final class McliteIsland26Client implements ClientModInitializer {
     private BiliApi bili;
     private BiliCookies biliCookies;
     private BiliAudioCache biliCache;
+    private JavaSoundEngine audioEngine;
+    private final ReverbEffect reverb = new ReverbEffect();
+    private int environmentTicks;
     private Path biliCookieFile;
 
     private KeyMapping keyOpen;
@@ -60,7 +65,8 @@ public final class McliteIsland26Client implements ClientModInitializer {
         } catch (Exception ignored) {
             // 空歌单时界面会提示
         }
-        service = new PlaybackService(gameDir, config, new JavaSoundEngine());
+        audioEngine = new JavaSoundEngine();
+        service = new PlaybackService(gameDir, config, audioEngine);
         service.setVolume(config.volume);
 
         biliCookieFile = gameDir.resolve("config").resolve("mclite-island").resolve("bilibili.json");
@@ -69,6 +75,9 @@ public final class McliteIsland26Client implements ClientModInitializer {
         biliCache = new BiliAudioCache(gameDir.resolve("mclite-island").resolve("cache").resolve("bili"),
                 bili, config.biliQuality);
         service.setRemoteResolver(biliCache);
+        service.setOnlineLyricsProvider(track -> track.isRemote() && track.bvid() != null
+                ? bili.subtitleLrc(track.bvid(), track.cid()) : null);
+        audioEngine.setEffect(config.acousticsEnabled ? reverb : null);
 
         registerKeys();
         ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
@@ -118,6 +127,10 @@ public final class McliteIsland26Client implements ClientModInitializer {
         }
         while (keyPause.consumeClick()) {
             service.togglePlay();
+        }
+        if (--environmentTicks <= 0) {
+            environmentTicks = 20;
+            updateAcoustics(client);
         }
         if (client.level == null) {
             service.clearContext();
@@ -206,6 +219,10 @@ public final class McliteIsland26Client implements ClientModInitializer {
         return biliCache;
     }
 
+    void acousticsEnabled(boolean enabled) {
+        audioEngine.setEffect(enabled ? reverb : null);
+    }
+
     void logoutBili() {
         biliCookies.clear();
         try {
@@ -214,6 +231,21 @@ public final class McliteIsland26Client implements ClientModInitializer {
             // 文件删不掉也不影响内存登出
         }
         bili.setCookies(biliCookies);
+    }
+
+    private void updateAcoustics(Minecraft client) {
+        if (client.level == null || client.player == null) {
+            return;
+        }
+        var player = client.player;
+        boolean submerged = config.acousticsSubmersion && player.isUnderWater();
+        boolean raining = config.acousticsRainfall
+                && client.level.isRainingAt(player.blockPosition());
+        boolean enclosed = config.acousticsEnclosure
+                && !client.level.canSeeSky(player.blockPosition());
+        reverb.setEnvironment(new AcousticEnvironment(submerged, enclosed, raining, enclosed ? 0.6f : 1f),
+                Math.max(0, Math.min(100, config.acousticsStrength)) / 100f);
+        audioEngine.setEffect(config.acousticsEnabled ? reverb : null);
     }
 
     private void saveConfig() {
