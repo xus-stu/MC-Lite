@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.mclite'
-version = '0.3.9'
+version = '0.3.10'
 
 base {
     archivesName = 'mclite-island-26.1.2-fabric'

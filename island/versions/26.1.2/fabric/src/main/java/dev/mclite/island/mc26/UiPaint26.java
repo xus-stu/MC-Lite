@@ -120,6 +120,18 @@ final class UiPaint26 {
     // 播放器：720 x 460，双栏卡片 + 底部传输栏
     // =====================================================================
 
+    /** B 站页搜索框：透明底 + 细边，焦点态用主题粉描边。 */
+    static void searchField(Graphics2D g, int w, int h, boolean focus) {
+        prepare(g);
+        int radius = h;
+        g.setColor(new Color(255, 255, 255, 14));
+        g.fill(new RoundRectangle2D.Double(0.5, 0.5, w - 1, h - 1, radius, radius));
+        g.setColor(focus ? new Color(240, 163, 194, 200) : new Color(255, 255, 255, 34));
+        g.setStroke(new BasicStroke(1f));
+        g.draw(new RoundRectangle2D.Double(1.0, 1.0, w - 2, h - 2,
+                Math.max(1, radius - 1), Math.max(1, radius - 1)));
+    }
+
     /** 圆形传输按钮的底图：0 普通、1 hover、2 主按钮。 */
     static void transportButton(Graphics2D g, int w, int h, int kind) {
         prepare(g);
