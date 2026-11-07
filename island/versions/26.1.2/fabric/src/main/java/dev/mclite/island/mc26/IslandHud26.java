@@ -41,9 +41,8 @@ final class IslandHud26 {
         pose.translate(x, y);
         pose.scale(config.islandScale, config.islandScale);
 
-        // 外圈 = 描边，内圈 = 背景，用逐行填充伪造圆角
-        fillRounded(extractor, 0, 0, width, height, RADIUS, BORDER);
-        fillRounded(extractor, 1, 1, width - 2, height - 2, RADIUS - 1, BG);
+        UiDraw26.fillRounded(extractor, 0, 0, width, height, RADIUS, 0xE60E1216);
+        UiDraw26.fillRounded(extractor, 1, 1, width - 2, height - 2, RADIUS - 1, 0xE612171D);
 
         var font = client.font;
         String line1;

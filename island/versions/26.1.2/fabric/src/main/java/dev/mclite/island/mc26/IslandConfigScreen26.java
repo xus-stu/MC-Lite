@@ -4,11 +4,10 @@ import dev.mclite.island.core.IslandConfig;
 import dev.mclite.island.core.PlaybackService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
-/** 模组设置页：灵动岛开关/位置、JEI/Jade 集成、音量与歌词。 */
+/** 模组设置页：圆角卡片 + 自绘按钮，两列布局。 */
 final class IslandConfigScreen26 extends Screen {
 
     private final McliteIsland26Client client;
@@ -16,10 +15,8 @@ final class IslandConfigScreen26 extends Screen {
     private final IslandConfig config;
     private final Runnable saveConfig;
 
-    private Button jeiButton;
-    private Button jadeButton;
-    private Button contextButton;
-    private Button islandButton;
+    private int panelX;
+    private int panelY;
 
     IslandConfigScreen26(McliteIsland26Client client, PlaybackService service,
                          IslandConfig config, Runnable saveConfig) {
@@ -36,119 +33,137 @@ final class IslandConfigScreen26 extends Screen {
 
     @Override
     protected void init() {
-        int left = width / 2 - 160;
-        int y = 64;
-        islandButton = addRenderableWidget(Button.builder(text("灵动岛"), b -> {
-            config.showIsland = !config.showIsland;
-            refresh();
-        }).bounds(left, y, 150, 20).build());
-        contextButton = addRenderableWidget(Button.builder(text("上下文信息"), b -> {
-            config.showContext = !config.showContext;
-            refresh();
-        }).bounds(left + 170, y, 150, 20).build());
-        jeiButton = addRenderableWidget(Button.builder(text("JEI 集成"), b -> {
-            config.useJei = !config.useJei;
-            refresh();
-        }).bounds(left, y + 28, 150, 20).build());
-        jadeButton = addRenderableWidget(Button.builder(text("Jade 集成"), b -> {
-            config.useJade = !config.useJade;
-            refresh();
-        }).bounds(left + 170, y + 28, 150, 20).build());
+        int w = 640;
+        int h = 430;
+        panelX = (width - w) / 2;
+        panelY = (height - h) / 2;
+        int left = panelX + 24;
+        int right = panelX + 340;
+        int y = panelY + 78;
 
-        addRenderableWidget(Button.builder(text("缩小 -"), b -> {
+        addRenderableWidget(UiButton26.ghost(label("灵动岛", config.showIsland), left, y, 150, 22,
+                () -> {
+                    config.showIsland = !config.showIsland;
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost(label("上下文", config.showContext), left, y + 30, 150, 22,
+                () -> {
+                    config.showContext = !config.showContext;
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost(label("JEI 集成", config.useJei), left, y + 60, 150, 22,
+                () -> {
+                    config.useJei = !config.useJei;
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost(label("Jade 集成", config.useJade), left, y + 90, 150, 22,
+                () -> {
+                    config.useJade = !config.useJade;
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost(label("自带探针", config.useOwnProbe), left, y + 120, 150, 22,
+                () -> {
+                    config.useOwnProbe = !config.useOwnProbe;
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost("3D 歌词（26.x 暂未支持）", left, y + 150, 150, 22,
+                () -> {
+                    config.threeDLyrics = !config.threeDLyrics;
+                    saveConfig.run();
+                }));
+
+        addRenderableWidget(UiButton26.ghost("缩小 -", right, y, 64, 22, () -> {
             config.islandScale = Math.max(0.6f, config.islandScale - 0.1f);
             saveConfig.run();
-        }).bounds(left, y + 64, 70, 20).build());
-        addRenderableWidget(Button.builder(text("放大 +"), b -> {
+        }));
+        addRenderableWidget(UiButton26.ghost("放大 +", right + 72, y, 64, 22, () -> {
             config.islandScale = Math.min(2.0f, config.islandScale + 0.1f);
             saveConfig.run();
-        }).bounds(left + 78, y + 64, 70, 20).build());
-        addRenderableWidget(Button.builder(text("上移"), b -> {
+        }));
+        addRenderableWidget(UiButton26.ghost("上移", right, y + 30, 64, 22, () -> {
             config.islandY = Math.max(-40, config.islandY - 4);
             saveConfig.run();
-        }).bounds(left + 166, y + 64, 70, 20).build());
-        addRenderableWidget(Button.builder(text("下移"), b -> {
+        }));
+        addRenderableWidget(UiButton26.ghost("下移", right + 72, y + 30, 64, 22, () -> {
             config.islandY = Math.min(120, config.islandY + 4);
             saveConfig.run();
-        }).bounds(left + 244, y + 64, 70, 20).build());
-
-        addRenderableWidget(Button.builder(text("音量 -"), b -> {
+        }));
+        addRenderableWidget(UiButton26.ghost("音量 -", right, y + 60, 64, 22, () -> {
             service.setVolume(config.volume - 0.1f);
             saveConfig.run();
-        }).bounds(left, y + 96, 70, 20).build());
-        addRenderableWidget(Button.builder(text("音量 +"), b -> {
+        }));
+        addRenderableWidget(UiButton26.ghost("音量 +", right + 72, y + 60, 64, 22, () -> {
             service.setVolume(config.volume + 0.1f);
             saveConfig.run();
-        }).bounds(left + 78, y + 96, 70, 20).build());
-        addRenderableWidget(Button.builder(text("3D 歌词"), b -> {
-            config.threeDLyrics = !config.threeDLyrics;
-            refresh();
-        }).bounds(left + 166, y + 96, 70, 20).build());
-        addRenderableWidget(Button.builder(text("居中复位"), b -> {
+        }));
+        addRenderableWidget(UiButton26.ghost("居中复位", right, y + 90, 136, 22, () -> {
             config.islandX = 0;
             config.islandY = 0;
-            config.islandScale = 1.0f;
+            config.islandScale = 1f;
             saveConfig.run();
-        }).bounds(left + 244, y + 96, 70, 20).build());
+        }));
 
-        addRenderableWidget(Button.builder(text("B站登录/退出"), b -> {
-            if (client.biliCookies().loggedIn()) {
-                client.logoutBili();
-                refresh();
-            } else {
-                Minecraft.getInstance().setScreen(new BiliLoginScreen26(client, this::refresh));
-            }
-        }).bounds(left, y + 128, 150, 20).build());
-        addRenderableWidget(Button.builder(text("音质:" + config.biliQuality.label()), b -> {
-            config.biliQuality = config.biliQuality.next();
-            client.biliCache().setQuality(config.biliQuality);
-            saveConfig.run();
-            refresh();
-        }).bounds(left + 170, y + 128, 150, 20).build());
-        addRenderableWidget(Button.builder(text("清除 B 站缓存"), b -> {
+        int bottom = panelY + 330;
+        addRenderableWidget(UiButton26.primary(
+                client.biliCookies().loggedIn() ? "退出 B 站登录" : "登录 B 站",
+                left, bottom, 140, 24, () -> {
+                    if (client.biliCookies().loggedIn()) {
+                        client.logoutBili();
+                        Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                                client, service, config, saveConfig));
+                    } else {
+                        Minecraft.getInstance().setScreen(new BiliLoginScreen26(client,
+                                () -> Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                                        client, service, config, saveConfig))));
+                    }
+                }));
+        addRenderableWidget(UiButton26.ghost("音质: " + config.biliQuality.label(),
+                left + 152, bottom, 130, 24, () -> {
+                    config.biliQuality = config.biliQuality.next();
+                    client.biliCache().setQuality(config.biliQuality);
+                    saveConfig.run();
+                    Minecraft.getInstance().setScreen(new IslandConfigScreen26(
+                            client, service, config, saveConfig));
+                }));
+        addRenderableWidget(UiButton26.ghost("清除 B 站缓存", left + 294, bottom, 130, 24, () -> {
             try {
                 client.biliCache().clear();
-                refresh();
             } catch (Exception ignored) {
-                // 缓存清理失败保留目录
+                // 忽略缓存清理失败
             }
-        }).bounds(left, y + 156, 150, 20).build());
-
-        addRenderableWidget(Button.builder(text("完成"), b -> onClose())
-                .bounds(width / 2 - 40, height - 40, 80, 20).build());
-        refresh();
+        }));
+        addRenderableWidget(UiButton26.primary("完成", panelX + 270, panelY + 380, 100, 24,
+                this::onClose));
     }
 
-    private void refresh() {
-        if (islandButton != null) {
-            islandButton.setMessage(text("灵动岛: " + (config.showIsland ? "开" : "关")));
-        }
-        if (contextButton != null) {
-            contextButton.setMessage(text("上下文: " + (config.showContext ? "开" : "关")));
-        }
-        if (jeiButton != null) {
-            jeiButton.setMessage(text("JEI: " + (config.useJei ? "开" : "关")));
-        }
-        if (jadeButton != null) {
-            jadeButton.setMessage(text("Jade: " + (config.useJade ? "开" : "关")));
-        }
-        if (client.biliCookies().loggedIn()) {
-            // 登录状态在渲染文本里展示，这里只保证按钮文案可读
-        }
+    private static String label(String name, boolean on) {
+        return name + ": " + (on ? "开" : "关");
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
+        UiDraw26.panel(extractor, UiDraw26.CARD, panelX, panelY, 640, 430, 20);
         var font = minecraft.font;
-        extractor.text(font, "MCLite Island 设置", 16, 16, 0xFFFFFFFF, false);
-        extractor.text(font, "缩放 " + String.format("%.1f", config.islandScale)
+        extractor.text(font, "MCLite Island 设置", panelX + 24, panelY + 20, 0xFFF2F5F8, false);
+        String sub = "缩放 " + String.format("%.1f", config.islandScale)
                 + " · 音量 " + String.format("%.0f%%", config.volume * 100)
-                + " · 位置 " + config.islandX + "," + config.islandY, 16, 36, 0xFF9AA4B0, false);
-        String bili = client.biliCookies().loggedIn()
-                ? "B站: 已登录 · 音质 " + config.biliQuality.label()
-                : "B站: 未登录（在线播放可用，收藏夹需登录）";
-        extractor.text(font, bili, 16, 168, 0xFF9AA4B0, false);
-        extractor.text(font, "3D 歌词在 26.x 暂未支持，开关会保存但不会渲染", 16, height - 64, 0xFF9AA4B0, false);
+                + " · 位置 " + config.islandX + "," + config.islandY;
+        extractor.text(font, sub, panelX + 24, panelY + 42, 0xFF93A0AD, false);
+        extractor.text(font, "— 播放 —", panelX + 340, panelY + 42, 0xFF6CC6FF, false);
+        String bili = client.biliCookies().loggedIn() ? "B站已登录" : "B站未登录（播放可用）";
+        extractor.text(font, bili, panelX + 24, panelY + 290, 0xFF93A0AD, false);
+        extractor.text(font, "3D 歌词与 JEI/Jade 均可单独关闭；B 站音频需要 ffmpeg",
+                panelX + 24, panelY + 360, 0xFF93A0AD, false);
         super.extractRenderState(extractor, mouseX, mouseY, delta);
     }
 

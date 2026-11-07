@@ -43,10 +43,10 @@ final class BiliLoginScreen26 extends Screen {
     protected void init() {
         int cx = width / 2;
         int bottom = height / 2 + PANEL_H / 2;
-        addRenderableWidget(Button.builder(text("刷新二维码"), b -> startQr())
-                .bounds(cx - 110, bottom - 44, 100, 20).build());
-        addRenderableWidget(Button.builder(text("取消"), b -> onClose())
-                .bounds(cx + 10, bottom - 44, 100, 20).build());
+        addRenderableWidget(UiButton26.primary("刷新二维码", cx - 110, bottom - 48, 100, 24,
+                this::startQr));
+        addRenderableWidget(UiButton26.ghost("取消", cx + 10, bottom - 48, 100, 24,
+                this::onClose));
         startQr();
     }
 
