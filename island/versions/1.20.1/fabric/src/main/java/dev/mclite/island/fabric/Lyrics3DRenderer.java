@@ -54,7 +54,11 @@ final class Lyrics3DRenderer {
         pose.scale(-scale, -scale, scale);
         Matrix4f matrix = pose.last().pose();
 
-        MultiBufferSource.BufferSource buffer = client.renderBuffers().bufferSource();
+        MultiBufferSource buffer = context.consumers();
+        if (buffer == null) {
+            pose.popPose();
+            return;
+        }
         Font font = client.font;
         int color = config.lyricsColor;
         float x = -font.width(text) / 2f;
@@ -67,7 +71,6 @@ final class Lyrics3DRenderer {
             font.drawInBatch(next, -font.width(next) / 2f, 12f, nextColor, true, matrix, buffer,
                     Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
         }
-        buffer.endBatch();
         pose.popPose();
     }
 }

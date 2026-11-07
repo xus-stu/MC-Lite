@@ -55,8 +55,13 @@ final class IslandInstaller {
         } catch (IOException atomicFailed) {
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
         }
-        // 新 jar 落盘成功后再清理旧版本；中途失败时旧 jar 仍然可用。
-        cleanupOldJars(mods, fileName);
+        // 新 jar 落盘成功后再清理旧版本；清理失败不影响本次安装成功，
+        // 残留的旧 jar 会被 uninstall() 一并处理。
+        try {
+            cleanupOldJars(mods, fileName);
+        } catch (IOException ignored) {
+            // 文件被占用/权限不足时保留旧版本
+        }
         return target;
     }
 

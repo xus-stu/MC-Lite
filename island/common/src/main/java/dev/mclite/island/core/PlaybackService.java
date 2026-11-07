@@ -4,8 +4,8 @@ import dev.mclite.island.core.audio.AudioEngine;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -19,7 +19,7 @@ public final class PlaybackService {
     private final IslandConfig config;
     private final AudioEngine engine;
     private final Playlist playlist = new Playlist();
-    private final Map<Path, Lyrics> lyricCache = new HashMap<>();
+    private final Map<Path, Lyrics> lyricCache = new ConcurrentHashMap<>();
 
     private final Object playLock = new Object();
     private final java.util.concurrent.atomic.AtomicLong playGeneration =
