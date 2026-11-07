@@ -151,6 +151,57 @@ public final class Net {
     }
 
     /**
+     * 小文件并行竞速：谁先返回完整字节就用谁，其余取消。清单通常 1–3 秒出结果。
+     */
+    public byte[] getFirstBytes(List<String> urls, String label, int timeoutSeconds)
+            throws IOException {
+        if (urls == null || urls.isEmpty()) {
+            throw new IOException("没有可用下载源：" + label);
+        }
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(
+                Math.min(6, urls.size()), runnable -> {
+                    Thread thread = new Thread(runnable, "mclite-race");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        try {
+            java.util.concurrent.CompletionService<byte[]> completion =
+                    new java.util.concurrent.ExecutorCompletionService<>(pool);
+            List<java.util.concurrent.Future<byte[]>> futures = new ArrayList<>();
+            for (String url : urls) {
+                futures.add(completion.submit(() -> getUnverifiedBytesQuick(url, label,
+                        timeoutSeconds)));
+            }
+            IOException last = null;
+            long deadline = System.nanoTime() + (timeoutSeconds + 2L) * 1_000_000_000L;
+            for (int i = 0; i < futures.size(); i++) {
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    break;
+                }
+                try {
+                    java.util.concurrent.Future<byte[]> done = completion.poll(
+                            Math.max(1, remaining / 1_000_000L), java.util.concurrent.TimeUnit.MILLISECONDS);
+                    if (done == null) {
+                        break;
+                    }
+                    return done.get();
+                } catch (java.util.concurrent.ExecutionException ex) {
+                    if (ex.getCause() instanceof IOException io) {
+                        last = io;
+                    }
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new CancellationToken.CancelledException();
+                }
+            }
+            throw last == null ? new IOException("下载失败：" + label) : last;
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    /**
      * 并行探测多个下载源，返回实测最快的那个 URL；全都失败时返回第一个。
      * 探测在守护线程池里跑，不阻塞界面，也不会留下线程。
      */
