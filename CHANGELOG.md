@@ -2,6 +2,7 @@
 
 ## v1.4.21
 
+- 插件 0.3.6（只走 island-release，不 bump 启动器）：B 站列表没有封面时显示播放三角占位；头像资料只请求一次，避免没有头像的账号每帧重试 nav 接口。
 - 启动器插件清单改为固定地址 `releases/download/island-latest/island-manifest.json`；以后只发模组（tag `island-v*` → `island-release` workflow）就会覆盖这个 release，不再需要同步 bump 启动器。旧地址保留为回退。
 - MCLite 岛 0.3.5：B 站头像失败会 5 秒后重试，图片没加载出来时先显示昵称首字占位；封面/头像纹理只在 5 秒未使用后才释放，避免同一帧 blit 的纹理被提前 destroy。
 - 模组版本 0.3.5。

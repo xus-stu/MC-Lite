@@ -41,6 +41,7 @@ final class BiliBrowseScreen26 extends Screen {
     private volatile String avatarUrl = "";
     private volatile String avatarName = "";
     private volatile boolean profileLoading;
+    private volatile boolean profileResolved;
     private long profileRetryAt;
     private boolean favoritesTab;
     private int scroll;
@@ -105,7 +106,7 @@ final class BiliBrowseScreen26 extends Screen {
 
     /** 头像/昵称单独拉一次，失败就继续显示“已登录”，不阻塞界面。 */
     private void requestProfile() {
-        if (profileLoading || !client.biliCookies().loggedIn()
+        if (profileResolved || profileLoading || !client.biliCookies().loggedIn()
                 || System.currentTimeMillis() < profileRetryAt) {
             return;
         }
@@ -119,6 +120,7 @@ final class BiliBrowseScreen26 extends Screen {
                 if (!profile.name().isBlank()) {
                     avatarName = profile.name();
                 }
+                profileResolved = true;
             } catch (Exception ignored) {
                 // 头像只是装饰；登录态刚写入时 cookie 可能还没同步，稍后重试
                 profileRetryAt = System.currentTimeMillis() + 5_000L;
@@ -317,8 +319,14 @@ final class BiliBrowseScreen26 extends Screen {
             BiliImage26.Entry cover = BiliImage26.get(item.video().cover(),
                     COVER_W, COVER_H, false);
             if (cover == null) {
+                // 没封面/还在下载：深色块 + 播放三角，至少一眼知道这是视频
                 extractor.fill(coverX, coverY, coverX + COVER_W, coverY + COVER_H, 0xFF1C2632);
-                extractor.fill(coverX + 16, coverY + 8, coverX + 28, coverY + 9, 0xFF33465A);
+                int cx = coverX + COVER_W / 2;
+                int cy = coverY + COVER_H / 2;
+                for (int i = 0; i < 8; i += 2) {
+                    int half = Math.max(1, 4 - i / 2);
+                    extractor.fill(cx - 2 + i, cy - half, cx + i, cy + half, 0xFF4A6178);
+                }
             } else {
                 BiliImage26.draw(extractor, cover, coverX, coverY, COVER_W, COVER_H);
             }
