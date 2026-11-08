@@ -66,9 +66,9 @@ public final class McliteIsland26Client implements ClientModInitializer {
         } catch (Exception ignored) {
             // 空歌单时界面会提示
         }
-        audioEngine = config.soundPhysicsAudio
-                ? new SoundPhysicsAudioEngine()
-                : new JavaSoundEngine();
+        // Sound Physics 后端在 26.1.2 上无法稳定拿到音频流（注入成功但静音），
+        // 改回 JavaSound + 自己做的方块声学混响，至少保证有声音。
+        audioEngine = new JavaSoundEngine();
         service = new PlaybackService(gameDir, config, audioEngine);
         service.setVolume(config.volume);
 
@@ -87,8 +87,7 @@ public final class McliteIsland26Client implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("mclite-island", "island"),
                 (extractor, delta) -> IslandHud26.render(extractor, config, service));
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("mclite-island", "lyrics3d"),
-                (extractor, delta) -> LyricsOverlay26.render(extractor, config, service));
+        LyricsWorld26.init(config, service);
         ClientLifecycleEvents.CLIENT_STOPPING.register(c -> shutdown());
     }
 
@@ -255,9 +254,13 @@ public final class McliteIsland26Client implements ClientModInitializer {
         boolean submerged = config.acousticsSubmersion && player.isUnderWater();
         boolean raining = config.acousticsRainfall
                 && client.level.isRainingAt(player.blockPosition());
+        RoomAcoustics26.Result room = config.acousticsEnclosure
+                ? RoomAcoustics26.measure(client.level, player)
+                : new RoomAcoustics26.Result(0f, 0.5f);
         boolean enclosed = config.acousticsEnclosure
-                && !client.level.canSeeSky(player.blockPosition());
-        reverb.setEnvironment(new AcousticEnvironment(submerged, enclosed, raining, enclosed ? 0.6f : 1f),
+                && (room.enclosure() > 0.22f || !client.level.canSeeSky(player.blockPosition()));
+        reverb.setEnvironment(new AcousticEnvironment(submerged, enclosed, raining,
+                        enclosed ? 0.6f : 1f, room.absorption()),
                 Math.max(0, Math.min(100, config.acousticsStrength)) / 100f);
         audioEngine.setEffect(config.acousticsEnabled ? reverb : null);
     }
