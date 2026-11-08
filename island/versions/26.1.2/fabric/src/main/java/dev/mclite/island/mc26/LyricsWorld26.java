@@ -1,5 +1,6 @@
 package dev.mclite.island.mc26;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.mclite.island.core.IslandConfig;
@@ -87,8 +88,11 @@ public final class LyricsWorld26 {
         int alpha = (int) (0xFF * fade);
         int color = withAlpha(config.lyricsColor, alpha);
         Font font = client.font;
-        MultiBufferSource.BufferSource buffer = MultiBufferSource.immediate(new ByteBufferBuilder(2048));
-        try {
+        var modelView = RenderSystem.getModelViewStack();
+        modelView.pushMatrix();
+        modelView.identity();
+        try (ByteBufferBuilder builder = new ByteBufferBuilder(2048)) {
+            MultiBufferSource.BufferSource buffer = MultiBufferSource.immediate(builder);
             font.drawInBatch(text, -font.width(text) / 2f, 0f, color, true,
                     pose.last().pose(), buffer, Font.DisplayMode.SEE_THROUGH, 0, 0xF000F0);
             String next = snapshot.nextLyric();
@@ -97,8 +101,9 @@ public final class LyricsWorld26 {
                         withAlpha(config.lyricsColor, alpha * 2 / 3), true,
                         pose.last().pose(), buffer, Font.DisplayMode.SEE_THROUGH, 0, 0xF000F0);
             }
-        } finally {
             buffer.endBatch();
+        } finally {
+            modelView.popMatrix();
         }
     }
 
