@@ -27,6 +27,12 @@
 - 清单抓取改为并行测速 + 8 秒短超时，收藏夹/插件页打开更快。
 - 模组版本保持 0.3.9。
 
+## 岛 0.3.20（不 bump 启动器）
+
+- 修户外误判室内：之前用 11×7×11 方块密度算 enclosure，脚下地面/树也算，导致户外也开混响；现在只认 `!level.canSeeSky(player)`，方块采样只用来算材质吸声。
+- 重写环境混响：6 路梳状 + 2 路全通 + 6 次早期反射，按包裹度/吸声调 wet、decay、damping、cutoff；户外接近干声，石洞尾巴长而亮，羊毛/树叶房短而闷。
+- 模组版本 0.3.20。
+
 ## 岛 0.3.19（不 bump 启动器）
 
 - 修世界悬浮歌词的投影：画之前把 RenderSystem 的 modelview 压成 identity（和 DangoMusic 一样），否则会和世界相机矩阵叠两次导致文字飞掉；ByteBufferBuilder 也改成 try-with-resources。
