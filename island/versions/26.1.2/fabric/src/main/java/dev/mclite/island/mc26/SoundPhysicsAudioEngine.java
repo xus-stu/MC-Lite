@@ -41,6 +41,9 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
     private static final AtomicInteger SERIAL = new AtomicInteger();
     private static McLibrary library;
     private static boolean loggedActive;
+    private static final java.util.Set<Identifier> REQUESTED = ConcurrentHashMap.newKeySet();
+    private static final Map<Identifier, java.util.concurrent.atomic.AtomicLong> READ =
+            new ConcurrentHashMap<>();
 
     private SoundManager manager;
 
@@ -108,12 +111,51 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
             return;
         }
         System.out.println("[mclite-island] Sound Physics 音频已启用: " + file.getFileName());
+        startWatchdog(id, file, startAt);
         this.file = file;
         this.baseMs = startAt;
         this.startNanos = System.nanoTime();
         this.playing = true;
         this.paused = false;
         this.finished = false;
+    }
+
+    private void startWatchdog(Identifier id, Path source, long startAt) {
+        McInstance watched = instance;
+        Thread thread = new Thread(() -> {
+            try {
+                Thread.sleep(900L);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (fallbackMode || watched == null || instance != watched) {
+                return;
+            }
+            boolean streamRequested = REQUESTED.contains(id);
+            long bytesRead = READ.getOrDefault(id,
+                    new java.util.concurrent.atomic.AtomicLong()).get();
+            boolean active = manager != null && manager.isActive(watched);
+            if (!streamRequested || bytesRead <= 0 || !active) {
+                String reason = !streamRequested ? "SoundEngine 没有请求音频流"
+                        : bytesRead <= 0 ? "没有读到音频数据" : "声道未激活";
+                System.err.println("[mclite-island] " + reason + "，回退 JavaSound");
+                long resume = positionMs();
+                manager.stop(watched);
+                instance = null;
+                playing = false;
+                paused = false;
+                fallbackMode = true;
+                fallback.setVolume(volume);
+                try {
+                    fallback.play(source, resume);
+                } catch (Exception ex) {
+                    System.err.println("[mclite-island] JavaSound 回退也失败: " + ex);
+                }
+            }
+        }, "mclite-island-sound-watchdog");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void stopInternal() {
@@ -347,9 +389,32 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
             if (source == null) {
                 return super.getStream(id, looping);
             }
+            REQUESTED.add(id);
+            System.out.println("[mclite-island] Sound Physics 请求音频流: " + id);
             try {
-                return CompletableFuture.completedFuture(
-                        new PcmAudioStream(source.path(), source.startMs()));
+                PcmAudioStream stream = new PcmAudioStream(source.path(), source.startMs());
+                java.util.concurrent.atomic.AtomicLong counter =
+                        READ.computeIfAbsent(id, key -> new java.util.concurrent.atomic.AtomicLong());
+                return CompletableFuture.completedFuture(new AudioStream() {
+                    @Override
+                    public javax.sound.sampled.AudioFormat getFormat() {
+                        return stream.getFormat();
+                    }
+
+                    @Override
+                    public java.nio.ByteBuffer read(int size) throws IOException {
+                        java.nio.ByteBuffer buffer = stream.read(size);
+                        if (buffer.hasRemaining()) {
+                            counter.addAndGet(buffer.remaining());
+                        }
+                        return buffer;
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        stream.close();
+                    }
+                });
             } catch (Exception ex) {
                 return CompletableFuture.failedFuture(ex);
             }
