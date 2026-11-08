@@ -573,9 +573,9 @@ public final class SelfTest {
             Files.writeString(mods.resolve("unrelated-1.0.jar"), "x");
             IslandInstaller.cleanupOldJars(mods, keep.getFileName().toString());
             check(Files.isRegularFile(keep) && !Files.isRegularFile(old)
-                    && Files.isRegularFile(mods.resolve(old.getFileName() + ".bak"))
+                    && !Files.isRegularFile(mods.resolve(old.getFileName() + ".bak"))
                     && Files.isRegularFile(mods.resolve("unrelated-1.0.jar")),
-                    "岛组件升级只留新 jar");
+                    "岛组件升级只留新 jar（旧版直接删除）");
         } catch (Exception ex) {
             check(false, "岛组件安装目录: " + ex.getMessage());
         }
