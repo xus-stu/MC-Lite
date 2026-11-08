@@ -257,8 +257,9 @@ public final class McliteIsland26Client implements ClientModInitializer {
         RoomAcoustics26.Result room = config.acousticsEnclosure
                 ? RoomAcoustics26.measure(client.level, player)
                 : new RoomAcoustics26.Result(0f, 0.5f);
+        // 户外即使脚下/周围有方块，也不能算室内；只有头顶被挡住才算封闭
         boolean enclosed = config.acousticsEnclosure
-                && (room.enclosure() > 0.22f || !client.level.canSeeSky(player.blockPosition()));
+                && !client.level.canSeeSky(player.blockPosition());
         reverb.setEnvironment(new AcousticEnvironment(submerged, enclosed, raining,
                         enclosed ? 0.6f : 1f, room.absorption()),
                 Math.max(0, Math.min(100, config.acousticsStrength)) / 100f);
