@@ -70,6 +70,8 @@ public final class IslandConfig {
     public boolean acousticsEnabled = true;
     /** true = 通过 Minecraft 声音引擎播放，让 Sound Physics 接管环境音效（实验）。 */
     public boolean soundPhysicsAudio = false;
+    /** 旧版把 B 站口播字幕当歌词缓存；升到 1 时清一次，避免《海底》显示解说词。 */
+    public int lyricsCacheVersion = 0;
     public boolean acousticsSubmersion = true;
     public boolean acousticsEnclosure = true;
     public boolean acousticsRainfall = true;

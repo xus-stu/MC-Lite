@@ -39,6 +39,7 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
 
     private static final AtomicInteger SERIAL = new AtomicInteger();
     private static McLibrary library;
+    private static boolean loggedActive;
 
     private SoundManager manager;
 
@@ -287,7 +288,7 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
     /** 以玩家为声源的普通 SoundInstance。 */
     private static final class McInstance extends AbstractSoundInstance {
         McInstance(Identifier id, Sound sound, float volume) {
-            super(id, SoundSource.RECORDS, SoundInstance.createUnseededRandom());
+            super(id, SoundSource.AMBIENT, SoundInstance.createUnseededRandom());
             this.sound = sound;
             this.volume = volume;
             this.attenuation = Attenuation.LINEAR;
