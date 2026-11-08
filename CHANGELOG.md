@@ -21,6 +21,11 @@
 - 清单抓取改为并行测速 + 8 秒短超时，收藏夹/插件页打开更快。
 - 模组版本保持 0.3.9。
 
+## 岛 0.3.19（不 bump 启动器）
+
+- 修世界悬浮歌词的投影：画之前把 RenderSystem 的 modelview 压成 identity（和 DangoMusic 一样），否则会和世界相机矩阵叠两次导致文字飞掉；ByteBufferBuilder 也改成 try-with-resources。
+- 模组版本 0.3.19。
+
 ## 岛 0.3.18（不 bump 启动器）
 
 - 3D 歌词改成真正的世界空间悬浮字幕：参考 DangoMusic 的 `worldRenderEnd`，在 LevelRenderer 画完、画手之前用世界投影绘制，锚定在玩家前方的世界坐标，朝向镜头、随距离缩放；不再是贴在屏幕上的 HUD 大字。
