@@ -27,6 +27,8 @@ final class IslandConfigScreen26 extends Screen {
     private static final String[] CATEGORIES = {"播放", "歌词", "场景声学", "灵动岛", "集成"};
     private static final String[] PLAY_MODE_LABELS = {"顺序", "随机", "单曲", "列表"};
     private static final String[] BILI_QUALITY_LABELS = {"自动", "64K", "132K", "192K"};
+    private static final String[] LYRIC_STYLE_LABELS = {"倾斜", "苹果", "立体", "华彩",
+            "光晕", "烟雾", "钟摆", "合唱"};
     private static final int TEXT = 0xFFF2F5F8;
     private static final int DIM = 0xFF93A0AD;
     private static final int MUTED = 0xFF6B7885;
@@ -154,6 +156,10 @@ final class IslandConfigScreen26 extends Screen {
                 }));
         rows.add(new ToggleRow("3D 歌词", "在世界空间里显示当前歌词", () -> config.threeDLyrics,
                 value -> config.threeDLyrics = value));
+        rows.add(new SegmentRow("3D 风格", "Tilt / Apple / Diorama / Cadenza…",
+                LYRIC_STYLE_LABELS,
+                () -> config.lyrics3dStyle,
+                value -> config.lyrics3dStyle = Math.max(0, value)));
         rows.add(new SliderRow("3D 距离", "歌词离镜头多远（格）", 1f, 8f,
                 () -> config.lyricsDistance,
                 value -> config.lyricsDistance = Math.round(value * 10f) / 10f,
