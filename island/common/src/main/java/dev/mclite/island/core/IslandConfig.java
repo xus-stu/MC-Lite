@@ -68,6 +68,8 @@ public final class IslandConfig {
 
     // 场景声学
     public boolean acousticsEnabled = true;
+    /** true = 通过 Minecraft 声音引擎播放，让 Sound Physics 接管环境音效（实验）。 */
+    public boolean soundPhysicsAudio = false;
     public boolean acousticsSubmersion = true;
     public boolean acousticsEnclosure = true;
     public boolean acousticsRainfall = true;

@@ -1,5 +1,7 @@
 package dev.mclite.island.core.audio;
 
+import dev.mclite.island.audio.PcmEffect;
+
 import java.nio.file.Path;
 
 /** 播放器抽象；后续若换 OpenAL 实现，界面层无需改动。 */
@@ -30,4 +32,12 @@ public interface AudioEngine {
     long durationMs();
 
     void setOnEnd(Runnable listener);
+
+    /** JavaSound 的 PCM 效果；Sound Physics 后端不需要，默认空实现。 */
+    default void setEffect(PcmEffect effect) {
+    }
+
+    /** 客户端每 tick 调用；JavaSound 后端不需要。 */
+    default void tick() {
+    }
 }

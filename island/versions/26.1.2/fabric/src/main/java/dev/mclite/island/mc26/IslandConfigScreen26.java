@@ -183,6 +183,13 @@ final class IslandConfigScreen26 extends Screen {
                     config.acousticsEnabled = value;
                     client.acousticsEnabled(value);
                 }));
+        rows.add(new ToggleRow("Sound Physics 音频",
+                "重启生效：音乐走 MC 声音引擎，让 Sound Physics 接管混响/遮挡",
+                () -> config.soundPhysicsAudio,
+                value -> {
+                    config.soundPhysicsAudio = value;
+                    footerStatus = "音频后端已切换，重启游戏生效";
+                }));
         rows.add(new ToggleRow("水下", "潜入水中时压低高频", () -> config.acousticsSubmersion,
                 value -> config.acousticsSubmersion = value));
         rows.add(new ToggleRow("室内", "看不到天空时收干一点", () -> config.acousticsEnclosure,

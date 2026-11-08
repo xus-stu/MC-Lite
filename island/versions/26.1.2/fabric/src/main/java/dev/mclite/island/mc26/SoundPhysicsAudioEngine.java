@@ -1,0 +1,315 @@
+package dev.mclite.island.mc26;
+
+import dev.mclite.island.core.audio.AudioEngine;
+import dev.mclite.island.audio.PcmEffect;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.resources.sounds.AbstractSoundInstance;
+import net.minecraft.client.resources.sounds.Sound;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.client.sounds.AudioStream;
+import net.minecraft.client.sounds.SoundBufferLibrary;
+import net.minecraft.client.sounds.SoundEngine;
+import net.minecraft.client.sounds.SoundManager;
+import net.minecraft.client.sounds.WeighedSoundEvents;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.valueproviders.ConstantFloat;
+
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * 实验性音频后端：把音乐交给 Minecraft 的 SoundEngine，以玩家为声源播放。
+ *
+ * <p>Sound Physics Remastered 只处理经过 MC 声音引擎的 OpenAL 声道，
+ * 所以 JavaSound 的混响它永远收不到。这里把曲目转成 OGG，挂到自定义
+ * {@link SoundBufferLibrary} 上，再用一个普通 {@link SoundInstance} 播放；
+ * Sound Physics 就能按玩家所在环境加混响/遮挡。</p>
+ *
+ * <p>实现是“够用”级别：暂停/seek 通过重新从对应位置转 OGG 再播，
+ * 播放位置用墙钟推进；不追求采样级精确。</p>
+ */
+final class SoundPhysicsAudioEngine implements AudioEngine {
+
+    private static final AtomicInteger SERIAL = new AtomicInteger();
+    private static McLibrary library;
+
+    private SoundManager manager;
+
+    private Path file;
+    private long baseMs;
+    private long startNanos;
+    private long durationMs = -1L;
+    private float volume = 0.7f;
+    private boolean playing;
+    private boolean paused;
+    private volatile boolean finished = true;
+    private Runnable onEnd = () -> {
+    };
+    private McInstance instance;
+
+    SoundPhysicsAudioEngine() {
+        // 构造发生在客户端初始化阶段，SoundEngine 还没准备好；等第一次播放再注入。
+    }
+
+    @Override
+    public void play(Path file, long startMs) throws Exception {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            throw new IOException("玩家未进入世界");
+        }
+        manager = Minecraft.getInstance().getSoundManager();
+        installLibrary();
+        stopInternal();
+        long startAt = Math.max(0L, startMs);
+        if (durationMs < 0) {
+            durationMs = PcmAudioStream.durationMs(file);
+        }
+        Identifier id = Identifier.fromNamespaceAndPath("mclite-audio",
+                "track_" + SERIAL.incrementAndGet());
+        library.add(id, file, startAt);
+        Sound sound = new Sound(id, ConstantFloat.of(1f), ConstantFloat.of(1f), 1,
+                Sound.Type.FILE, true, false, 0);
+        instance = new McInstance(id, sound, volume);
+        instance.follow(player);
+        SoundEngine.PlayResult result = manager.play(instance);
+        if (result == SoundEngine.PlayResult.NOT_STARTED) {
+            throw new IOException("Sound Physics 后端启动失败");
+        }
+        this.file = file;
+        this.baseMs = startAt;
+        this.startNanos = System.nanoTime();
+        this.playing = true;
+        this.paused = false;
+        this.finished = false;
+    }
+
+    private void stopInternal() {
+        if (instance != null) {
+            if (manager == null) {
+                manager = Minecraft.getInstance().getSoundManager();
+            }
+            manager.stop(instance);
+            instance = null;
+        }
+        playing = false;
+    }
+
+    @Override
+    public void pause() {
+        if (!playing || paused) {
+            return;
+        }
+        baseMs = positionMs();
+        manager.stop(instance);
+        instance = null;
+        playing = false;
+        paused = true;
+    }
+
+    @Override
+    public void resume() {
+        if (!paused || file == null) {
+            return;
+        }
+        long resumeAt = baseMs;
+        paused = false;
+        try {
+            play(file, resumeAt);
+        } catch (Exception ex) {
+            paused = true;
+        }
+    }
+
+    @Override
+    public void togglePause() {
+        if (paused) {
+            resume();
+        } else {
+            pause();
+        }
+    }
+
+    @Override
+    public void stop() {
+        stopInternal();
+        paused = false;
+        baseMs = 0;
+        finished = true;
+    }
+
+    @Override
+    public void seek(long positionMs) {
+        long target = Math.max(0L, positionMs);
+        if (file == null) {
+            baseMs = target;
+            return;
+        }
+        boolean wasPlaying = playing && !paused;
+        if (wasPlaying) {
+            try {
+                play(file, target);
+                return;
+            } catch (Exception ignored) {
+                // 退回只记录位置
+            }
+        }
+        baseMs = target;
+    }
+
+    @Override
+    public void setVolume(float volume) {
+        this.volume = Math.max(0f, Math.min(1f, volume));
+        if (instance != null) {
+            instance.setVolume(this.volume);
+        }
+    }
+
+    @Override
+    public boolean isPlaying() {
+        return playing && !paused;
+    }
+
+    @Override
+    public boolean isPaused() {
+        return paused;
+    }
+
+    @Override
+    public long positionMs() {
+        if (playing && !paused) {
+            long elapsed = (System.nanoTime() - startNanos) / 1_000_000L;
+            long position = baseMs + elapsed;
+            if (durationMs > 0) {
+                return Math.min(durationMs, position);
+            }
+            return position;
+        }
+        return baseMs;
+    }
+
+    @Override
+    public long durationMs() {
+        return durationMs;
+    }
+
+    @Override
+    public void setOnEnd(Runnable listener) {
+        this.onEnd = listener == null ? () -> {
+        } : listener;
+    }
+
+    @Override
+    public void setEffect(PcmEffect effect) {
+        // Sound Physics 自己处理环境效果
+    }
+
+    @Override
+    public void tick() {
+        if (instance == null || !playing || paused) {
+            return;
+        }
+        if (manager == null) {
+            manager = Minecraft.getInstance().getSoundManager();
+        }
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player != null) {
+            instance.follow(player);
+            instance.setVolume(volume);
+        }
+        if (System.nanoTime() - startNanos < 300_000_000L) {
+            return;
+        }
+        if (!manager.isActive(instance)) {
+            playing = false;
+            paused = false;
+            instance = null;
+            if (!finished) {
+                finished = true;
+                onEnd.run();
+            }
+        }
+    }
+
+    private void installLibrary() {
+        synchronized (SoundPhysicsAudioEngine.class) {
+            try {
+                McLibrary created = library == null ? new McLibrary() : library;
+                Field engineField = SoundManager.class.getDeclaredField("soundEngine");
+                engineField.setAccessible(true);
+                Object engine = engineField.get(manager);
+                Field buffersField = SoundEngine.class.getDeclaredField("soundBuffers");
+                buffersField.setAccessible(true);
+                buffersField.set(engine, created);
+                library = created;
+            } catch (Throwable failure) {
+                System.err.println("[mclite-island] Sound Physics 音频后端注入失败: " + failure);
+            }
+        }
+    }
+
+    /** 自定义 Sound 的音频流来源；其他声音回退到原版资源。 */
+    private record Source(Path path, long startMs) {
+    }
+
+    private static final class McLibrary extends SoundBufferLibrary {
+        private final Map<Identifier, Source> files = new ConcurrentHashMap<>();
+
+        McLibrary() {
+            super(Minecraft.getInstance().getResourceManager());
+        }
+
+        void add(Identifier id, Path path, long startMs) {
+            files.put(id, new Source(path, startMs));
+        }
+
+        @Override
+        public CompletableFuture<AudioStream> getStream(Identifier id, boolean looping) {
+            Source source = files.get(id);
+            if (source == null) {
+                return super.getStream(id, looping);
+            }
+            try {
+                return CompletableFuture.completedFuture(
+                        new PcmAudioStream(source.path(), source.startMs()));
+            } catch (Exception ex) {
+                return CompletableFuture.failedFuture(ex);
+            }
+        }
+    }
+
+    /** 以玩家为声源的普通 SoundInstance。 */
+    private static final class McInstance extends AbstractSoundInstance {
+        McInstance(Identifier id, Sound sound, float volume) {
+            super(id, SoundSource.RECORDS, SoundInstance.createUnseededRandom());
+            this.sound = sound;
+            this.volume = volume;
+            this.attenuation = Attenuation.LINEAR;
+            this.relative = false;
+        }
+
+        @Override
+        public WeighedSoundEvents resolve(SoundManager manager) {
+            WeighedSoundEvents events = new WeighedSoundEvents(identifier, null);
+            events.addSound(sound);
+            return events;
+        }
+
+        void setVolume(float value) {
+            this.volume = value;
+        }
+
+        void follow(LocalPlayer player) {
+            var eye = player.getEyePosition();
+            this.x = eye.x;
+            this.y = eye.y;
+            this.z = eye.z;
+        }
+    }
+}

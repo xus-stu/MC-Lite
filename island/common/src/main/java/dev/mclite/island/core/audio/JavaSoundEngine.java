@@ -299,6 +299,7 @@ public final class JavaSoundEngine implements AudioEngine {
     }
 
     /** 音频线程上的原地效果（混响等）；null 表示直通。 */
+    @Override
     public void setEffect(PcmEffect effect) {
         this.effect = effect;
     }
