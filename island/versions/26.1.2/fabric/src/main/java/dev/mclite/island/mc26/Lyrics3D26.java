@@ -8,9 +8,8 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Matrix4f;
 
 /**
  * 世界空间 3D 歌词：面向摄像机的 billboard 文字。
@@ -59,23 +58,24 @@ final class Lyrics3D26 {
         pose.mulPose(camera.rotation());
         float scale = 0.025f * config.lyricsScale;
         pose.scale(-scale, -scale, scale);
-        Matrix4f matrix = pose.last().pose();
-
         if (!logged) {
             logged = true;
             System.out.println("[mclite-island] 3D lyrics active: " + text);
         }
         Font font = client.font;
-        MultiBufferSource buffer = context.bufferSource();
         int color = config.lyricsColor;
-        font.drawInBatch(text, -font.width(text) / 2f, 0f, color, true, matrix, buffer,
-                Font.DisplayMode.SEE_THROUGH, 0, LIGHT);
+        // 26.x 走 SubmitNodeCollector；直接写 bufferSource 不会被提交，这是之前 3D 歌词不显示的原因。
+        var collector = context.submitNodeCollector();
+        collector.submitText(pose, -font.width(text) / 2f, 0f,
+                Component.literal(text).getVisualOrderText(), true,
+                Font.DisplayMode.SEE_THROUGH, LIGHT, color, 0, 0);
 
         String next = snapshot.nextLyric();
         if (config.lyricsMaxLines > 1 && next != null && !next.isBlank()) {
             int nextColor = (color & 0x00FFFFFF) | 0x99000000;
-            font.drawInBatch(next, -font.width(next) / 2f, 12f, nextColor, true, matrix, buffer,
-                    Font.DisplayMode.SEE_THROUGH, 0, LIGHT);
+            collector.submitText(pose, -font.width(next) / 2f, 12f,
+                    Component.literal(next).getVisualOrderText(), true,
+                    Font.DisplayMode.SEE_THROUGH, LIGHT, nextColor, 0, 0);
         }
         pose.popPose();
     }

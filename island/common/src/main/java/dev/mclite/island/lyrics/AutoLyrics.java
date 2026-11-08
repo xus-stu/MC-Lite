@@ -37,16 +37,20 @@ public final class AutoLyrics {
     }
 
     public static Result fetch(Track track, long knownDurationMs) throws IOException {
-        if (track.isRemote()) {
-            return null;
-        }
         String title = track.title();
         String artist = track.artist();
         if (title == null || title.isBlank()) {
             return null;
         }
-        String url = "https://lrclib.net/api/search?track_name=" + enc(title)
-                + (artist == null || artist.isBlank() ? "" : "&artist_name=" + enc(artist));
+        // B 站的“艺术家”其实是 UP 主，拿它去 LRCLIB 会永远匹配失败；
+        // 远端只用标题 + 时长，本地仍然严格要求艺术家。
+        String queryTitle = track.isRemote() ? normalize(title) : title;
+        if (queryTitle.isBlank()) {
+            queryTitle = title;
+        }
+        String url = "https://lrclib.net/api/search?track_name=" + enc(queryTitle)
+                + (!track.isRemote() && artist != null && !artist.isBlank()
+                ? "&artist_name=" + enc(artist) : "");
         String json = get(url);
         JsonArray array = JsonParser.parseString(json).getAsJsonArray();
         JsonObject best = null;
@@ -84,30 +88,32 @@ public final class AutoLyrics {
         if (!titleExact && !titleContains) {
             return 0;
         }
+        boolean remote = track.isRemote();
         String wantArtist = normalize(track.artist());
         String gotArtist = normalize(artist);
-        boolean artistKnown = !wantArtist.isEmpty();
+        boolean artistKnown = !remote && !wantArtist.isEmpty();
         boolean artistMatches = artistKnown && (gotArtist.equals(wantArtist)
                 || gotArtist.contains(wantArtist) || wantArtist.contains(gotArtist));
-        // 有艺术家信息时必须匹配，防止同名翻唱/中文填词错配
+        // 本地曲目有艺术家时必须匹配，防止同名翻唱/中文填词错配
         if (artistKnown && !artistMatches) {
             return 0;
         }
-        double score = titleExact ? 0.6 : 0.25;
+        double score = titleExact ? (remote ? 0.75 : 0.6) : (remote ? 0.4 : 0.25);
         if (artistMatches) {
             score += 0.2;
         }
         double duration = item.has("duration") && !item.get("duration").isJsonNull()
                 ? item.get("duration").getAsDouble() : 0;
         long durationMs = knownDurationMs > 0 ? knownDurationMs : track.durationMs();
+        double tolerance = remote ? 8.0 : 3.0;
         if (duration > 0 && durationMs > 0) {
             double diff = Math.abs(durationMs / 1000.0 - duration);
-            if (diff > 3.0) {
+            if (diff > tolerance) {
                 return 0;
             }
-            score += 0.2 * (1 - diff / 3.0);
-        } else if (!artistKnown && !titleExact) {
-            // 既没有艺术家也没有时长：宁可不出歌词，也不要挂错
+            score += 0.2 * (1 - diff / tolerance);
+        } else if (!remote && !artistKnown && !titleExact) {
+            // 本地既没有艺术家也没有时长：宁可不出歌词，也不要挂错
             return 0;
         }
         return score;
@@ -124,8 +130,9 @@ public final class AutoLyrics {
         }
         String cleaned = value.toLowerCase(java.util.Locale.ROOT)
                 .replaceAll("\\[hi[- ]?res]|hi[- ]?res|高音质|无损|完整版|mv|lyrics?|动态歌词", "")
-                .replaceAll("\\([^)]*\\)|\\[[^]]*]|【[^】]*】", "");
-        return cleaned.replaceAll("[\\s\\-_/\\\\()\\[\\]{}'\\\".,!?，。！？、]", "");
+                .replaceAll("\\([^)]*\\)|（[^）]*）|\\[[^]]*]|【[^】]*】", "")
+                .replaceAll("\\d+国语言版|多国语言版|四国语言版|中文版|英文版|日语版|粤语版", "");
+        return cleaned.replaceAll("[\\s\\-_/\\\\()（）\\[\\]{}'\\\".,!?，。！？、]", "");
     }
 
     private static String sha1(String value) {
