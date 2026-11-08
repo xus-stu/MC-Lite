@@ -99,6 +99,12 @@ final class IslandInstaller {
         } catch (IOException ignored) {
             // 文件被占用/权限不足时保留旧版本
         }
+        try {
+            ensureSoundPhysics(net, instance, mods, progress);
+        } catch (Exception failure) {
+            // 伴随模组失败不影响主插件
+            Log.warn("安装 Sound Physics 失败: " + failure.getMessage());
+        }
         return target;
     }
 
@@ -174,15 +180,67 @@ final class IslandInstaller {
     }
 
     static void cleanupOldJars(Path mods, String keepName) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mods, PREFIX + "*.jar")) {
-            for (Path jar : stream) {
-                if (jar.getFileName().toString().equals(keepName)) {
+        // 直接删旧版，不再 .bak 堆积
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mods, PREFIX + "*")) {
+            for (Path file : stream) {
+                String name = file.getFileName().toString();
+                if (name.equals(keepName)) {
                     continue;
                 }
-                Path backup = jar.resolveSibling(jar.getFileName() + ".bak");
-                Files.deleteIfExists(backup);
-                Files.move(jar, backup, StandardCopyOption.REPLACE_EXISTING);
+                if (name.endsWith(".jar") || name.endsWith(".jar.bak") || name.endsWith(".part")) {
+                    Files.deleteIfExists(file);
+                }
             }
+        }
+    }
+
+    /** 把 Sound Physics Remastered 作为伴随模组装到同一个实例；已有就跳过。 */
+    static void ensureSoundPhysics(Net net, InstalledInstance instance, Path mods,
+                                   TaskProgress progress) throws IOException {
+        if (!"fabric".equalsIgnoreCase(instance.loader())) {
+            return;
+        }
+        Modrinth modrinth = new Modrinth(progress, new CancellationToken());
+        List<Modrinth.Version> versions = modrinth.versions("sound-physics-remastered",
+                instance.mcVersion(), "fabric");
+        if (versions.isEmpty()) {
+            return;
+        }
+        Modrinth.Version version = versions.get(0);
+        if (version.files().isEmpty()) {
+            return;
+        }
+        Modrinth.File file = version.files().get(0);
+        Path target = mods.resolve(file.filename());
+        if (Files.isRegularFile(target)) {
+            return;
+        }
+        byte[] bytes = net.getUnverifiedBytesQuick(file.url(), "Sound Physics", 40);
+        if (bytes == null || bytes.length == 0) {
+            return;
+        }
+        if (file.sha1() != null && !file.sha1().isBlank()
+                && !sha1Hex(bytes).equalsIgnoreCase(file.sha1())) {
+            throw new IOException("Sound Physics SHA-1 校验失败");
+        }
+        Files.write(target, bytes);
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mods,
+                "sound-physics-remastered-*.jar")) {
+            for (Path old : stream) {
+                if (!old.getFileName().toString().equals(file.filename())) {
+                    Files.deleteIfExists(old);
+                }
+            }
+        }
+        Log.info("已安装伴随模组 " + file.filename());
+    }
+
+    private static String sha1Hex(byte[] bytes) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            return HexFormat.of().formatHex(digest.digest(bytes));
+        } catch (Exception ex) {
+            throw new IllegalStateException("SHA-1 不可用", ex);
         }
     }
 

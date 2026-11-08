@@ -1,5 +1,11 @@
 # MC Lite 更新记录
 
+## v1.4.25
+
+- 插件安装不再把旧 `mclite-island-*.jar` 改名 `.bak`，直接删除所有旧版和 `.bak`，避免 mods 目录堆积。
+- 安装 MCLite 岛时自动装/更新伴随模组 **Sound Physics Remastered**（Fabric，按实例版本从 Modrinth 拉取；已有最新版跳过）。Sound Physics 是 GPL 独立模组，不塞进 Apache 的岛 jar，由启动器作为伴随模组装入。
+- 模组版本保持 0.3.19。
+
 ## v1.4.24
 
 - 修插件清单/资产的镜像缓存：清单请求加时间戳强制回源；jar 下载带版本 SHA 前缀，避免镜像返回旧文件或缓存的 404。
