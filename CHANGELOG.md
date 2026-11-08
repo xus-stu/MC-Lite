@@ -21,6 +21,13 @@
 - 清单抓取改为并行测速 + 8 秒短超时，收藏夹/插件页打开更快。
 - 模组版本保持 0.3.9。
 
+## 岛 0.3.14（不 bump 启动器）
+
+- 修《海底》歌词变成解说词：之前把 B 站 CC 字幕（UP 主口播）当歌词并缓存；现在 B 站曲目统一走 LRCLIB 自动歌词，启动时清理一次旧的 `auto_*` / `bili_*` 缓存。
+- Sound Physics 后端改用 `SoundSource.AMBIENT`：Sound Physics 在 `update_moving_sounds=false` 时会跳过 `RECORDS` 类声音，之前音乐被它直接跳过，所以听不出效果；AMBIENT 会正常做环境/混响处理。
+- 成功启用会打印 `[mclite-island] Sound Physics 音频已启用`，便于确认走的是哪个后端。
+- 模组版本 0.3.14。
+
 ## 岛 0.3.13（不 bump 启动器）
 
 - 新增可选音频后端「Sound Physics 音频」（设置 → 场景声学，重启生效）：音乐不再走 JavaSound，而是把 PCM 流喂给 Minecraft 的 SoundEngine，以玩家为声源播放，让 Sound Physics 接管混响/遮挡。

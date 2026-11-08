@@ -79,8 +79,9 @@ public final class McliteIsland26Client implements ClientModInitializer {
         biliCache = new BiliAudioCache(gameDir.resolve("mclite-island").resolve("cache").resolve("bili"),
                 bili, config.biliQuality);
         service.setRemoteResolver(biliCache);
-        service.setOnlineLyricsProvider(track -> track.isRemote() && track.bvid() != null
-                ? bili.subtitleLrc(track.bvid(), track.cid()) : null);
+        // B 站字幕大多是 UP 主口播/解说，不是歌词；自动歌词统一走 LRCLIB。
+        // 之前把字幕当歌词缓存，导致《海底》显示成解说词。
+        migrateLyricsCache(gameDir);
         audioEngine.setEffect(config.acousticsEnabled ? reverb : null);
 
         registerKeys();
@@ -260,6 +261,29 @@ public final class McliteIsland26Client implements ClientModInitializer {
         reverb.setEnvironment(new AcousticEnvironment(submerged, enclosed, raining, enclosed ? 0.6f : 1f),
                 Math.max(0, Math.min(100, config.acousticsStrength)) / 100f);
         audioEngine.setEffect(config.acousticsEnabled ? reverb : null);
+    }
+
+    private void migrateLyricsCache(Path gameDir) {
+        if (config.lyricsCacheVersion >= 1) {
+            return;
+        }
+        Path dir = config.resolveLyricsDir(gameDir);
+        try {
+            if (Files.isDirectory(dir)) {
+                try (var stream = Files.list(dir)) {
+                    for (Path path : stream.toList()) {
+                        String name = path.getFileName().toString();
+                        if (name.startsWith("auto_") || name.startsWith("bili_")) {
+                            Files.deleteIfExists(path);
+                        }
+                    }
+                }
+            }
+            config.lyricsCacheVersion = 1;
+            saveConfig();
+        } catch (Exception failure) {
+            System.err.println("[mclite-island] 清理旧歌词缓存失败: " + failure);
+        }
     }
 
     private void saveConfig() {
