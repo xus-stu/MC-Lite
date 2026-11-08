@@ -23,6 +23,9 @@ public final class ReverbEffect implements PcmEffect {
     private float targetDecay = 0.78f;
     private float damp = 0.25f;
     private float targetDamp = 0.25f;
+    private float lowpass = 1f;
+    private float targetLowpass = 1f;
+    private final float[] lowpassState = new float[2];
     private int channels = 2;
     private int sampleRate = 44100;
     private boolean initialized;
@@ -48,6 +51,9 @@ public final class ReverbEffect implements PcmEffect {
         this.targetWet = wetTarget * s;
         this.targetDecay = 0.55f + (decayTarget - 0.55f) * s;
         this.targetDamp = dampTarget;
+        // 低通才是“水下糊”的关键：湿声再多，高频不闷也听不出来
+        this.targetLowpass = env.submerged() ? 0.05f : env.enclosed() ? 0.28f
+                : env.raining() ? 0.62f : 0.95f;
     }
 
     @Override
@@ -61,6 +67,7 @@ public final class ReverbEffect implements PcmEffect {
         wet += (targetWet - wet) * 0.08f;
         decay += (targetDecay - decay) * 0.05f;
         damp += (targetDamp - damp) * 0.08f;
+        lowpass += (targetLowpass - lowpass) * 0.10f;
 
         int frames = length / 2 / channels;
         for (int i = 0; i < frames; i++) {
@@ -70,6 +77,8 @@ public final class ReverbEffect implements PcmEffect {
                 float dry = sample / 32768f;
                 float wetSample = processChannel(c, dry);
                 float out = dry * (1f - wet * 0.6f) + wetSample * wet;
+                lowpassState[c] += (out - lowpassState[c]) * lowpass;
+                out = lowpassState[c];
                 if (out > 0.98f) out = 0.98f;
                 if (out < -0.98f) out = -0.98f;
                 int value = (int) (out * 32767f);
@@ -112,6 +121,7 @@ public final class ReverbEffect implements PcmEffect {
                 combIndex[c][k] = 0;
                 combStore[c][k] = 0f;
             }
+            lowpassState[c] = 0f;
             for (int k = 0; k < 2; k++) {
                 allpass[c][k] = new float[Math.max(32, Math.round(ALLPASS[k] * scale))];
                 allpassIndex[c][k] = 0;
