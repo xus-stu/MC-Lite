@@ -106,7 +106,7 @@ final class BiliImage26 {
                 height * TEXTURE_SCALE, true);
         POOL.execute(() -> {
             try {
-                BufferedImage image = download(source, width * TEXTURE_SCALE,
+                BufferedImage image = load(source, width * TEXTURE_SCALE,
                         height * TEXTURE_SCALE, circle, width);
                 Minecraft.getInstance().execute(() -> register(key, image, width, height));
             } catch (Throwable failure) {
@@ -151,8 +151,8 @@ final class BiliImage26 {
         }
     }
 
-    private static BufferedImage download(String url, int textureW, int textureH,
-                                          boolean circle, int logicalW) throws IOException {
+    static BufferedImage load(String url, int textureW, int textureH,
+                              boolean circle, int logicalW) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL()
                 .openConnection();
         connection.setConnectTimeout(8_000);
