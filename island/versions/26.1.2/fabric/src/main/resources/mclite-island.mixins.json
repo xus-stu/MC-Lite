@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "dev.mclite.island.mc26.mixin",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "GameRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
