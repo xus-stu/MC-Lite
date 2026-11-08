@@ -21,6 +21,14 @@
 - 清单抓取改为并行测速 + 8 秒短超时，收藏夹/插件页打开更快。
 - 模组版本保持 0.3.9。
 
+## 岛 0.3.13（不 bump 启动器）
+
+- 新增可选音频后端「Sound Physics 音频」（设置 → 场景声学，重启生效）：音乐不再走 JavaSound，而是把 PCM 流喂给 Minecraft 的 SoundEngine，以玩家为声源播放，让 Sound Physics 接管混响/遮挡。
+- 实现方式：自定义 SoundBufferLibrary + SoundInstance，音频解码成 16-bit 44.1k PCM（wav/aiff 直接读，其它格式 ffmpeg 转 WAV 缓存），不生成 OGG、不每帧转码。
+- 注入失败或 SoundEngine 拒播时自动回退 JavaSound，不会没声音。
+- 暂停/seek 通过重新从目标位置建立 PCM 流实现，位置用墙钟推进。
+- 模组版本 0.3.13。
+
 ## 岛 0.3.12（不 bump 启动器）
 
 - 修 3D 歌词：26.1.2 的 text 必须走 `SubmitNodeCollector.submitText`，之前写 `bufferSource` 不会提交，所以日志有 `3D lyrics active` 但画面上什么都没有。

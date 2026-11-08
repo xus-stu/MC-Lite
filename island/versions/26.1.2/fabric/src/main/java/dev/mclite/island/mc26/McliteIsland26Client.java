@@ -8,6 +8,7 @@ import dev.mclite.island.bili.BiliAudioCache;
 import dev.mclite.island.bili.BiliCookies;
 import dev.mclite.island.audio.AcousticEnvironment;
 import dev.mclite.island.audio.ReverbEffect;
+import dev.mclite.island.core.audio.AudioEngine;
 import dev.mclite.island.core.audio.JavaSoundEngine;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -42,7 +43,7 @@ public final class McliteIsland26Client implements ClientModInitializer {
     private BiliApi bili;
     private BiliCookies biliCookies;
     private BiliAudioCache biliCache;
-    private JavaSoundEngine audioEngine;
+    private AudioEngine audioEngine;
     private final ReverbEffect reverb = new ReverbEffect();
     private int environmentTicks;
     private Path biliCookieFile;
@@ -66,7 +67,9 @@ public final class McliteIsland26Client implements ClientModInitializer {
         } catch (Exception ignored) {
             // 空歌单时界面会提示
         }
-        audioEngine = new JavaSoundEngine();
+        audioEngine = config.soundPhysicsAudio
+                ? new SoundPhysicsAudioEngine()
+                : new JavaSoundEngine();
         service = new PlaybackService(gameDir, config, audioEngine);
         service.setVolume(config.volume);
 
@@ -131,6 +134,7 @@ public final class McliteIsland26Client implements ClientModInitializer {
         while (keyPause.consumeClick()) {
             service.togglePlay();
         }
+        audioEngine.tick();
         if (--environmentTicks <= 0) {
             environmentTicks = 20;
             updateAcoustics(client);
