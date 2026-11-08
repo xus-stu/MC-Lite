@@ -1,6 +1,7 @@
 package dev.mclite.island.mc26;
 
 import dev.mclite.island.core.audio.AudioEngine;
+import dev.mclite.island.core.audio.JavaSoundEngine;
 import dev.mclite.island.audio.PcmEffect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -54,6 +55,8 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
     private Runnable onEnd = () -> {
     };
     private McInstance instance;
+    private final JavaSoundEngine fallback = new JavaSoundEngine();
+    private volatile boolean fallbackMode;
 
     SoundPhysicsAudioEngine() {
         // 构造发生在客户端初始化阶段，SoundEngine 还没准备好；等第一次播放再注入。
@@ -67,6 +70,12 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
         }
         manager = Minecraft.getInstance().getSoundManager();
         installLibrary();
+        if (library == null) {
+            fallbackMode = true;
+            System.err.println("[mclite-island] Sound Physics 注入失败，回退 JavaSound");
+            fallback.play(file, startMs);
+            return;
+        }
         stopInternal();
         long startAt = Math.max(0L, startMs);
         if (durationMs < 0) {
@@ -79,10 +88,26 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
                 Sound.Type.FILE, true, false, 0);
         instance = new McInstance(id, sound, volume);
         instance.follow(player);
-        SoundEngine.PlayResult result = manager.play(instance);
-        if (result == SoundEngine.PlayResult.NOT_STARTED) {
-            throw new IOException("Sound Physics 后端启动失败");
+        System.out.println("[mclite-island] Sound Physics 尝试播放: " + file.getFileName()
+                + " @" + startAt + "ms");
+        SoundEngine.PlayResult result;
+        try {
+            result = manager.play(instance);
+        } catch (Throwable failure) {
+            fallbackMode = true;
+            instance = null;
+            System.err.println("[mclite-island] Sound Physics play 异常，回退 JavaSound: " + failure);
+            fallback.play(file, startAt);
+            return;
         }
+        if (result == SoundEngine.PlayResult.NOT_STARTED) {
+            fallbackMode = true;
+            instance = null;
+            System.err.println("[mclite-island] Sound Physics 未启动，回退 JavaSound");
+            fallback.play(file, startAt);
+            return;
+        }
+        System.out.println("[mclite-island] Sound Physics 音频已启用: " + file.getFileName());
         this.file = file;
         this.baseMs = startAt;
         this.startNanos = System.nanoTime();
@@ -104,6 +129,10 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
 
     @Override
     public void pause() {
+        if (fallbackMode) {
+            fallback.pause();
+            return;
+        }
         if (!playing || paused) {
             return;
         }
@@ -116,6 +145,10 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
 
     @Override
     public void resume() {
+        if (fallbackMode) {
+            fallback.resume();
+            return;
+        }
         if (!paused || file == null) {
             return;
         }
@@ -130,6 +163,10 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
 
     @Override
     public void togglePause() {
+        if (fallbackMode) {
+            fallback.togglePause();
+            return;
+        }
         if (paused) {
             resume();
         } else {
@@ -139,6 +176,10 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
 
     @Override
     public void stop() {
+        if (fallbackMode) {
+            fallback.stop();
+            return;
+        }
         stopInternal();
         paused = false;
         baseMs = 0;
@@ -147,6 +188,10 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
 
     @Override
     public void seek(long positionMs) {
+        if (fallbackMode) {
+            fallback.seek(positionMs);
+            return;
+        }
         long target = Math.max(0L, positionMs);
         if (file == null) {
             baseMs = target;
@@ -166,6 +211,7 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
 
     @Override
     public void setVolume(float volume) {
+        fallback.setVolume(volume);
         this.volume = Math.max(0f, Math.min(1f, volume));
         if (instance != null) {
             instance.setVolume(this.volume);
@@ -174,16 +220,19 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
 
     @Override
     public boolean isPlaying() {
-        return playing && !paused;
+        return fallbackMode ? fallback.isPlaying() : playing && !paused;
     }
 
     @Override
     public boolean isPaused() {
-        return paused;
+        return fallbackMode ? fallback.isPaused() : paused;
     }
 
     @Override
     public long positionMs() {
+        if (fallbackMode) {
+            return fallback.positionMs();
+        }
         if (playing && !paused) {
             long elapsed = (System.nanoTime() - startNanos) / 1_000_000L;
             long position = baseMs + elapsed;
@@ -197,22 +246,27 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
 
     @Override
     public long durationMs() {
-        return durationMs;
+        return fallbackMode ? fallback.durationMs() : durationMs;
     }
 
     @Override
     public void setOnEnd(Runnable listener) {
         this.onEnd = listener == null ? () -> {
         } : listener;
+        fallback.setOnEnd(listener);
     }
 
     @Override
     public void setEffect(PcmEffect effect) {
-        // Sound Physics 自己处理环境效果
+        fallback.setEffect(effect);
     }
 
     @Override
     public void tick() {
+        if (fallbackMode) {
+            fallback.tick();
+            return;
+        }
         if (instance == null || !playing || paused) {
             return;
         }
@@ -247,12 +301,29 @@ final class SoundPhysicsAudioEngine implements AudioEngine {
                 Object engine = engineField.get(manager);
                 Field buffersField = SoundEngine.class.getDeclaredField("soundBuffers");
                 buffersField.setAccessible(true);
-                buffersField.set(engine, created);
+                try {
+                    buffersField.set(engine, created);
+                } catch (Throwable reflectionFailure) {
+                    unsafeSet(engine, buffersField, created);
+                }
                 library = created;
+                System.out.println("[mclite-island] Sound Physics 音频后端注入成功");
             } catch (Throwable failure) {
                 System.err.println("[mclite-island] Sound Physics 音频后端注入失败: " + failure);
             }
         }
+    }
+
+    private static void unsafeSet(Object target, Field field, Object value) throws Exception {
+        Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+        Field theUnsafe = unsafeClass.getDeclaredField("theUnsafe");
+        theUnsafe.setAccessible(true);
+        Object unsafe = theUnsafe.get(null);
+        java.lang.reflect.Method offset = unsafeClass.getMethod("objectFieldOffset", Field.class);
+        long fieldOffset = (Long) offset.invoke(unsafe, field);
+        java.lang.reflect.Method putObject = unsafeClass.getMethod("putObject",
+                Object.class, long.class, Object.class);
+        putObject.invoke(unsafe, target, fieldOffset, value);
     }
 
     /** 自定义 Sound 的音频流来源；其他声音回退到原版资源。 */
