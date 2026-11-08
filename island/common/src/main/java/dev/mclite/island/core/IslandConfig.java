@@ -72,6 +72,8 @@ public final class IslandConfig {
     public boolean soundPhysicsAudio = false;
     /** 旧版把 B 站口播字幕当歌词缓存；升到 1 时清一次，避免《海底》显示解说词。 */
     public int lyricsCacheVersion = 0;
+    /** 3D 歌词舞台风格：0 倾斜/1 苹果/2 立体/3 华彩/4 光晕/5 烟雾/6 钟摆/7 合唱。 */
+    public int lyrics3dStyle = 0;
     public boolean acousticsSubmersion = true;
     public boolean acousticsEnclosure = true;
     public boolean acousticsRainfall = true;
