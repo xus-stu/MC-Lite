@@ -1,11 +1,13 @@
 # MC Lite 接手工作指南
 
-> 给下一个 AI / 开发者的交接文档。当前版本 **1.3.12**，最新发布：
-> https://github.com/xus-stu/MC-Lite/releases/tag/v1.3.12
+> 给下一个 AI / 开发者的交接文档。当前版本 **1.4.25**，最新发布：
+> https://github.com/xus-stu/MC-Lite/releases/tag/v1.4.25
 >
 > 仓库：`git@github.com:xus-stu/MC-Lite.git`
 > 本地目录：`/Users/xiaoxu/PycharmProjects/Java`
 > 用户环境：macOS ARM（M5），Java 21 编译，运行游戏常用 26.1.2。
+>
+> 启动器插件「MCLite Island」的细节见 [`HANDOFF-island.md`](HANDOFF-island.md)；本文只讲启动器本体和插件安装链路。
 
 ---
 
@@ -23,9 +25,9 @@ cat VERSION
 预期：
 
 ```text
-VERSION = 1.3.12
-SELF-TEST PASSED (74 checks)
-SELF-TEST PASSED (74 checks)
+VERSION = 1.4.25
+SELF-TEST PASSED (84 checks)
+SELF-TEST PASSED (84 checks)
 HEADLESS REGRESSION PASSED
 ```
 
@@ -38,16 +40,19 @@ HEADLESS REGRESSION PASSED
 - [../ARCHITECTURE.md](../ARCHITECTURE.md)
 - [../CHANGELOG.md](../CHANGELOG.md)
 
-当前只有未跟踪的本地缓存/素材目录，不要提交：
+当前工作区可能有未跟踪的本地缓存/素材/DSH 插件目录，不要提交：
 
 ```text
 .cache/
 FlowMini/
 diskbench/
 math_exam_8a_bnu/
-usb-speed-sandisk.png
+dsh-*/
+cheer_docx/
 运动会加油稿/
 ```
+
+`.cache/clang` 里的一些 `.pcm` 可能显示为已删除的 git 文件，不要 `git add -A` 误提交。
 
 ---
 
@@ -145,10 +150,10 @@ saves/<世界>/players/data/<uuid>.dat
 
 ```text
 dist/
-├── MCLite_v1.3.12.jar
-├── MCLite_v1.3.12-region.jar
-├── MCLitePyBridge_v1.3.12.zip
-├── MC-Lite_v1.3.12_region_Windows.zip
+├── MCLite_v1.4.25.jar
+├── MCLite_v1.4.25-region.jar
+├── MCLitePyBridge_v1.4.25.zip
+├── MC-Lite_v1.4.25_region_Windows.zip
 ├── MCLiteBenchmark.jar
 └── SHA256SUMS.txt
 ```
@@ -181,13 +186,13 @@ versions/26.1.2/config/tectonic.json.bak
 ## 2. 硬约束
 
 1. **JAR 必须小于 800KB**
-   - `build.sh` 会检查，当前 1.3.0 约 627KB。
+   - `build.sh` 会检查，1.4.25 约 732KB。
    - 不引入 JavaFX、FlatLaf、Jython、GraalPy 等运行库。
    - Python 模块不打包进 JAR。
 
 2. **不要为了“版本号推进”连续发版**
-   - 1.2.x 是页面拆分阶段收尾，当前处于冻结期。
-   - 冻结期只接受修复类补丁（如 1.2.1 的启动崩溃）；新功能、重构、发版都要先得到用户明确要求。
+   - 当前没有冻结期，但每次发版都要有用户能感知的修复/功能。
+   - 模组可以走 `island-v*` 独立发布，不必每次都 bump 启动器；见第 4.5 节。
 
 3. **发布必须是真实 Release**
    - 有版本 tag、JAR、Windows 包、`SHA256SUMS.txt`。
@@ -219,10 +224,10 @@ versions/26.1.2/config/tectonic.json.bak
 产物在 `dist/`：
 
 ```text
-MCLite_v1.3.12.jar
-MCLite_v1.3.12-region.jar
-MCLitePyBridge_v1.3.12.zip
-MC-Lite_v1.3.12_region_Windows.zip
+MCLite_v1.4.25.jar
+MCLite_v1.4.25-region.jar
+MCLitePyBridge_v1.4.25.zip
+MC-Lite_v1.4.25_region_Windows.zip
 MCLiteBenchmark.jar
 SHA256SUMS.txt
 ```
@@ -240,8 +245,8 @@ SHA256SUMS.txt
 ./test-update.sh
 ```
 
-- `test.sh`：构建 + 两个 JAR 自检 + `test/run-ci.sh`
-- `test-update.sh`：模拟 1.3.12 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
+- `test.sh`：构建 + 两个 JAR 自检（84 checks）+ `test/run-ci.sh`
+- `test-update.sh`：模拟 1.4.25 → 999.0.0 的普通 JAR 原地更新；macOS 上还测试 app 包
 - `test/run-ci.sh` 包含：
   - LocalTest
   - JvmTunerTest
@@ -255,7 +260,7 @@ CI 只跑无网络、无 GUI 测试；不会真正启动 Minecraft。
 ### 截图检查
 
 ```bash
-java -jar dist/MCLite_v1.3.12.jar \
+java -jar dist/MCLite_v1.4.25.jar \
   --screenshot=/tmp/settings.png --page=settings
 ```
 
@@ -281,7 +286,7 @@ version-detail
 
 ```bash
 ./bump-version.sh major
-# 1.3.0 -> 1.4.5，而不是 1.3.5
+# 1.4.0 -> 1.5.0（major 会重置 minor）
 ```
 
 需要精确版本时手动改：
@@ -298,10 +303,10 @@ version-detail
 
 ```bash
 git add ...
-git commit -m "...; V1.3.12"
+git commit -m "...; V1.4.25"
 git push origin main
-git tag -a v1.3.12 -m "..."
-git push origin v1.3.12
+git tag -a v1.4.25 -m "..."
+git push origin v1.4.25
 ```
 
 CI 由 tag `v*` 触发；不要重写已经推送的 tag。
@@ -325,23 +330,31 @@ CI 由 tag `v*` 触发；不要重写已经推送的 tag。
 | `InstanceService` | 实例重命名、删除、加载器识别 |
 | `GlobalDatapacks` | 实例级全局数据包同步 |
 | `BridgeServer` | Python Bridge HTTP API |
+| `IslandCatalog` | 岛清单 URL/解析/兼容过滤；`island-latest` + 旧 latest 回退 |
+| `IslandInstaller` | 岛 jar 下载/校验/安装；删旧版；装 Sound Physics 伴随模组 |
+| `LauncherPluginsPanel` | 「下载中心 → 启动器插件」页面；安装任务上报 TaskCenter |
+| `TaskCenter` / `DownloadTask` / `TasksDialog` | 任务中心（进度、阶段、成功/失败） |
+| `GithubSources` | GitHub 直连 + 镜像候选 |
 
 ### 页面类
 
 当前行数：
 
 ```text
-LauncherFrame   4560
-InstancesPage    371
-SettingsPage     674
-LaunchPage       242
+LauncherFrame   4655
+LauncherPluginsPanel 664
+IslandCatalog   108
+IslandInstaller 255
+Net             1062
+InstancesPage    496
+SettingsPage     802
+LaunchPage       241
 ConfigPage       293
-DownloadPage     302
-ContentPage      650
-VersionDetailPage 191
-ProjectDetailPage 263
+DownloadPage     309
+ContentPage      692
+VersionDetailPage 196
+ProjectDetailPage 272
 VersionListCard  185
-InstancesPage    459
 ```
 
 已拆出：
@@ -374,7 +387,7 @@ ConfigPage  owner.* 56 -> 7   控件 29 -> 0
 
 剩余债务：`InstancesPage` 仍有 19 处 `owner` 包级字段访问（`config/gamePaths/allVersions/installedCache/selectedEntry`），但不碰控件。
 
-`test/run-ci.sh` 当前基线：
+`test/run-ci.sh` 当前基线（未变）：
 
 ```text
 InstancesPage <=20 / 0
@@ -390,36 +403,74 @@ frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 
 ---
 
+## 4.5 启动器插件系统（1.4.25）
+
+链路：
+
+```text
+LauncherPluginsPanel（下载中心 → 启动器插件）
+  → IslandCatalog.fetch()
+      → 固定 URL：releases/download/island-latest/island-manifest.json
+      → 旧 URL：releases/latest/download/island-manifest.json（回退）
+      → 8 个候选（ghfast/gh-proxy/直连/ghproxy.net/moeyy）并行竞速
+      → URL 带 ?ts=<毫秒> 强制回源，绕开镜像缓存
+  → 选目标实例 / build
+  → 安装按钮：
+      → TaskCenter.start("MCLite 岛 x.y.z", "GitHub Releases")
+      → 后台线程：IslandInstaller.install()
+          → jar URL 带 ?v=<sha256 前 8 位> 防镜像缓存
+          → 单次 25 秒超时；最多 4 个候选
+          → 校验 SHA-256 / size
+          → 写 mods，cleanupOldJars()：直接删除旧 jar / .bak / .part
+          → ensureSoundPhysics()：从 Modrinth 拉 Sound Physics Remastered
+      → 进度写入 TaskProgress；任务页可见
+  → 失败：自动刷新清单，用同实例最新 build 重试一次
+```
+
+发布：
+
+- 只发模组：打 `island-v0.3.x` tag → `.github/workflows/island-release.yml`
+  - 两个构建 job（1.20.1 / 26.1.2）→ 上传 artifact → publish job
+  - 发布到固定 release tag **`island-latest`**（prerelease，不占 latest）
+  - jar 资产名必须去掉 `-bundled`（`gen_manifest.py` 生成的 URL 不带）
+  - 旧 jar 资产保留，避免旧清单 404
+  - 额外把 manifest 镜像到当前 `releases/latest` 的 release（旧启动器回退）
+- 启动器：打 `v1.4.x` tag → `.github/workflows/release.yml`
+  - 构建启动器 + 两个岛的 jar + manifest，发布到该 tag
+  - `releases/latest` 会指向它；插件页仍读 `island-latest`，所以启动器 release 里的岛 jar 版本可以落后
+
+注意：
+
+- `island-release` 的 upload 代码在 `build-1201` / `build-2612` 两个 job 里，改路径时两边都要改。
+- 不要把 GPL 的 Sound Physics jar 塞进岛 jar；由启动器作为独立伴随模组安装。
+- `island-latest` release 里的 manifest 是唯一真相；用户插件页版本不对时先点「刷新清单」，或确认清单 URL 没被镜像缓存（已加 `?ts=`）。
+
+---
+
 ## 5. 下一阶段工作
 
 按优先级：
 
-1. **先 dogfooding**
-   - 1.2.0 的「启动游戏」NPE 已在 1.2.1 修复，并于 2026-11-04 18:50 实机启动 26.1.2 成功。
-   - 26.1.2 在 2026-11-03 已能启动进世界，但 22:54 在皮肤预览界面崩溃：`show-me-your-skin 2.0.3` 是对着 owo 0.13.0 编译的（`braid/widgets/object/EntityWidget`），实例里装的 0.13.1 把类移到了 `object/entity/`。
-   - 处理：`mods/owo-lib-0.13.1+26.1.jar` 已备份到 `versions/26.1.2/mods-backup-20261104-owo/`，改为 `owo-lib-0.13.0+26.1.jar`。
-   - 仍需验证：进世界后打开皮肤/角色预览界面不再崩。
+1. **真实网络验收启动器插件安装（1.4.25）**
+   - 用户环境更新到 1.4.25 后，走「下载中心 → 启动器插件」安装/更新一次。
+   - 检查：任务页出现 `MCLite 岛 x.y.z`、进度/速度、旧 jar 被删（不留 `.bak`）、Sound Physics 被装上/更新。
+   - 如果又 404：先点「刷新清单」，看 `latest.log`/launcher.log；确认 `island-latest` 资产名不带 `-bundled`。
 
-2. **继续所有权拆分**
-   - `LaunchPage`：已完成（45/17 → 6/0），只剩导航回调。
-   - `ConfigPage`：已完成（56/29 → 7/0），可当模板。
-   - 下一步：`InstancesPage` 的 19 处包级字段访问（`config/gamePaths/allVersions/installedCache/selectedEntry`）。
+2. **岛 0.3.21 的实机验收**
+   - 世界悬浮歌词是否出现、是否跟镜头/距离正确；户外是否还触发室内混响；石洞/羊毛房/水下是否有区别。
+   - 细节与死代码清单见 [`HANDOFF-island.md`](HANDOFF-island.md) 第 6、8 节。
+
+3. **清理启动器插件链路死代码/配置**
+   - 用户旧配置里 `soundPhysicsAudio` 仍可能是 true，但已无 UI/无效果；`lyrics3dStyle` 也无 UI。
+   - 移除或重新接线时注意旧配置兼容（Gson 忽略未知字段，删除字段安全）。
+
+4. **继续所有权拆分**
+   - `InstancesPage` 仍有 19 处包级字段访问（`config/gamePaths/allVersions/installedCache/selectedEntry`）。
    - 每搬一个，降低 CI 基线，不能只改文件位置。
 
-3. **拆 DownloadPage**
-   - 外壳已完成：顶部栏、搜索/过滤/刷新、子标签、卡片容器归 `DownloadPage`。
-   - 内容浏览卡片已完成：`ContentPage` 接管搜索、列表、分页和选中底栏。
-   - 版本详情、项目详情已完成：`VersionDetailPage` / `ProjectDetailPage`。
-   - 版本列表卡片已完成：下载中心四张卡片全部搬出 `LauncherFrame`。
-   - 搬完后再处理 `LauncherFrame` 的包级字段访问。
-
-4. **收敛 `owner`**
-   - 页面只拿窄上下文：`Config`、`TaskCenter`、少量回调。
-   - 禁止 `owner.<控件>`；CI 已能检测。
-
-5. **不要继续堆功能**
-   - 冻结期先修债务、补 dogfooding、保持 1.2.x 补丁。
-   - 不要为了版本号连续发布。
+5. **不要为了版本号堆功能**
+   - 模组走 `island-v*` 独立发布；只有启动器本体改动才发 `v1.4.x`。
+   - 发布前必须 `./test.sh`（84 checks）通过。
 
 ---
 
@@ -428,13 +479,13 @@ frame control gate  LauncherFrame 不得引用 SettingsPage 的控件
 可选模块，**不在主 JAR 内**：
 
 ```text
-dist/MCLitePyBridge_v1.3.12.zip
+dist/MCLitePyBridge_v1.4.25.zip
 ```
 
 启动：
 
 ```bash
-java -jar dist/MCLite_v1.3.12.jar --py-bridge
+java -jar dist/MCLite_v1.4.25.jar --py-bridge
 ```
 
 生成：
@@ -452,7 +503,7 @@ X-MCLite-Token: <token>
 ### Python 客户端 / UI
 
 ```bash
-python3 run_ui.py --jar /path/to/MCLite_v1.3.12.jar
+python3 run_ui.py --jar /path/to/MCLite_v1.4.25.jar
 ```
 
 `run_ui.py` 会找已安装 PySide6 的解释器。
@@ -511,6 +562,11 @@ versions/26.1.2
   - `MCLiteSlimeCraft.zip`
 - CTOV、Structory、Geophilic、YUNG's Better Dungeons 等结构/装饰模组
 - 已禁用：Terralith、Nature's Spirit、Towns and Towers、Cristel Lib
+- 当前 mods 约 116 个；含 **Sound Physics Remastered 1.5.2+26.1.2**、JEI 29.53.0.114、Jade 26.1.11
+- 当前岛模组：`mclite-island-26.1.2-fabric-0.3.21.jar`（mods 里不要再有 `.bak`）
+- GUI Scale=3，岛 scale=0.9，常用全屏；用户反馈全屏 41–78 FPS，窗口化约 160 FPS
+- 声学配置 `acousticsSubmersion/Enclosure/Rainfall` 当前为 true
+- 游戏日志：`versions/26.1.2/logs/latest.log`；启动器日志：`~/.mclite/logs/launcher.log`
 
 **不要在没有备份的情况下改用户游戏目录。**
 涉及 `level.dat`、`playerdata`、`saves` 的操作必须备份后再做。
@@ -519,7 +575,12 @@ versions/26.1.2
 
 ## 8. 已知风险
 
-- `LauncherFrame` 仍有 **4555 行**；下载中心四张卡片已全部搬完，实例复制/导出/分组备注已完成。
+- 启动器插件链路 1.4.24/1.4.25 刚改过：清单竞速、jar 版本 hash、安装任务、旧 jar 删除、Sound Physics 伴随安装。**要在真实网络下再走一遍安装/更新**，特别关注 ghfast/gh-proxy 缓存与 Modrinth 可达性。
+- `releases/latest` = v1.4.25，但它的资产里岛 jar 是 0.3.19；0.3.20/0.3.21 只在 `island-latest`。用户插件页版本以清单为准，不要拿 latest release 的 jar 判断。
+- 启动器 JAR 已 732KB，离 800KB 上限只剩 68KB；再加 UI/依赖要小心。
+- Sound Physics 是 GPL 独立模组，只能由启动器伴随安装，不能打进岛 jar。
+
+- `LauncherFrame` 仍有 **4655 行**；下载中心四张卡片已全部搬完，实例复制/导出/分组备注已完成。
 - 1.2.3 审查遗留（P2，未修）：窗口最大化状态不持久化；manifest 为空时 `updateVersionPicker` 会在 EDT 扫 versions；busy 时从实例页点「启动所选实例」会静默丢弃 `pendingLaunch`。
 - `ContentPage` 仍向 `LauncherFrame` 暴露 `list()/model()/installButton()` 等访问器（所有权是名义上的），下一步改成 `appendResults/selectFirst/setStatusText` 这类窄方法。
 - 1.3.0 审查遗留（P2，未修）：整合包安装只写 `modpack.properties`，内容页「仅未安装」对整合包无效；筛选首次判定会逐项读 `content.properties`（慢盘可感知）；`TasksDialog` 取消后台更新/跑分任务不生效；`cancelTask` 不清 `installQueue`；启动进度期间关窗只检查 `busy`。
@@ -537,8 +598,8 @@ versions/26.1.2
 ## 9. 接手检查清单
 
 - [ ] `git status` 没有意外修改
-- [ ] `VERSION` = 1.3.12
-- [ ] `./test.sh` 通过（74 checks + headless + bridge）
+- [ ] `VERSION` = 1.4.25
+- [ ] `./test.sh` 通过（84 checks + headless + bridge）
 - [ ] `./test-update.sh` 通过
 - [ ] JAR < 800KB
 - [ ] 新 JAR 能打开设置页/版本页
@@ -557,7 +618,8 @@ versions/26.1.2
 - 不要提高 CI 所有权基线。
 - 不要提交 `.cache/`、游戏存档、日志、账号数据。
 - 不要重写已发布 tag 或 force-push 发布历史。
-- 不要在冻结期连续发功能版本。
+- 不要把旧插件 jar 改名 `.bak`；安装/更新时直接删除旧版。
+- 不要把 Sound Physics 或其它 GPL 模组打进岛 jar。
 
 ---
 
