@@ -573,11 +573,11 @@ cat VERSION
 
 ---
 
-## 12. MCLite Island 交接（2026-11-07）
+## 12. MCLite Island 交接（2026-11-13）
 
 启动器外置组件「MCLite Island」的完整交接见 [`docs/HANDOFF-island.md`](HANDOFF-island.md)：
 
-- 当前发布：启动器 **v1.4.25**、模组 **0.3.19**（1.20.1 / 26.1.2 Fabric）
-- 已实现：本地播放、B 站扫码/搜索/收藏/在线播放（ffmpeg 缓存）、自动歌词（LRCLIB + B 站字幕）、场景声学、Java2D 烘焙 UI、迷你播放器灵动岛、B 站头像/封面、启动器插件独立发布
-- 已知问题：用户仍觉得灵动岛/UI 不够好、`island` workflow v1.4.18 失败（release 成功）、1.20.1 UI 未同步、26.x 3D 歌词缺失
-- 下一位接手请先读该文件第 5、7 节
+- 当前发布：启动器 **v1.4.25**、模组 **0.3.21**（1.20.1 / 26.1.2 Fabric；0.3.20+ 只走 `island-latest`）
+- 已实现：本地播放、B 站扫码/搜索/收藏/在线播放、LRCLIB 自动歌词、方块材质声学混响、透明播放器、22px 极简灵动岛、DangoMusic 式世界悬浮歌词、启动器插件任务/独立发布
+- 已知问题：世界悬浮歌词与 6 comb 混响**未实机确认**；Sound Physics 只作为伴随模组装上，不接管音乐；1.20.1 UI 未同步；`SoundPhysicsAudioEngine`/`LyricsOverlay26` 是死代码
+- 下一位接手请先读该文件第 6、8 节
