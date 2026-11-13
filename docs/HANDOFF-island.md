@@ -2,7 +2,7 @@
 
 最后更新：2026-11-13（Asia/Shanghai）
 仓库：`/Users/xiaoxu/PycharmProjects/Java`
-当前 HEAD：`380d702`（`Island 0.3.21: real six-comb reverb, outdoor enclosure fix`）
+当前 HEAD：`61ccdc9`（本文档提交；代码最后功能提交 `380d702`，`Island 0.3.21`）
 启动器版本：`1.4.25`
 模组版本：`0.3.21`
 
