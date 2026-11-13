@@ -2,7 +2,7 @@
 
 最后更新：2026-11-13（Asia/Shanghai）
 仓库：`/Users/xiaoxu/PycharmProjects/Java`
-当前 HEAD：`61ccdc9`（本文档提交；代码最后功能提交 `380d702`，`Island 0.3.21`）
+当前 HEAD：以 `git log -1` 为准（0.3.21 功能提交是 `380d702`）
 启动器版本：`1.4.25`
 模组版本：`0.3.21`
 
