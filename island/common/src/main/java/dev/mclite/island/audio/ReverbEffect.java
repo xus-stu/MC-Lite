@@ -3,7 +3,7 @@ package dev.mclite.island.audio;
 import javax.sound.sampled.AudioFormat;
 
 /**
- * 环境混响：6 路梳状滤波 + 2 路全通 + 6 次早期反射，参数按房间包裹度/材质吸声平滑变化。
+ * 环境混响：6 路梳状滤波 + 2 路全通（尾音），参数按房间包裹度/材质吸声平滑变化。
  * 参考 DangoMusic 的 EnvironmentAudio 结构，但不依赖 Minecraft。
  *
  * <p>户外基本是干声；石洞/大厅反射长且亮；羊毛/树叶房间吸高频、尾巴短。</p>
@@ -13,8 +13,6 @@ public final class ReverbEffect implements PcmEffect {
     private static final int[] COMB = {1116, 1188, 1277, 1356, 1422, 1491};
     private static final int[] ALLPASS = {556, 441};
     private static final int STEREO_SPREAD = 23;
-    private static final float[] TAP_TIMES = {1f, 1.37f, 1.71f, 2.13f, 2.6f, 3.1f};
-    private static final float[] TAP_GAINS = {0.8f, 0.62f, 0.5f, 0.4f, 0.31f, 0.24f};
 
     private int rate;
     private float[][][] comb;
@@ -22,9 +20,6 @@ public final class ReverbEffect implements PcmEffect {
     private float[][] combStore;
     private float[][][] allpass;
     private int[][] allpassPos;
-    private float[] early;
-    private int earlyPos;
-    private int earlyTapBase;
     private float lp;
     private float lowpass = 1f;
     private float targetLowpass = 1f;
@@ -52,7 +47,7 @@ public final class ReverbEffect implements PcmEffect {
         float absorb = Math.max(0f, Math.min(1f, env.absorption()));
         float wetTarget = 0.05f + 0.58f * (float) Math.pow(enclosure, 1.4);
         if (env.raining()) {
-            wetTarget += 0.04f;
+            wetTarget += 0.12f;
         }
         if (env.submerged()) {
             wetTarget = Math.max(wetTarget, 0.38f);
@@ -92,7 +87,6 @@ public final class ReverbEffect implements PcmEffect {
 
         int frames = length / (2 * channels);
         float[] dry = new float[2];
-        float[] out = new float[2];
         for (int frame = 0; frame < frames; frame++) {
             int index = frame * channels * 2;
             float mono = 0f;
@@ -106,11 +100,9 @@ public final class ReverbEffect implements PcmEffect {
                 mono += value;
             }
             mono /= Math.min(2, channels);
-            earlyReflection(mono, out);
-            float lateL = combBank(0, mono);
-            float lateR = combBank(1, mono);
-            float wetL = out[0] + lateL * 0.65f;
-            float wetR = out[1] + lateR * 0.65f;
+            // 只有梳状/全通尾音：早期反射的左右反相 tap 会产生“一颤一颤”，已去掉。
+            float wetL = combBank(0, mono) * 0.65f;
+            float wetR = combBank(1, mono) * 0.65f;
             float dryGain = 1f - wet * 0.55f;
             if (channels == 2) {
                 writeShort(buffer, index, dry[0] * dryGain * gain + wetL * wet);
@@ -126,19 +118,6 @@ public final class ReverbEffect implements PcmEffect {
         int sample = Math.round(Math.max(-1f, Math.min(1f, value)) * 32767f);
         buffer[index] = (byte) (sample & 0xFF);
         buffer[index + 1] = (byte) ((sample >> 8) & 0xFF);
-    }
-
-    private void earlyReflection(float mono, float[] out) {
-        int mask = early.length - 1;
-        for (int i = 0; i < TAP_TIMES.length; i++) {
-            int delay = Math.max(1, (int) (earlyTapBase * TAP_TIMES[i]));
-            float sample = early[(earlyPos - delay) & mask];
-            float pan = ((i % 2 == 0) ? -0.55f : 0.55f);
-            out[0] += sample * TAP_GAINS[i] * (1f - pan) * 0.5f * 0.5f;
-            out[1] += sample * TAP_GAINS[i] * (1f + pan) * 0.5f * 0.5f;
-        }
-        early[earlyPos & mask] = mono;
-        earlyPos++;
     }
 
     private float combBank(int side, float input) {
@@ -181,10 +160,6 @@ public final class ReverbEffect implements PcmEffect {
                         Math.round((ALLPASS[i] + side * STEREO_SPREAD) * scale))];
             }
         }
-        earlyTapBase = Math.max(8, Math.round(0.010f * sampleRate));
-        int earlySize = Integer.highestOneBit(Math.max(1024, earlyTapBase * 4)) * 2;
-        early = new float[earlySize];
-        earlyPos = 0;
         initialized = true;
     }
 

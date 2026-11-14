@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * B 站 Web 接口客户端：扫码登录、搜索、收藏夹、视频信息、音频流。
@@ -41,6 +42,10 @@ public final class BiliApi {
             37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
             22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52
     };
+
+    /** B 站 cid 是 64 位；View/Track 对外仍是 int，这里保留原始值供接口使用。 */
+    private static final Map<String, Long> RAW_CID = new ConcurrentHashMap<>();
+    private static final int RAW_CID_LIMIT = 256;
 
     private final HttpClient client;
     private BiliCookies cookies;
@@ -301,15 +306,52 @@ public final class BiliApi {
 
     public View view(String bvid) throws IOException {
         JsonObject data = getJson(API + "/x/web-interface/view?bvid=" + enc(bvid), true).data();
-        return new View(bvid, integer(data, "cid", 0), str(data, "title"),
+        long rawCid = lng(data, "cid");
+        if (rawCid == 0L) {
+            JsonArray pages = arr(data, "pages");
+            if (!pages.isEmpty()) {
+                rawCid = lng(pages.get(0).getAsJsonObject(), "cid");
+            }
+        }
+        rememberCid(bvid, rawCid);
+        return new View(bvid, (int) rawCid, str(data, "title"),
                 str(obj(data, "owner"), "name"), lng(data, "duration"), str(data, "pic"));
+    }
+
+    /** 优先用 view 里记住的 64 位 cid；没有就按 32 位兜底再补一次 view。 */
+    private long resolveCid(String bvid, int cid) {
+        Long known = RAW_CID.get(bvid);
+        if (known != null) {
+            return known;
+        }
+        if (cid > 0) {
+            return cid;
+        }
+        try {
+            view(bvid);
+        } catch (IOException ignored) {
+            // 补取失败就退回调用方给的值。
+        }
+        Long fetched = RAW_CID.get(bvid);
+        return fetched != null ? fetched : cid;
+    }
+
+    private static void rememberCid(String bvid, long cid) {
+        if (bvid == null || bvid.isBlank() || cid <= 0L) {
+            return;
+        }
+        if (RAW_CID.size() > RAW_CID_LIMIT) {
+            RAW_CID.clear();
+        }
+        RAW_CID.put(bvid, cid);
     }
 
     public record AudioStream(int audioId, String url, long durationMs, String codecs) {
     }
 
     public AudioStream playUrl(String bvid, int cid, BiliQuality quality) throws IOException {
-        String url = API + "/x/player/playurl?bvid=" + enc(bvid) + "&cid=" + cid
+        long realCid = resolveCid(bvid, cid);
+        String url = API + "/x/player/playurl?bvid=" + enc(bvid) + "&cid=" + realCid
                 + "&fnval=16&fourk=1";
         JsonObject data = getJson(url, true).data();
         long lengthMs = lng(data, "timelength");
@@ -384,7 +426,8 @@ public final class BiliApi {
     /** B 站官方字幕转 LRC；没有字幕返回 null。 */
     public String subtitleLrc(String bvid, int cid) {
         try {
-            String url = API + "/x/player/v2?bvid=" + enc(bvid) + "&cid=" + cid;
+            long realCid = resolveCid(bvid, cid);
+            String url = API + "/x/player/v2?bvid=" + enc(bvid) + "&cid=" + realCid;
             JsonObject data = getJson(url, true).data();
             JsonObject subtitle = obj(data, "subtitle");
             JsonArray subtitles = arr(subtitle, "subtitles");

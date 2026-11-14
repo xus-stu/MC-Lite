@@ -57,7 +57,8 @@ public final class JavaSoundEngine implements AudioEngine {
         SourceDataLine line;
         try {
             line = AudioSystem.getSourceDataLine(format);
-            line.open(format);
+            // 0.5s 缓冲：48k 立体声默认缓冲太浅，重采样/混响下会周期性 underrun。
+            line.open(format, 96000);
         } catch (Exception ex) {
             opened.close();
             throw new IllegalStateException("无法打开音频设备: " + format, ex);
