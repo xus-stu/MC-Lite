@@ -55,6 +55,16 @@ class PlaylistTest {
     }
 
     @Test
+    void addAppendsWithoutChangingCurrent() {
+        Playlist playlist = playlist(PlayMode.SEQUENTIAL, 2);
+        playlist.add(track("extra"));
+        assertEquals(3, playlist.size());
+        assertEquals("t0", playlist.current().title());
+        assertEquals("t1", playlist.advance(false).title());
+        assertEquals("extra", playlist.advance(false).title());
+    }
+
+    @Test
     void modeCycles() {
         Playlist playlist = playlist(PlayMode.SEQUENTIAL, 1);
         assertEquals(PlayMode.RANDOM, playlist.cycleMode());

@@ -215,8 +215,7 @@ final class BiliBrowseScreen26 extends Screen {
                         stream.url(), view.title(), view.owner(),
                         view.durationSeconds() * 1000L, video.cover());
                 Minecraft.getInstance().execute(() -> {
-                    service.playlist().replace(List.of(track));
-                    service.playAt(0);
+                    BiliQueueHelper.enqueue(service, track);
                     status = "正在播放: " + view.title();
                     if (Minecraft.getInstance().screen == BiliBrowseScreen26.this) {
                         onClose();
