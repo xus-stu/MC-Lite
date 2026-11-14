@@ -26,6 +26,13 @@ public final class Playlist {
         index = tracks.isEmpty() ? -1 : 0;
     }
 
+    /** 追加到队尾；不改变当前索引。 */
+    public void add(Track track) {
+        if (track != null) {
+            tracks.add(track);
+        }
+    }
+
     public List<Track> tracks() {
         return List.copyOf(tracks);
     }

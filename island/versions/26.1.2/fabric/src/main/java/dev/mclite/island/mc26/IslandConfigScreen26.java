@@ -218,6 +218,11 @@ final class IslandConfigScreen26 extends Screen {
     }
 
     private void buildIntegrationRows() {
+        rows.add(new ToggleRow("B站模式", "关闭后只用本地音乐；B站页签仍可浏览",
+                () -> config.biliEnabled, value -> {
+                    config.biliEnabled = value;
+                    saveConfig.run();
+                }));
         rows.add(new ToggleRow("上下文信息", "总开关；还要打开下面至少一项才会采集",
                 () -> config.showContext, value -> {
                     config.showContext = value;
