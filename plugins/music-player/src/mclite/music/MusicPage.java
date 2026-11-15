@@ -35,7 +35,8 @@ final class MusicPage {
     private final Player player;
     private final Path cacheDir;
 
-    private final JLabel account = Ui.label("", Theme.SMALL, Theme.MUTED);
+    private final java.util.List<JLabel> accountLabels = new ArrayList<>();
+    private final java.util.List<JPanel> avatarHolders = new ArrayList<>();
     private final JLabel status = Ui.label("", Theme.TINY, Theme.DIM);
     private final JLabel nowPlaying = Ui.label("未播放", Theme.SMALL, Theme.TEXT);
     private final JPanel results = column();
@@ -134,11 +135,12 @@ final class MusicPage {
         page.add(playerBar(), BorderLayout.SOUTH);
 
         root = page;
+        alignLeft(page);
         String initial = System.getProperty("mclite.musicTab", "search");
         if (!"search".equals(initial)) {
             SwingUtilities.invokeLater(() -> selectTab(initial));
         }
-        refreshAccount();
+        refreshAccountAsync();
         refreshQueue();
         updateReverbLabel();
         return page;
@@ -310,8 +312,7 @@ final class MusicPage {
         Ui.RoundedPanel accountCard = card();
         accountCard.add(Ui.label("登录", Theme.BODY_BOLD, Theme.TEXT));
         accountCard.add(Ui.vgap(4));
-        account.setAlignmentX(Component.LEFT_ALIGNMENT);
-        accountCard.add(account);
+        accountCard.add(whoRow(34));
         accountCard.add(Ui.vgap(8));
         JPanel row = row();
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
@@ -320,7 +321,7 @@ final class MusicPage {
         Ui.AccentButton sync = Ui.smallButton("从游戏实例同步", Ui.AccentButton.Style.SECONDARY);
         sync.addActionListener(e -> {
             bili.syncFromInstance(host.instanceDir());
-            refreshAccount();
+            refreshAccountAsync();
             status.setText(bili.loggedIn() ? "已从游戏实例同步登录。" : "游戏实例里没有找到 mclite-island 登录。");
         });
         row.add(login);
@@ -336,8 +337,7 @@ final class MusicPage {
         Ui.RoundedPanel card = card();
         card.add(Ui.label("账户", Theme.BODY_BOLD, Theme.TEXT));
         card.add(Ui.vgap(4));
-        account.setAlignmentX(Component.LEFT_ALIGNMENT);
-        card.add(account);
+        card.add(whoRow(30));
         card.add(Ui.vgap(6));
         JLabel hint = Ui.label("搜索不需要登录；高音质播放建议登录，或到「设置」里从游戏实例同步。",
                 Theme.TINY, Theme.DIM);
@@ -507,12 +507,59 @@ final class MusicPage {
         queueRows.repaint();
     }
 
-    private void refreshAccount() {
-        Bili.Profile profile = bili.profile();
-        account.setText(profile.login()
-                ? "已登录：" + profile.name()
-                : "未登录（可以扫码，或从游戏实例同步）");
-        account.setForeground(profile.login() ? Theme.TEXT : Theme.MUTED);
+    private JPanel whoRow(int height) {
+        JPanel who = row();
+        who.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
+        JPanel avatar = new JPanel(new BorderLayout());
+        avatar.setOpaque(false);
+        avatar.setPreferredSize(new Dimension(28, 28));
+        avatar.setMaximumSize(new Dimension(28, 28));
+        JLabel label = Ui.label("读取登录状态…", Theme.SMALL, Theme.MUTED);
+        avatarHolders.add(avatar);
+        accountLabels.add(label);
+        who.add(avatar);
+        who.add(Ui.hgap(8));
+        who.add(label);
+        who.add(Box.createHorizontalGlue());
+        return who;
+    }
+
+    private void refreshAccountAsync() {
+        for (JLabel label : accountLabels) {
+            label.setText("读取登录状态…");
+            label.setForeground(Theme.MUTED);
+        }
+        new javax.swing.SwingWorker<Bili.Profile, Void>() {
+            @Override
+            protected Bili.Profile doInBackground() {
+                return bili.profile();
+            }
+
+            @Override
+            protected void done() {
+                Bili.Profile profile;
+                try {
+                    profile = get();
+                } catch (Exception ex) {
+                    profile = new Bili.Profile(false, "", 0, "");
+                }
+                String text = profile.login()
+                        ? "已登录：" + profile.name()
+                        : "未登录（可以扫码，或从游戏实例同步）";
+                for (JLabel label : accountLabels) {
+                    label.setText(text);
+                    label.setForeground(profile.login() ? Theme.TEXT : Theme.MUTED);
+                }
+                for (JPanel holder : avatarHolders) {
+                    holder.removeAll();
+                    if (profile.login()) {
+                        holder.add(Art.thumb(cacheDir, profile.face(), 28));
+                    }
+                    holder.revalidate();
+                    holder.repaint();
+                }
+            }
+        }.execute();
     }
 
     private void updateReverbLabel() {
@@ -567,7 +614,7 @@ final class MusicPage {
             protected void done() {
                 try {
                     get();
-                    refreshAccount();
+                    refreshAccountAsync();
                     status.setText("登录成功。");
                 } catch (Exception ex) {
                     status.setText("登录未完成：" + ex.getMessage());
@@ -580,11 +627,15 @@ final class MusicPage {
         if (root == null) {
             return;
         }
-        JPanel next = build();
-        root.removeAll();
-        root.add(next, BorderLayout.CENTER);
-        root.revalidate();
-        root.repaint();
+        // 旧页面里的组件还挂在旧父容器上，必须整页重建，不能复用字段。
+        MusicPage fresh = new MusicPage(host, bili, player);
+        fresh.style = style;
+        JPanel next = fresh.build();
+        JPanel hostRoot = root;
+        hostRoot.removeAll();
+        hostRoot.add(next, BorderLayout.CENTER);
+        hostRoot.revalidate();
+        hostRoot.repaint();
     }
 
     // ---------------------------------------------------------------- 设置存取
@@ -667,7 +718,52 @@ final class MusicPage {
     }
 
     private static JComponent scroll(JPanel body) {
-        JScrollPane scroll = Ui.scroll(body);
+        JScrollPane scroll = Ui.scroll(new WidePanel(body));
         return scroll;
+    }
+
+    /** 让滚动内容横向撑满视口，卡片不会缩成一条。 */
+    private static final class WidePanel extends JPanel implements javax.swing.Scrollable {
+        WidePanel(JPanel body) {
+            super(new BorderLayout());
+            setOpaque(false);
+            add(body, BorderLayout.CENTER);
+        }
+
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(java.awt.Rectangle visible, int orientation, int direction) {
+            return 24;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(java.awt.Rectangle visible, int orientation, int direction) {
+            return visible.height;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
+    }
+
+    private static void alignLeft(java.awt.Container container) {
+        for (Component child : container.getComponents()) {
+            if (child instanceof JComponent component) {
+                component.setAlignmentX(Component.LEFT_ALIGNMENT);
+            }
+            if (child instanceof java.awt.Container nested) {
+                alignLeft(nested);
+            }
+        }
     }
 }

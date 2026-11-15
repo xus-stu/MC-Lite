@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 VERSION="$(cat VERSION)"
-PLUGIN_VERSION="1.1.0"
+PLUGIN_VERSION="1.1.1"
 NORMAL_JAR="MCLite_v${VERSION}.jar"
 REGION_JAR="MCLite_v${VERSION}-region.jar"
 MAC_ZIP="MC-Lite_v${VERSION}_macOS.zip"

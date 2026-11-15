@@ -38,7 +38,7 @@ final class Bili {
     record Song(String bvid, String title, String author, String url, String cover) {
     }
 
-    record Profile(boolean login, String name, long mid) {
+    record Profile(boolean login, String name, long mid, String face) {
     }
 
     private final HttpClient client = HttpClient.newBuilder()
@@ -77,7 +77,12 @@ final class Bili {
         }
         try {
             Map<String, Object> root = Json.obj(Json.parse(Files.readString(island, StandardCharsets.UTF_8)));
-            Map<String, Object> cookies = Json.obj(root == null ? null : root.get("cookies"));
+            if (root == null) {
+                return;
+            }
+            // 岛的 BiliCookies 是扁平结构；兼容旧版嵌套 cookies。
+            Map<String, Object> cookies = root.containsKey("cookies")
+                    ? Json.obj(root.get("cookies")) : root;
             if (cookies == null) {
                 return;
             }
@@ -123,9 +128,10 @@ final class Bili {
             Map<String, Object> data = data(get("/x/web-interface/nav", true));
             boolean login = data != null && Boolean.TRUE.equals(data.get("isLogin"));
             return new Profile(login, login ? Json.str(data, "uname", "") : "",
-                    login ? Json.lng(data, "mid", 0) : 0);
+                    login ? Json.lng(data, "mid", 0) : 0,
+                    login ? Art.normalize(Json.str(data, "face", "")) : "");
         } catch (Exception ex) {
-            return new Profile(false, "", 0);
+            return new Profile(false, "", 0, "");
         }
     }
 
