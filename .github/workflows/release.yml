@@ -41,8 +41,8 @@ jobs:
       - name: Self-test
         run: |
           VERSION="$(cat VERSION)"
-          java -jar "dist/MCLite_v${VERSION}.jar" --self-test
-          java -jar "dist/MCLite_v${VERSION}-region.jar" --self-test
+          java -cp "dist/MCLite_v${VERSION}.jar:dist/MCLiteTests_v${VERSION}.jar" mclite.SelfTestMain
+          java -cp "dist/MCLite_v${VERSION}-region.jar:dist/MCLiteTests_v${VERSION}.jar" mclite.SelfTestMain
       - name: Headless regression tests
         run: |
           chmod +x test/run-ci.sh
@@ -102,3 +102,21 @@ jobs:
             dist/island-manifest.json
             dist/SHA256SUMS.txt
           body_path: release-notes.md
+      - name: Publish launcher plugins
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          JAR=$(ls dist/MCLiteMusicPlayer-*.jar | head -1)
+          SHA=$(sha256sum "$JAR" | cut -d' ' -f1)
+          SIZE=$(stat -c%s "$JAR")
+          NAME=$(basename "$JAR")
+          PLUGIN_VERSION="${NAME#MCLiteMusicPlayer-}"
+          PLUGIN_VERSION="${PLUGIN_VERSION%.jar}"
+          gh release view launcher-plugins >/dev/null 2>&1 || \
+            gh release create launcher-plugins --title "启动器插件" --notes "MC Lite 启动器可选插件：音乐播放器。在启动器「下载中心 → 启动器插件」里安装。"
+          gh release upload launcher-plugins "$JAR" --clobber
+          cat > dist/plugin-manifest.json <<EOF
+          {"schema":1,"plugins":[{"id":"music-player","name":"音乐播放器","version":"${PLUGIN_VERSION}","desc":"B 站音乐、队列播放、列表/单曲/随机/顺序循环；登录可与游戏实例同步","url":"https://github.com/xus-stu/MC-Lite/releases/download/launcher-plugins/${NAME}","sha256":"${SHA}","size":${SIZE}}]}
+          EOF
+          gh release upload launcher-plugins dist/plugin-manifest.json --clobber
