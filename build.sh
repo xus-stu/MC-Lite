@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 VERSION="$(cat VERSION)"
+PLUGIN_VERSION="1.0.0"
 NORMAL_JAR="MCLite_v${VERSION}.jar"
 REGION_JAR="MCLite_v${VERSION}-region.jar"
 MAC_ZIP="MC-Lite_v${VERSION}_macOS.zip"
@@ -52,8 +53,25 @@ cp python/mclite_bridge/*.py build/classes/mclite/pybridge/mclite_bridge/
 printf 'version=%s\n' "$VERSION" > build/classes/mclite/version.properties
 : > build/region-marker/mclite/region.lock
 
+# 自检代码单独打包，不进主 JAR（省 ~17KB 体积）
+rm -rf build/tests-classes
+mkdir -p build/tests-classes
+javac --release 21 -encoding UTF-8 -cp build/classes -d build/tests-classes \
+  test/SelfTest.java test/SelfTestMain.java
+
 echo "[2/4] 打包 ${NORMAL_JAR}…"
 rm -f "dist/${NORMAL_JAR}" "dist/${REGION_JAR}" "dist/${MAC_ZIP}" "dist/${REGION_MAC_ZIP}" "dist/${WIN_ZIP}"
+jar --create --file "dist/MCLiteTests_v${VERSION}.jar" -C build/tests-classes .
+
+# 启动器插件（可选下载，单独 jar）
+rm -rf build/plugin-classes
+mkdir -p build/plugin-classes
+if [ -d plugins/music-player/src ]; then
+  javac --release 21 -encoding UTF-8 -cp build/classes -d build/plugin-classes \
+    $(find plugins/music-player/src -name '*.java')
+  cp -R plugins/music-player/resources/. build/plugin-classes/
+  jar --create --file dist/MCLiteMusicPlayer-${PLUGIN_VERSION}.jar -C build/plugin-classes .
+fi
 jar --create --file "dist/${NORMAL_JAR}" --main-class Main -C build/classes .
 jar --create --file "dist/${REGION_JAR}" --main-class mclite.RegionLauncherApp -C build/classes . -C build/region-marker .
 JAR_LIMIT=800000

@@ -29,10 +29,8 @@ final class FeaturesPage {
 
     private final List<Feature> features;
 
-    FeaturesPage(Runnable openSeed) {
-        this.features = List.of(
-                new Feature("种子查询", "查看存档种子、已生成遗迹和史莱姆区块", "种子 · 遗迹 · 史莱姆", openSeed)
-        );
+    FeaturesPage(List<Feature> features) {
+        this.features = List.copyOf(features);
     }
 
     JPanel build() {

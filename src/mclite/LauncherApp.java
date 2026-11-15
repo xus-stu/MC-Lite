@@ -78,8 +78,18 @@ public final class LauncherApp {
         });
 
         if (selfTest) {
-            int code = SelfTest.run(config);
-            System.exit(code);
+            // 自检类不在主 JAR：需要 dist/MCLiteTests_vX.jar 一起放进 classpath。
+            try {
+                Class<?> cls = Class.forName("mclite.SelfTest");
+                Object code = cls.getMethod("run", Config.class).invoke(null, config);
+                System.exit(code instanceof Integer value ? value : 0);
+            } catch (ClassNotFoundException ex) {
+                System.err.println("SELF-TEST 不可用：请用 dist/MCLiteTests jar 运行（见 test.sh）。");
+                System.exit(2);
+            } catch (Exception ex) {
+                System.err.println("SELF-TEST 启动失败：" + ex);
+                System.exit(2);
+            }
         }
 
         if (pyBridge) {

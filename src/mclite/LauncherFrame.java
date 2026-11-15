@@ -88,6 +88,14 @@ public final class LauncherFrame extends JFrame {
     private LaunchPage launchPage;
     private SeedPage seedPage;
     private FeaturesPage featuresPage;
+    private final java.util.Map<String, java.util.function.Supplier<JComponent>> pluginPages =
+            new java.util.LinkedHashMap<>();
+    private final java.util.Map<String, JComponent> pluginComponents = new java.util.HashMap<>();
+    private final java.util.Map<String, PluginFeature> pluginFeatures = new java.util.LinkedHashMap<>();
+
+    /** 「功能」列表里的一条插件入口。 */
+    private record PluginFeature(String id, String title, String subtitle, String tag) {
+    }
 
     private Ui.AccentButton tasksButton;
     private JLabel detailTitle;
@@ -180,6 +188,7 @@ public final class LauncherFrame extends JFrame {
             sidebar.setMinimumSize(new Dimension(0, 0));
         }
         updateAccountLabels();
+        loadPlugins();
         setLocationRelativeTo(null);
         addWindowListener(new WindowAdapter() {
             @Override
@@ -549,7 +558,7 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel.add(launchPage.build(), "launch");
         seedPage = new SeedPage(config, () -> selectedEntry == null ? null : selectedEntry.id());
         contentCardsPanel.add(seedPage.build(), "seed");
-        featuresPage = new FeaturesPage(() -> showPage("seed"));
+        featuresPage = new FeaturesPage(featureEntries());
         contentCardsPanel.add(featuresPage.build(), "features");
         instancesPage = new InstancesPage(this, this::copySelectedInstance,
                 this::exportSelectedInstance, this::importInstanceZip, this::editInstanceMeta,
@@ -2838,6 +2847,9 @@ public final class LauncherFrame extends JFrame {
         if (contentCards == null) {
             return;
         }
+        if (page.startsWith("plugin:") && !mountPluginPage(page.substring(7))) {
+            page = "features";
+        }
         if ("instances".equals(page)) {
             refreshInstancesPage();
         }
@@ -2893,6 +2905,10 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void goBack() {
+        if (currentTop.startsWith("plugin:")) {
+            selectTab(featureTab, "features");
+            return;
+        }
         if ("seed".equals(currentTop)) {
             selectTab(featureTab, "features");
             return;
@@ -2933,6 +2949,125 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
+    private java.util.List<FeaturesPage.Feature> featureEntries() {
+        java.util.List<FeaturesPage.Feature> list = new java.util.ArrayList<>();
+        list.add(new FeaturesPage.Feature("种子查询",
+                "查看存档种子、已生成遗迹和史莱姆区块", "种子 · 遗迹 · 史莱姆",
+                () -> showPage("seed")));
+        for (PluginFeature meta : pluginFeatures.values()) {
+            list.add(new FeaturesPage.Feature(meta.title(), meta.subtitle(), meta.tag(),
+                    () -> showPage("plugin:" + meta.id())));
+        }
+        return list;
+    }
+
+    private void refreshFeaturesPage() {
+        if (contentCardsPanel == null) {
+            return;
+        }
+        JPanel page = new FeaturesPage(featureEntries()).build();
+        contentCardsPanel.add(page, "features");
+        if ("features".equals(currentTop)) {
+            contentCards.show(contentCardsPanel, "features");
+            if (contentCardsPanel instanceof Ui.FadePanel fade) {
+                fade.fadeIn();
+            }
+        }
+    }
+
+    private boolean mountPluginPage(String id) {
+        if (pluginComponents.containsKey(id)) {
+            return true;
+        }
+        java.util.function.Supplier<JComponent> supplier = pluginPages.get(id);
+        if (supplier == null) {
+            return false;
+        }
+        JComponent panel;
+        try {
+            panel = supplier.get();
+        } catch (RuntimeException ex) {
+            Log.warn("插件页面创建失败 " + id + "：" + ex);
+            return false;
+        }
+        if (panel == null) {
+            return false;
+        }
+        pluginComponents.put(id, panel);
+        contentCardsPanel.add(panel, "plugin:" + id);
+        return true;
+    }
+
+    private void loadPlugins() {
+        for (PluginLoader.Loaded loaded : PluginLoader.load(config.appHome(), Log::warn)) {
+            try {
+                loaded.plugin().onAttach(new PluginHost(loaded.id()));
+            } catch (Throwable ex) {
+                Log.warn("插件启动失败 " + loaded.id() + "：" + ex);
+            }
+        }
+    }
+
+    /** 提供给插件的回调实现。 */
+    private final class PluginHost implements mclite.plugin.Host {
+        private final String pluginId;
+
+        PluginHost(String pluginId) {
+            this.pluginId = pluginId;
+        }
+
+        @Override
+        public java.nio.file.Path appHome() {
+            return config.appHome();
+        }
+
+        @Override
+        public java.nio.file.Path pluginDataDir() {
+            java.nio.file.Path dir = config.appHome().resolve("plugin-data").resolve(pluginId);
+            try {
+                java.nio.file.Files.createDirectories(dir);
+            } catch (java.io.IOException ignored) {
+                // 创建失败时插件自己处理。
+            }
+            return dir;
+        }
+
+        @Override
+        public String instanceId() {
+            return selectedEntry == null ? "" : selectedEntry.id();
+        }
+
+        @Override
+        public java.nio.file.Path instanceDir() {
+            return config.effectiveGameDir(selectedEntry == null ? null : selectedEntry.id());
+        }
+
+        @Override
+        public void addFeature(String id, String title, String subtitle, String tag,
+                               java.util.function.Supplier<JComponent> page) {
+            pluginPages.put(id, page);
+            pluginFeatures.put(id, new PluginFeature(id, title, subtitle, tag == null ? "" : tag));
+            refreshFeaturesPage();
+        }
+
+        @Override
+        public void removeFeature(String id) {
+            pluginPages.remove(id);
+            pluginFeatures.remove(id);
+            refreshFeaturesPage();
+        }
+
+        @Override
+        public void refreshFeatures() {
+            refreshFeaturesPage();
+        }
+
+        @Override
+        public void runOnUiThread(Runnable task) {
+            javax.swing.SwingUtilities.invokeLater(task);
+        }
+    }
+
     /** 截图模式：打开设置页并弹出清理缓存对话框。 */
     public void openCacheForScreenshot() {
         selectPage("settings");
@@ -2967,6 +3102,8 @@ public final class LauncherFrame extends JFrame {
     public void selectPage(String page) {
         if ("launch".equals(page)) {
             selectTab(launchTab, "launch");
+        } else if (page.startsWith("plugin:")) {
+            selectTab(featureTab, page);
         } else if ("features".equals(page)) {
             selectTab(featureTab, "features");
         } else if ("seed".equals(page) || page.startsWith("seed-")) {

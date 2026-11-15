@@ -123,12 +123,126 @@ public final class LauncherPluginsPanel extends JPanel {
                 "零登录、零联网的本地音乐播放器，支持 JEI/Jade 目标信息与可导入 LRC。",
                 () -> openIslandDetail()));
         list.add(Ui.vgap(10));
+        list.add(pluginCard("音乐播放器", "启动器扩展 · 可选安装",
+                "在启动器里搜 B 站音乐并播放：队列、列表/单曲/随机/顺序循环，登录可与游戏实例同步。",
+                this::openMusicExtensionDetail));
+        list.add(Ui.vgap(10));
         list.add(pluginCard("Python Bridge 模块", "让 PyCharm / 外部脚本连接启动器",
                 "把 mclite_bridge 安装到指定 Python 解释器，并可一键启动 Bridge 服务。",
                 () -> openPythonDetail()));
         card.add(list, BorderLayout.CENTER);
         outer.add(card, BorderLayout.CENTER);
         return outer;
+    }
+
+    private void openMusicExtensionDetail() {
+        JPanel detail = detailShell("音乐播放器", this::showCatalog);
+        JPanel body = new JPanel();
+        body.setOpaque(false);
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+
+        JLabel status = Ui.label("检查安装状态…", Theme.SMALL, Theme.MUTED);
+        status.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        body.add(status);
+        body.add(Ui.vgap(10));
+        body.add(descLine("B 站登录：可与当前游戏实例里 mclite-island 的登录同步。"));
+        body.add(descLine("播放：队列播放，支持列表循环 / 单曲循环 / 随机播放 / 顺序播放。"));
+        body.add(descLine("界面：默认跟随启动器当前主题，也可在插件里单独选样式。"));
+        body.add(descLine("依赖：解码使用 ffmpeg（启动器会自动查找，找不到会提示）。"));
+        body.add(Ui.vgap(14));
+
+        JPanel actions = new JPanel();
+        actions.setOpaque(false);
+        actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
+        actions.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        Ui.AccentButton install = Ui.smallButton("安装", Ui.AccentButton.Style.PRIMARY);
+        Ui.AccentButton remove = Ui.smallButton("卸载", Ui.AccentButton.Style.GHOST);
+        actions.add(install);
+        actions.add(Ui.hgap(10));
+        actions.add(remove);
+        body.add(actions);
+        body.add(Ui.vgap(10));
+        JLabel hint = Ui.label("安装后重启启动器生效；不装不影响启动器其它功能。", Theme.TINY, Theme.DIM);
+        hint.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        body.add(hint);
+
+        Runnable refresh = () -> {
+            boolean installed = LauncherExtensions.installed(config, "music-player");
+            status.setText(installed ? "已安装：启动后出现在「功能」列表里。" : "未安装。");
+            install.setText(installed ? "重新安装" : "安装");
+            remove.setEnabled(installed);
+        };
+        refresh.run();
+
+        install.addActionListener(e -> {
+            install.setEnabled(false);
+            status.setText("正在获取插件清单…");
+            new javax.swing.SwingWorker<LauncherExtensions.Entry, Void>() {
+                @Override
+                protected LauncherExtensions.Entry doInBackground() throws Exception {
+                    for (LauncherExtensions.Entry entry : LauncherExtensions.fetch()) {
+                        if (entry.id().equals("music-player")) {
+                            return entry;
+                        }
+                    }
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    install.setEnabled(true);
+                    try {
+                        LauncherExtensions.Entry entry = get();
+                        if (entry == null) {
+                            status.setText("清单里没有音乐播放器插件。");
+                            return;
+                        }
+                        status.setText("正在下载 " + entry.label() + "…");
+                        new javax.swing.SwingWorker<Void, Void>() {
+                            @Override
+                            protected Void doInBackground() throws Exception {
+                                LauncherExtensions.install(config, entry);
+                                return null;
+                            }
+
+                            @Override
+                            protected void done() {
+                                try {
+                                    get();
+                                    status.setText("已安装 " + entry.label() + "，重启启动器后生效。");
+                                } catch (Exception ex) {
+                                    status.setText("安装失败：" + ex.getMessage());
+                                }
+                                refresh.run();
+                            }
+                        }.execute();
+                    } catch (Exception ex) {
+                        status.setText("获取清单失败：" + ex.getMessage());
+                    }
+                }
+            }.execute();
+        });
+        remove.addActionListener(e -> {
+            try {
+                LauncherExtensions.uninstall(config, "music-player");
+                status.setText("已卸载，重启启动器后消失。");
+            } catch (Exception ex) {
+                status.setText("卸载失败：" + ex.getMessage());
+            }
+            refresh.run();
+        });
+
+        JScrollPane scroll = Ui.scroll(body);
+        detail.add(scroll, BorderLayout.CENTER);
+        deck.add(detail, "music");
+        cards.show(deck, "music");
+    }
+
+    private JLabel descLine(String text) {
+        JLabel label = Ui.label("· " + text, Theme.SMALL, Theme.MUTED);
+        label.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        label.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
+        return label;
     }
 
     private JPanel pluginCard(String title, String subtitle, String intro, Runnable onOpen) {
