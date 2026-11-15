@@ -273,10 +273,6 @@ public final class LauncherFrame extends JFrame {
         sidebarToggle.setToolTipText("收起 / 展开侧边栏");
         sidebarToggle.addActionListener(e -> toggleSidebar());
         identity.add(sidebarToggle);
-        identity.add(Ui.hgap(8));
-        identity.add(new Ui.LogoMark(20));
-        identity.add(Ui.hgap(9));
-        identity.add(Ui.label("MC Lite", Theme.BODY_BOLD, Theme.TEXT));
 
         downloadTab = new Ui.NavTab("下载中心");
         launchTab = new Ui.NavTab("启动游戏");
@@ -310,7 +306,6 @@ public final class LauncherFrame extends JFrame {
         JPanel badges = new JPanel();
         badges.setOpaque(false);
         badges.setLayout(new BoxLayout(badges, BoxLayout.X_AXIS));
-        badges.add(Ui.label("V" + GameLauncher.LAUNCHER_VERSION, Theme.MONO, Theme.DIM));
         bar.bind(identity, leftTabs, featureTab, rightTabs, badges);
         return bar;
     }
@@ -361,7 +356,14 @@ public final class LauncherFrame extends JFrame {
                     identitySize.width, identitySize.height);
 
             Dimension centerSize = centerTab.getPreferredSize();
-            int centerX = (getWidth() - centerSize.width) / 2;
+            String mode = System.getProperty("mclite.navMode", "window");
+            int centerX;
+            switch (mode) {
+                case "content" -> centerX = 286 + (getWidth() - 286 - centerSize.width) / 2;
+                case "space" -> centerX = (insets.left + identitySize.width
+                        + (getWidth() - insets.right - badgeSize.width) - centerSize.width) / 2;
+                default -> centerX = (getWidth() - centerSize.width) / 2;
+            }
             centerX = Math.max(centerX, insets.left + identitySize.width + GAP);
             centerTab.setBounds(centerX, top + (height - centerSize.height) / 2,
                     centerSize.width, centerSize.height);
@@ -404,7 +406,11 @@ public final class LauncherFrame extends JFrame {
         JPanel form = new JPanel();
         form.setOpaque(false);
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(new EmptyBorder(20, 16, 12, 16));
+        form.setBorder(new EmptyBorder(18, 16, 12, 16));
+        form.add(LauncherLayout.lockedHeight(buildSidebarBrand()));
+        form.add(Ui.vgap(18));
+        form.add(LauncherLayout.divider());
+        form.add(Ui.vgap(18));
         form.add(LauncherLayout.lockedHeight(buildSidebarAccount()));
         form.add(Ui.vgap(30));
         form.add(LauncherLayout.divider());
@@ -412,6 +418,21 @@ public final class LauncherFrame extends JFrame {
         form.add(LauncherLayout.lockedHeight(buildSidebarVersion()));
         form.add(Box.createVerticalGlue());
         return form;
+    }
+
+    private JComponent buildSidebarBrand() {
+        JPanel row = new JPanel(new BorderLayout(9, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel left = new JPanel();
+        left.setOpaque(false);
+        left.setLayout(new BoxLayout(left, BoxLayout.X_AXIS));
+        left.add(new Ui.LogoMark(22));
+        left.add(Ui.hgap(9));
+        left.add(Ui.label("MC Lite", Theme.BODY_BOLD, Theme.TEXT));
+        left.add(Box.createHorizontalGlue());
+        row.add(left, BorderLayout.CENTER);
+        return row;
     }
 
     private JComponent buildSidebarAccount() {
@@ -1191,6 +1212,10 @@ public final class LauncherFrame extends JFrame {
         meta.add(Ui.label("·", Theme.MONO, Theme.DIM));
         meta.add(Ui.hgap(7));
         meta.add(countLabel);
+        meta.add(Ui.hgap(7));
+        meta.add(Ui.label("·", Theme.MONO, Theme.DIM));
+        meta.add(Ui.hgap(7));
+        meta.add(Ui.label("V" + GameLauncher.LAUNCHER_VERSION, Theme.MONO, Theme.DIM));
         row.add(meta, BorderLayout.EAST);
         status.add(row, BorderLayout.CENTER);
         return status;
