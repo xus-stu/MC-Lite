@@ -103,6 +103,7 @@ public final class LauncherFrame extends JFrame {
     private Ui.NavTab launchTab;
     private Ui.NavTab featureTab;
     private Ui.NavTab settingsTab;
+    private HeaderBar headerBar;
     private Ui.AccentButton instanceButton;
     private Ui.AccentButton sidebarSwitchButton;
     private String pendingLaunchId = "";
@@ -242,11 +243,13 @@ public final class LauncherFrame extends JFrame {
         root.setBackground(Theme.BG);
         root.add(buildHeader(), BorderLayout.NORTH);
         root.add(buildBody(), BorderLayout.CENTER);
+        updateHeaderInset();
         return root;
     }
 
     private JPanel buildHeader() {
         HeaderBar bar = new HeaderBar();
+        headerBar = bar;
         bar.setBackground(Theme.BG_SOFT);
         bar.setPreferredSize(new Dimension(0, 40));
         bar.setBorder(BorderFactory.createCompoundBorder(
@@ -321,9 +324,14 @@ public final class LauncherFrame extends JFrame {
         private JComponent centerTab;
         private JComponent rightTabs;
         private JComponent badges;
+        private int contentLeft;
 
         HeaderBar() {
             super(null);
+        }
+
+        void setContentLeft(int left) {
+            this.contentLeft = Math.max(0, left);
         }
 
         void bind(JComponent identity, JComponent leftTabs, JComponent centerTab,
@@ -359,7 +367,9 @@ public final class LauncherFrame extends JFrame {
                     identitySize.width, identitySize.height);
 
             Dimension centerSize = centerTab.getPreferredSize();
-            int centerX = (getWidth() - centerSize.width) / 2;
+            int contentWidth = Math.max(centerSize.width, getWidth() - contentLeft);
+            int centerX = contentLeft + (contentWidth - centerSize.width) / 2;
+            centerX = Math.max(centerX, insets.left + identitySize.width + GAP);
             centerTab.setBounds(centerX, top + (height - centerSize.height) / 2,
                     centerSize.width, centerSize.height);
 
@@ -2824,6 +2834,20 @@ public final class LauncherFrame extends JFrame {
         updateBackButton();
     }
 
+    /** 侧边栏宽度变化时，导航中线跟着内容区走。 */
+    private void updateHeaderInset() {
+        if (headerBar == null) {
+            return;
+        }
+        int width = 0;
+        if (sidebar != null && sidebar.isVisible()) {
+            width = sidebar.getWidth() > 0 ? sidebar.getWidth() : 286;
+        }
+        headerBar.setContentLeft(width);
+        headerBar.revalidate();
+        headerBar.repaint();
+    }
+
     private void toggleSidebar() {
         boolean currentlyCollapsed = config.sidebarCollapsed() || !sidebar.isVisible();
         boolean collapse = !currentlyCollapsed;
@@ -2837,6 +2861,7 @@ public final class LauncherFrame extends JFrame {
             sidebar.setMinimumSize(new Dimension(286, 0));
             sidebar.setMaximumSize(new Dimension(286, Integer.MAX_VALUE));
             sidebarToggle.setText("<");
+            updateHeaderInset();
             getContentPane().revalidate();
             getContentPane().repaint();
             return;
@@ -2851,6 +2876,7 @@ public final class LauncherFrame extends JFrame {
             int width = Math.round(from * (1f - eased));
             sidebar.setPreferredSize(new Dimension(width, 0));
             sidebar.setMinimumSize(new Dimension(width, 0));
+            updateHeaderInset();
             getContentPane().revalidate();
             getContentPane().repaint();
             if (t >= 1f) {
