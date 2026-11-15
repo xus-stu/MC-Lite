@@ -581,6 +581,44 @@ public final class SelfTest {
         }
         passed += 3;
 
+        // 种子 / 结构解析 / 缓存清理
+        try {
+            byte[] root = java.util.HexFormat.of().parseHex("0a00000400016100000000075bcd1500");
+            check(Nbt.num(Nbt.at(Nbt.parse(root), "a"), 0L) == 123456789L, "NBT 长整数解析");
+            check(SlimeChunks.isSlime(0L, -2, 0) && !SlimeChunks.isSlime(0L, 0, 0),
+                    "史莱姆区块种子算法");
+            check("要塞（末地门）".equals(StructureScan.label("minecraft:stronghold")),
+                    "结构中文名");
+            byte[] chunk = java.util.HexFormat.of().parseHex(
+                    "78da6d893d0e40301886df90345226711a2b6710b135140ddae4ebd7ab398eab54179bedf991408eb257ac064dde380bd4b784f44c61e640da4b08cf8a38417319ab67522bb7e93bbbedee5c0a6466f95f3944b7077b8c00aa4fa618e393025eed23267e");
+            Path world = Files.createTempDirectory("mclite-seed");
+            Path region = world.resolve("dimensions/minecraft/overworld/region");
+            Files.createDirectories(region);
+            byte[] mca = new byte[8192 + 4096];
+            mca[2] = 2;
+            mca[3] = 1;
+            int length = chunk.length + 1;
+            mca[8192] = (byte) (length >>> 24);
+            mca[8193] = (byte) (length >>> 16);
+            mca[8194] = (byte) (length >>> 8);
+            mca[8195] = (byte) length;
+            mca[8196] = 2;
+            System.arraycopy(chunk, 0, mca, 8197, chunk.length);
+            Files.write(region.resolve("r.0.0.mca"), mca);
+            List<StructureScan.Found> found = StructureScan.scan(world, null);
+            check(found.size() == 1 && "minecraft:stronghold".equals(found.get(0).id())
+                            && found.get(0).chunkX() == 12 && found.get(0).chunkZ() == -34,
+                    "区域文件结构起点扫描");
+            Path cache = Files.createDirectories(world.resolve("cache"));
+            Files.writeString(cache.resolve("a.bin"), "12345");
+            check(CacheCleaner.size(cache) == 5L && CacheCleaner.clear(cache) == 5L
+                    && CacheCleaner.size(cache) == 0L, "缓存统计与清理");
+            deleteTree(world);
+        } catch (Exception ex) {
+            check(false, "种子/缓存测试: " + ex.getMessage());
+        }
+        passed += 5;
+
         return passed;
     }
 

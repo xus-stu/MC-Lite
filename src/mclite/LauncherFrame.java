@@ -86,6 +86,8 @@ public final class LauncherFrame extends JFrame {
     private final List<JavaManager.JavaInfo> javaInfos = new ArrayList<>();
     private ConfigPage configPage;
     private LaunchPage launchPage;
+    private SeedPage seedPage;
+    private FeaturesPage featuresPage;
 
     private Ui.AccentButton tasksButton;
     private JLabel detailTitle;
@@ -99,6 +101,7 @@ public final class LauncherFrame extends JFrame {
     private Ui.NavTab downloadTab;
     private Ui.NavTab configTab;
     private Ui.NavTab launchTab;
+    private Ui.NavTab featureTab;
     private Ui.NavTab settingsTab;
     private Ui.AccentButton versionPickerButton;
     private Ui.AccentButton instanceButton;
@@ -286,34 +289,37 @@ public final class LauncherFrame extends JFrame {
         JPanel nav = new JPanel();
         nav.setOpaque(false);
         nav.setLayout(new BoxLayout(nav, BoxLayout.X_AXIS));
-        nav.add(Box.createHorizontalGlue());
         downloadTab = new Ui.NavTab("下载中心");
         launchTab = new Ui.NavTab("启动游戏");
+        featureTab = new Ui.NavTab("功能");
         configTab = new Ui.NavTab("启动器配置");
         settingsTab = new Ui.NavTab("设置");
         ButtonGroup group = new ButtonGroup();
         group.add(downloadTab);
         group.add(launchTab);
+        group.add(featureTab);
         group.add(configTab);
         group.add(settingsTab);
         downloadTab.setSelected(true);
         downloadTab.addActionListener(e -> showPage("download"));
         launchTab.addActionListener(e -> showPage("launch"));
+        featureTab.addActionListener(e -> showPage("features"));
         configTab.addActionListener(e -> showPage("config"));
         settingsTab.addActionListener(e -> showPage("settings"));
         nav.add(downloadTab);
         nav.add(launchTab);
+        nav.add(featureTab);
+        nav.add(Box.createHorizontalGlue());
         versionPickerButton = Ui.smallButton("版本列表", Ui.AccentButton.Style.SECONDARY);
         versionPickerButton.setPreferredSize(new Dimension(126, 28));
         versionPickerButton.setMaximumSize(new Dimension(126, 28));
         versionPickerButton.setAlignmentY(Component.CENTER_ALIGNMENT);
         versionPickerButton.setToolTipText("选择游戏版本 / 实例");
         versionPickerButton.addActionListener(e -> selectPage("instances"));
-        nav.add(Ui.hgap(4));
         nav.add(versionPickerButton);
+        nav.add(Ui.hgap(10));
         nav.add(configTab);
         nav.add(settingsTab);
-        nav.add(Box.createHorizontalGlue());
         bar.add(nav, BorderLayout.CENTER);
 
         JPanel badges = new JPanel();
@@ -474,6 +480,10 @@ public final class LauncherFrame extends JFrame {
                 launcherPluginsPanel), "download");
         launchPage = new LaunchPage(this, config);
         contentCardsPanel.add(launchPage.build(), "launch");
+        seedPage = new SeedPage(config, () -> selectedEntry == null ? null : selectedEntry.id());
+        contentCardsPanel.add(seedPage.build(), "seed");
+        featuresPage = new FeaturesPage(() -> showPage("seed"));
+        contentCardsPanel.add(featuresPage.build(), "features");
         instancesPage = new InstancesPage(this, this::copySelectedInstance,
                 this::exportSelectedInstance, this::importInstanceZip, this::editInstanceMeta,
                 config::gameDir);
@@ -2760,6 +2770,9 @@ public final class LauncherFrame extends JFrame {
         if ("instances".equals(page)) {
             refreshInstancesPage();
         }
+        if ("seed".equals(page) && seedPage != null) {
+            seedPage.onShown();
+        }
         currentTop = page;
         contentCards.show(contentCardsPanel, page);
         if (contentCardsPanel instanceof Ui.FadePanel fade) {
@@ -2809,6 +2822,10 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void goBack() {
+        if ("seed".equals(currentTop)) {
+            selectTab(featureTab, "features");
+            return;
+        }
         if (!"download".equals(currentTop)) {
             downloadTab.setSelected(true);
             showPage("download");
@@ -2845,6 +2862,22 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
+    /** 截图模式：种子页自动读实例；structure/slime 子页会顺手扫一次，方便肉眼验收。 */
+    public void openSeedForScreenshot(String page) {
+        if (seedPage == null) {
+            return;
+        }
+        seedPage.onShown();
+        if (page.endsWith("structure")) {
+            seedPage.selectTab("structure");
+            seedPage.scan();
+        } else if (page.endsWith("slime")) {
+            seedPage.prepareScreenshot();
+        } else {
+            seedPage.selectTab("world");
+        }
+    }
+
     public void openFirstVersionDetailForScreenshot() {
         if (versionListCard.selectedIndex() < 0 && !versionListCard.isEmpty()) {
             versionListCard.selectFirst();
@@ -2855,6 +2888,13 @@ public final class LauncherFrame extends JFrame {
     public void selectPage(String page) {
         if ("launch".equals(page)) {
             selectTab(launchTab, "launch");
+        } else if ("features".equals(page)) {
+            selectTab(featureTab, "features");
+        } else if ("seed".equals(page) || page.startsWith("seed-")) {
+            selectTab(featureTab, "seed");
+            if (seedPage != null) {
+                seedPage.selectTab(page.startsWith("seed-") ? page.substring(5) : "world");
+            }
         } else if ("config".equals(page)) {
             selectTab(configTab, "config");
         } else if ("settings".equals(page)) {
