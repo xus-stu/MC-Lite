@@ -16,6 +16,7 @@ import java.awt.Insets;
 final class LaunchPage {
     private final LauncherFrame owner;
     private final Config config;
+    private Runnable versionListAction;
     private Ui.SkinHead accountSkin;
     private JLabel accountLabel;
     private JLabel versionLabel;
@@ -65,8 +66,20 @@ final class LaunchPage {
 
         JPanel version = LauncherLayout.section("版本", "下载或修复会先补全客户端、运行库和资源");
         versionLabel = Ui.label("未选择版本", Theme.TITLE, Theme.TEXT);
-        versionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        version.add(versionLabel);
+        JPanel versionRow = new JPanel(new BorderLayout(12, 0));
+        versionRow.setOpaque(false);
+        versionRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        versionRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        versionRow.add(versionLabel, BorderLayout.WEST);
+        Ui.AccentButton versionList = Ui.smallButton("版本列表", Ui.AccentButton.Style.SECONDARY);
+        versionList.setToolTipText("选择游戏版本 / 实例");
+        versionList.addActionListener(e -> {
+            if (versionListAction != null) {
+                versionListAction.run();
+            }
+        });
+        versionRow.add(versionList, BorderLayout.EAST);
+        version.add(versionRow);
         version.add(Ui.vgap(4));
         metaArea = new JTextArea(3, 50);
         metaArea.setEditable(false);
@@ -148,6 +161,11 @@ final class LaunchPage {
         if (accountSkin != null) {
             accountSkin.setSkin(skin);
         }
+    }
+
+    /** 由 LauncherFrame 注入：打开版本列表，页面不直接调用主窗口方法。 */
+    void setVersionListAction(Runnable action) {
+        this.versionListAction = action;
     }
 
     void setVersion(String text) {
