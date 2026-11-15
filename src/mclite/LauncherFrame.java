@@ -275,14 +275,6 @@ public final class LauncherFrame extends JFrame {
         identity.add(new Ui.LogoMark(20));
         identity.add(Ui.hgap(9));
         identity.add(Ui.label("MC Lite", Theme.BODY_BOLD, Theme.TEXT));
-        JPanel separator = new JPanel();
-        separator.setBackground(Theme.BORDER);
-        separator.setPreferredSize(new Dimension(1, 14));
-        separator.setMaximumSize(new Dimension(1, 14));
-        identity.add(Ui.hgap(9));
-        identity.add(separator);
-        identity.add(Ui.hgap(9));
-        identity.add(Ui.label("Minecraft 版本启动器", Theme.TINY, Theme.DIM));
 
         downloadTab = new Ui.NavTab("下载中心");
         launchTab = new Ui.NavTab("启动游戏");
@@ -316,11 +308,6 @@ public final class LauncherFrame extends JFrame {
         JPanel badges = new JPanel();
         badges.setOpaque(false);
         badges.setLayout(new BoxLayout(badges, BoxLayout.X_AXIS));
-        badges.add(new Ui.Pill("官方源", Theme.alpha(Theme.ACCENT, 28), Theme.ACCENT,
-                Theme.alpha(Theme.ACCENT, 90)));
-        badges.add(Ui.hgap(6));
-        badges.add(new Ui.Pill("SHA-1", Theme.CARD_ALT, Theme.DIM, Theme.BORDER));
-        badges.add(Ui.hgap(10));
         badges.add(Ui.label("V" + GameLauncher.LAUNCHER_VERSION, Theme.MONO, Theme.DIM));
         bar.bind(identity, leftTabs, featureTab, rightTabs, badges);
         return bar;
