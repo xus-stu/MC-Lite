@@ -36,6 +36,22 @@ final class CacheCleaner {
         }
     }
 
+    /** 删除单个缓存项（文件或目录），返回释放的字节数。 */
+    static long remove(Path path) {
+        if (path == null) {
+            return 0L;
+        }
+        if (Files.isDirectory(path)) {
+            return clear(path);
+        }
+        try {
+            long size = Files.size(path);
+            return Files.deleteIfExists(path) ? size : 0L;
+        } catch (IOException ignored) {
+            return 0L;
+        }
+    }
+
     static long clear(Path dir) {
         if (dir == null || !Files.isDirectory(dir)) {
             return 0L;

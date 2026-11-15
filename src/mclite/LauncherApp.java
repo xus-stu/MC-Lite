@@ -121,6 +121,10 @@ public final class LauncherApp {
                         Timer delay = new Timer(2000, e -> frame.openFirstProjectForScreenshot());
                         delay.setRepeats(false);
                         delay.start();
+                    } else if ("cache".equals(finalPage)) {
+                        Timer delay = new Timer(1800, e -> frame.openCacheForScreenshot());
+                        delay.setRepeats(false);
+                        delay.start();
                     } else if (finalPage.startsWith("seed")) {
                         Timer delay = new Timer(2500, e -> frame.openSeedForScreenshot(finalPage));
                         delay.setRepeats(false);
