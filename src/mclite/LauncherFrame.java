@@ -2862,6 +2862,14 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
+    /** 截图模式：打开设置页并弹出清理缓存对话框。 */
+    public void openCacheForScreenshot() {
+        selectPage("settings");
+        if (settingsPage != null) {
+            settingsPage.openCacheDialog();
+        }
+    }
+
     /** 截图模式：种子页自动读实例；structure/slime 子页会顺手扫一次，方便肉眼验收。 */
     public void openSeedForScreenshot(String page) {
         if (seedPage == null) {

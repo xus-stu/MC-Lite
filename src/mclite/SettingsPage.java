@@ -544,9 +544,9 @@ final class SettingsPage {
         cacheRow.setOpaque(false);
         cacheLabel = Ui.label("", Theme.MONO, Theme.MUTED);
         cacheRow.add(cacheLabel, BorderLayout.CENTER);
-        Ui.AccentButton clearCache = Ui.smallButton("清理缓存", Ui.AccentButton.Style.SECONDARY);
+        Ui.AccentButton clearCache = Ui.smallButton("清理缓存…", Ui.AccentButton.Style.SECONDARY);
         clearCache.setToolTipText("删除图标、内容索引和下载中转缓存");
-        clearCache.addActionListener(e -> clearCache());
+        clearCache.addActionListener(e -> openCacheDialog());
         cacheRow.add(clearCache, BorderLayout.EAST);
         cacheRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         cacheRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
@@ -560,32 +560,27 @@ final class SettingsPage {
     }
 
     private void updateCacheLabel() {
-        if (cacheLabel != null) {
-            cacheLabel.setText("缓存 " + Formatting.bytes(CacheCleaner.size(config.cacheDir()))
-                    + "（图标 / 索引 / 下载中转）");
+        if (cacheLabel == null) {
+            return;
         }
+        java.nio.file.Path cache = config.cacheDir();
+        long total = CacheCleaner.size(cache);
+        long packs = CacheCleaner.size(cache.resolve("packs"));
+        long icons = CacheCleaner.size(cache.resolve("icons"));
+        long other = Math.max(0L, total - packs - icons);
+        cacheLabel.setText("缓存 " + Formatting.bytes(total)
+                + " · 整合包 " + Formatting.bytes(packs)
+                + " / 图标 " + Formatting.bytes(icons)
+                + " / 其他 " + Formatting.bytes(other));
     }
 
-    private void clearCache() {
+    /** 打开勾选式清理对话框；有任务在跑时先拒绝，避免删到正在用的中转文件。 */
+    void openCacheDialog() {
         if (taskCenter != null && taskCenter.running() > 0) {
             ModernDialogs.message(owner, "先等一下", "还有下载或安装任务在跑，完成后再清理缓存。");
             return;
         }
-        long size = CacheCleaner.size(config.cacheDir());
-        if (size <= 0) {
-            updateCacheLabel();
-            ModernDialogs.message(owner, "缓存已经是空的", "没有需要清理的内容。");
-            return;
-        }
-        boolean ok = ModernDialogs.confirm(owner, "清理启动器缓存",
-                "将删除 " + Formatting.bytes(size) + " 的缓存（图标、内容索引、下载中转）。\n"
-                        + "游戏文件、存档和 Java 运行时都不受影响。");
-        if (!ok) {
-            return;
-        }
-        long freed = CacheCleaner.clear(config.cacheDir());
-        updateCacheLabel();
-        ModernDialogs.message(owner, "清理完成", "已释放 " + Formatting.bytes(freed) + "。");
+        CacheDialog.show(owner, config, this::updateCacheLabel);
     }
 
     private JScrollPane buildStyleStrip() {
