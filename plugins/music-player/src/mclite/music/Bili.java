@@ -32,10 +32,10 @@ final class Bili {
             22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52
     };
 
-    record Video(String bvid, String title, String author, long seconds) {
+    record Video(String bvid, String title, String author, long seconds, String cover) {
     }
 
-    record Song(String bvid, String title, String author, String url) {
+    record Song(String bvid, String title, String author, String url, String cover) {
     }
 
     record Profile(boolean login, String name, long mid) {
@@ -205,7 +205,8 @@ final class Bili {
                 continue;
             }
             out.add(new Video(bvid, strip(Json.str(item, "title", bvid)),
-                    Json.str(item, "author", ""), parseDuration(Json.str(item, "duration", ""))));
+                    Json.str(item, "author", ""), parseDuration(Json.str(item, "duration", "")),
+                    Art.normalize(Json.str(item, "pic", ""))));
         }
         return out;
     }
@@ -240,7 +241,7 @@ final class Bili {
         if (url.isBlank()) {
             throw new IOException("没有可用的音频流");
         }
-        return new Song(video.bvid(), video.title(), video.author(), url);
+        return new Song(video.bvid(), video.title(), video.author(), url, video.cover());
     }
 
     private static String bestAudio(Map<String, Object> play) {

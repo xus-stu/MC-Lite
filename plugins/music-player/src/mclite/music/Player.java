@@ -45,6 +45,7 @@ final class Player {
     private Process process;
     private SourceDataLine line;
     private volatile boolean playing;
+    private final Reverb reverb = new Reverb();
 
     Player(Listener listener) {
         this.listener = listener;
@@ -70,8 +71,19 @@ final class Player {
         return index;
     }
 
+    Reverb reverb() {
+        return reverb;
+    }
+
     boolean playing() {
         return playing;
+    }
+
+    void clear() {
+        stop();
+        queue.clear();
+        index = -1;
+        listener.onQueueChanged();
     }
 
     void enqueue(List<Bili.Song> songs) {
@@ -200,6 +212,9 @@ final class Player {
             byte[] buffer = new byte[8192];
             int read;
             while (mine == token && (read = in.read(buffer)) > 0) {
+                if (reverb.enabled()) {
+                    reverb.process(buffer, read);
+                }
                 audio.write(buffer, 0, read);
             }
             if (mine == token) {
