@@ -444,6 +444,10 @@ public final class Ui {
         private long started;
         private Timer timer;
 
+        public FadePanel() {
+            this(new java.awt.BorderLayout());
+        }
+
         public FadePanel(java.awt.LayoutManager layout) {
             super(layout);
             setOpaque(false);
