@@ -103,7 +103,6 @@ public final class LauncherFrame extends JFrame {
     private Ui.NavTab launchTab;
     private Ui.NavTab featureTab;
     private Ui.NavTab settingsTab;
-    private Ui.AccentButton versionPickerButton;
     private Ui.AccentButton instanceButton;
     private Ui.AccentButton sidebarSwitchButton;
     private String pendingLaunchId = "";
@@ -247,7 +246,7 @@ public final class LauncherFrame extends JFrame {
     }
 
     private JPanel buildHeader() {
-        JPanel bar = new JPanel(new BorderLayout(10, 0));
+        HeaderBar bar = new HeaderBar();
         bar.setBackground(Theme.BG_SOFT);
         bar.setPreferredSize(new Dimension(0, 40));
         bar.setBorder(BorderFactory.createCompoundBorder(
@@ -284,11 +283,7 @@ public final class LauncherFrame extends JFrame {
         identity.add(separator);
         identity.add(Ui.hgap(9));
         identity.add(Ui.label("Minecraft 版本启动器", Theme.TINY, Theme.DIM));
-        bar.add(identity, BorderLayout.WEST);
 
-        JPanel nav = new JPanel();
-        nav.setOpaque(false);
-        nav.setLayout(new BoxLayout(nav, BoxLayout.X_AXIS));
         downloadTab = new Ui.NavTab("下载中心");
         launchTab = new Ui.NavTab("启动游戏");
         featureTab = new Ui.NavTab("功能");
@@ -306,21 +301,17 @@ public final class LauncherFrame extends JFrame {
         featureTab.addActionListener(e -> showPage("features"));
         configTab.addActionListener(e -> showPage("config"));
         settingsTab.addActionListener(e -> showPage("settings"));
-        nav.add(downloadTab);
-        nav.add(launchTab);
-        nav.add(featureTab);
-        nav.add(Box.createHorizontalGlue());
-        versionPickerButton = Ui.smallButton("版本列表", Ui.AccentButton.Style.SECONDARY);
-        versionPickerButton.setPreferredSize(new Dimension(126, 28));
-        versionPickerButton.setMaximumSize(new Dimension(126, 28));
-        versionPickerButton.setAlignmentY(Component.CENTER_ALIGNMENT);
-        versionPickerButton.setToolTipText("选择游戏版本 / 实例");
-        versionPickerButton.addActionListener(e -> selectPage("instances"));
-        nav.add(versionPickerButton);
-        nav.add(Ui.hgap(10));
-        nav.add(configTab);
-        nav.add(settingsTab);
-        bar.add(nav, BorderLayout.CENTER);
+        JPanel leftTabs = new JPanel();
+        leftTabs.setOpaque(false);
+        leftTabs.setLayout(new BoxLayout(leftTabs, BoxLayout.X_AXIS));
+        leftTabs.add(downloadTab);
+        leftTabs.add(launchTab);
+
+        JPanel rightTabs = new JPanel();
+        rightTabs.setOpaque(false);
+        rightTabs.setLayout(new BoxLayout(rightTabs, BoxLayout.X_AXIS));
+        rightTabs.add(configTab);
+        rightTabs.add(settingsTab);
 
         JPanel badges = new JPanel();
         badges.setOpaque(false);
@@ -331,8 +322,72 @@ public final class LauncherFrame extends JFrame {
         badges.add(new Ui.Pill("SHA-1", Theme.CARD_ALT, Theme.DIM, Theme.BORDER));
         badges.add(Ui.hgap(10));
         badges.add(Ui.label("V" + GameLauncher.LAUNCHER_VERSION, Theme.MONO, Theme.DIM));
-        bar.add(badges, BorderLayout.EAST);
+        bar.bind(identity, leftTabs, featureTab, rightTabs, badges);
         return bar;
+    }
+
+    /** 顶部导航：功能页签固定压在窗口中线，左右两组等距分开，logo 和状态各自贴边。 */
+    private static final class HeaderBar extends JPanel {
+        private static final int GAP = 8;
+        private JComponent identity;
+        private JComponent leftTabs;
+        private JComponent centerTab;
+        private JComponent rightTabs;
+        private JComponent badges;
+
+        HeaderBar() {
+            super(null);
+        }
+
+        void bind(JComponent identity, JComponent leftTabs, JComponent centerTab,
+                  JComponent rightTabs, JComponent badges) {
+            this.identity = identity;
+            this.leftTabs = leftTabs;
+            this.centerTab = centerTab;
+            this.rightTabs = rightTabs;
+            this.badges = badges;
+            add(identity);
+            add(leftTabs);
+            add(centerTab);
+            add(rightTabs);
+            add(badges);
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            return new Dimension(900, 40);
+        }
+
+        @Override
+        public void doLayout() {
+            java.awt.Insets insets = getInsets();
+            int top = insets.top;
+            int height = Math.max(1, getHeight() - insets.top - insets.bottom);
+            Dimension badgeSize = badges.getPreferredSize();
+            int badgeX = getWidth() - insets.right - badgeSize.width;
+            badges.setBounds(badgeX, top + (height - badgeSize.height) / 2,
+                    badgeSize.width, badgeSize.height);
+            Dimension identitySize = identity.getPreferredSize();
+            identity.setBounds(insets.left, top + (height - identitySize.height) / 2,
+                    identitySize.width, identitySize.height);
+
+            Dimension centerSize = centerTab.getPreferredSize();
+            int centerX = (getWidth() - centerSize.width) / 2;
+            centerTab.setBounds(centerX, top + (height - centerSize.height) / 2,
+                    centerSize.width, centerSize.height);
+
+            Dimension leftSize = leftTabs.getPreferredSize();
+            int leftX = Math.max(insets.left + identitySize.width + GAP,
+                    centerX - GAP - leftSize.width);
+            leftTabs.setBounds(leftX, top + (height - leftSize.height) / 2,
+                    leftSize.width, leftSize.height);
+
+            Dimension rightSize = rightTabs.getPreferredSize();
+            int rightX = Math.min(badgeX - GAP - rightSize.width,
+                    centerX + centerSize.width + GAP);
+            rightTabs.setBounds(rightX, top + (height - rightSize.height) / 2,
+                    rightSize.width, rightSize.height);
+        }
     }
 
     private JPanel buildBody() {
@@ -479,6 +534,7 @@ public final class LauncherFrame extends JFrame {
                 projectDetailPage.build(new ProjectVersionRenderer()),
                 launcherPluginsPanel), "download");
         launchPage = new LaunchPage(this, config);
+        launchPage.setVersionListAction(() -> selectPage("instances"));
         contentCardsPanel.add(launchPage.build(), "launch");
         seedPage = new SeedPage(config, () -> selectedEntry == null ? null : selectedEntry.id());
         contentCardsPanel.add(seedPage.build(), "seed");
@@ -3981,10 +4037,6 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void updateVersionPicker() {
-        VersionManifest.VersionEntry entry = selectedEntry;
-        if (versionPickerButton != null) {
-            versionPickerButton.setText("版本列表");
-        }
         if (instanceButton != null) {
             List<VersionManifest.VersionEntry> versions = allVersions.isEmpty()
                     ? LocalVersions.scan(gamePaths) : allVersions;
