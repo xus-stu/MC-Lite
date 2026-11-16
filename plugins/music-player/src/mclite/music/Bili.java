@@ -35,7 +35,23 @@ final class Bili {
     record Video(String bvid, String title, String author, long seconds, String cover) {
     }
 
-    record Song(String bvid, String title, String author, String url, String cover) {
+    record Song(String bvid, String title, String author, String url, String cover, String quality) {
+    }
+
+    /** 音频质量：对应 B 站 DASH 的 audio id。 */
+    enum Quality {
+        STANDARD("标准 64K", 30216),
+        HIGH("高 132K", 30232),
+        VERY_HIGH("极高 192K", 30280),
+        LOSSLESS("无损 FLAC", 30251);
+
+        final String label;
+        final int id;
+
+        Quality(String label, int id) {
+            this.label = label;
+            this.id = id;
+        }
     }
 
     record Profile(boolean login, String name, long mid, String face) {
@@ -224,6 +240,10 @@ final class Bili {
     // ---------------------------------------------------------------- 播放
 
     Song resolve(Video video) throws IOException {
+        return resolve(video, Quality.VERY_HIGH);
+    }
+
+    Song resolve(Video video, Quality quality) throws IOException {
         Map<String, Object> view = data(get("/x/web-interface/view?bvid=" + enc(video.bvid()), true));
         if (view == null) {
             throw new IOException("取视频信息失败");
@@ -243,16 +263,20 @@ final class Bili {
         if (play == null) {
             throw new IOException("取播放地址失败");
         }
-        String url = bestAudio(play);
-        if (url.isBlank()) {
+        String[] picked = bestAudio(play, quality);
+        if (picked[0].isBlank()) {
             throw new IOException("没有可用的音频流");
         }
-        return new Song(video.bvid(), video.title(), video.author(), url, video.cover());
+        return new Song(video.bvid(), video.title(), video.author(), picked[0], video.cover(), picked[1]);
     }
 
-    private static String bestAudio(Map<String, Object> play) {
+    /** 返回 {url, 实际音质标签}。优先取所选音质，没有就取最高码率。 */
+    private static String[] bestAudio(Map<String, Object> play, Quality quality) {
         Map<String, Object> dash = Json.obj(play.get("dash"));
+        String exact = "";
+        String exactLabel = "";
         String best = "";
+        String bestLabel = "";
         long bestBandwidth = -1;
         if (dash != null) {
             for (Object raw : Json.arr(dash.get("audio"))) {
@@ -260,19 +284,29 @@ final class Bili {
                 if (audio == null) {
                     continue;
                 }
-                long bandwidth = Json.lng(audio, "bandwidth", 0);
                 Object first = firstUrl(audio);
                 String url = first == null ? "" : String.valueOf(first);
                 if (url.isBlank()) {
                     continue;
                 }
+                long id = Json.lng(audio, "id", 0);
+                long bandwidth = Json.lng(audio, "bandwidth", 0);
+                String label = qualityLabel((int) id);
+                if (id == quality.id) {
+                    exact = url;
+                    exactLabel = label;
+                }
                 if (bandwidth > bestBandwidth) {
                     bestBandwidth = bandwidth;
                     best = url;
+                    bestLabel = label;
                 }
             }
+            if (!exact.isBlank()) {
+                return new String[]{exact, exactLabel};
+            }
             if (!best.isBlank()) {
-                return best;
+                return new String[]{best, bestLabel};
             }
         }
         for (Object raw : Json.arr(play.get("durl"))) {
@@ -280,11 +314,20 @@ final class Bili {
             if (durl != null) {
                 String url = Json.str(durl, "url", "");
                 if (!url.isBlank()) {
-                    return url;
+                    return new String[]{url, "标准"};
                 }
             }
         }
-        return "";
+        return new String[]{"", ""};
+    }
+
+    private static String qualityLabel(int id) {
+        for (Quality quality : Quality.values()) {
+            if (quality.id == id) {
+                return quality.label;
+            }
+        }
+        return "其它";
     }
 
     private static Object firstUrl(Map<String, Object> audio) {

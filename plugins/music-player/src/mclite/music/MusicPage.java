@@ -53,6 +53,9 @@ final class MusicPage {
     private Ui.SegmentButton queueTab;
     private Ui.SegmentButton settingsTab;
     private String style = "follow";
+    private Bili.Quality quality = Bili.Quality.VERY_HIGH;
+    private final java.util.List<JLabel> queueLabels = new ArrayList<>();
+    private JPanel modeRow;
 
     MusicPage(Host host, Bili bili, Player player) {
         this.host = host;
@@ -63,8 +66,9 @@ final class MusicPage {
             @Override
             public void onTrack(Bili.Song song, int index) {
                 SwingUtilities.invokeLater(() -> {
-                    nowPlaying.setText("正在播放：" + song.title());
-                    refreshQueue();
+                    nowPlaying.setText("正在播放：" + song.title()
+                            + (song.quality().isBlank() ? "" : " · " + song.quality()));
+                    updateHighlight();
                     playPause.setText("暂停");
                 });
             }
@@ -309,6 +313,60 @@ final class MusicPage {
         body.add(reverbCard);
         body.add(Ui.vgap(12));
 
+        Ui.RoundedPanel qualityCard = card();
+        qualityCard.add(Ui.label("音质", Theme.BODY_BOLD, Theme.TEXT));
+        qualityCard.add(Ui.vgap(4));
+        qualityCard.add(Ui.label("优先取所选音质；没有就用最高可用音质。", Theme.TINY, Theme.DIM));
+        qualityCard.add(Ui.vgap(8));
+        JComboBox<String> qualityBox = new Ui.DarkCombo<>();
+        qualityBox.setFont(Theme.SMALL);
+        for (Bili.Quality q : Bili.Quality.values()) {
+            qualityBox.addItem(q.label);
+        }
+        qualityBox.setSelectedItem(quality.label);
+        qualityBox.setPreferredSize(new Dimension(260, 30));
+        qualityBox.setMaximumSize(new Dimension(260, 30));
+        qualityBox.addActionListener(e -> {
+            String chosen = String.valueOf(qualityBox.getSelectedItem());
+            for (Bili.Quality q : Bili.Quality.values()) {
+                if (q.label.equals(chosen)) {
+                    quality = q;
+                    saveSetting("quality.txt", q.name());
+                    status.setText("音质：" + q.label);
+                }
+            }
+        });
+        qualityCard.add(qualityBox);
+        body.add(qualityCard);
+        body.add(Ui.vgap(12));
+
+        Ui.RoundedPanel effectCard = card();
+        effectCard.add(Ui.label("音效", Theme.BODY_BOLD, Theme.TEXT));
+        effectCard.add(Ui.vgap(4));
+        effectCard.add(Ui.label("和混响可以叠加；8D 旋转会左右摆动声像。", Theme.TINY, Theme.DIM));
+        effectCard.add(Ui.vgap(8));
+        JComboBox<String> effectBox = new Ui.DarkCombo<>();
+        effectBox.setFont(Theme.SMALL);
+        for (Effects.Preset preset : Effects.Preset.values()) {
+            effectBox.addItem(preset.label);
+        }
+        effectBox.setSelectedItem(player.effects().preset().label);
+        effectBox.setPreferredSize(new Dimension(260, 30));
+        effectBox.setMaximumSize(new Dimension(260, 30));
+        effectBox.addActionListener(e -> {
+            String chosen = String.valueOf(effectBox.getSelectedItem());
+            for (Effects.Preset preset : Effects.Preset.values()) {
+                if (preset.label.equals(chosen)) {
+                    player.effects().preset(preset);
+                    saveSetting("effect.txt", preset.name());
+                    status.setText("音效：" + preset.label);
+                }
+            }
+        });
+        effectCard.add(effectBox);
+        body.add(effectCard);
+        body.add(Ui.vgap(12));
+
         Ui.RoundedPanel accountCard = card();
         accountCard.add(Ui.label("登录", Theme.BODY_BOLD, Theme.TEXT));
         accountCard.add(Ui.vgap(4));
@@ -370,6 +428,23 @@ final class MusicPage {
         next.addActionListener(e -> player.next(true));
         Ui.AccentButton stop = Ui.smallButton("停止", Ui.AccentButton.Style.GHOST);
         stop.addActionListener(e -> player.stop());
+        modeRow = new JPanel();
+        modeRow.setOpaque(false);
+        modeRow.setLayout(new BoxLayout(modeRow, BoxLayout.X_AXIS));
+        ButtonGroup modeGroup = new ButtonGroup();
+        for (Player.Mode mode : Player.Mode.values()) {
+            Ui.SegmentButton chip = new Ui.SegmentButton(mode.label);
+            chip.setSelected(player.mode() == mode);
+            chip.setToolTipText("播放模式：" + mode.label);
+            chip.addActionListener(e -> {
+                player.mode(mode);
+                status.setText("播放模式：" + mode.label);
+            });
+            modeGroup.add(chip);
+            modeRow.add(chip);
+        }
+        controls.add(modeRow);
+        controls.add(Ui.hgap(10));
         controls.add(prev);
         controls.add(Ui.hgap(6));
         controls.add(playPause);
@@ -453,7 +528,7 @@ final class MusicPage {
         new javax.swing.SwingWorker<Bili.Song, Void>() {
             @Override
             protected Bili.Song doInBackground() throws Exception {
-                return bili.resolve(video);
+                return bili.resolve(video, quality);
             }
 
             @Override
@@ -482,6 +557,7 @@ final class MusicPage {
             return;
         }
         queueRows.removeAll();
+        queueLabels.clear();
         List<Bili.Song> songs = player.queue();
         for (int i = 0; i < songs.size(); i++) {
             Bili.Song song = songs.get(i);
@@ -492,11 +568,22 @@ final class MusicPage {
             row.add(Art.thumb(cacheDir, song.cover(), 36), BorderLayout.WEST);
             JLabel title = Ui.label((i + 1) + ". " + song.title(), Theme.SMALL,
                     i == player.index() ? Theme.ACCENT : Theme.TEXT);
+            queueLabels.add(title);
             row.add(title, BorderLayout.CENTER);
+            JPanel actions = new JPanel();
+            actions.setOpaque(false);
             Ui.AccentButton play = Ui.smallButton("播放", Ui.AccentButton.Style.GHOST);
             final int index = i;
             play.addActionListener(e -> player.play(index));
-            row.add(play, BorderLayout.EAST);
+            Ui.AccentButton remove = Ui.smallButton("删除", Ui.AccentButton.Style.GHOST);
+            remove.addActionListener(e -> {
+                player.remove(index);
+                status.setText("已从队列删除。");
+            });
+            actions.add(play);
+            actions.add(Ui.hgap(4));
+            actions.add(remove);
+            row.add(actions, BorderLayout.EAST);
             queueRows.add(row);
             queueRows.add(Ui.vgap(3));
         }
@@ -514,6 +601,7 @@ final class MusicPage {
         avatar.setOpaque(false);
         avatar.setPreferredSize(new Dimension(28, 28));
         avatar.setMaximumSize(new Dimension(28, 28));
+        avatar.setVisible(false);
         JLabel label = Ui.label("读取登录状态…", Theme.SMALL, Theme.MUTED);
         avatarHolders.add(avatar);
         accountLabels.add(label);
@@ -522,6 +610,12 @@ final class MusicPage {
         who.add(label);
         who.add(Box.createHorizontalGlue());
         return who;
+    }
+
+    private void updateHighlight() {
+        for (int i = 0; i < queueLabels.size(); i++) {
+            queueLabels.get(i).setForeground(i == player.index() ? Theme.ACCENT : Theme.TEXT);
+        }
     }
 
     private void refreshAccountAsync() {
@@ -552,10 +646,11 @@ final class MusicPage {
                 }
                 for (JPanel holder : avatarHolders) {
                     holder.removeAll();
+                    holder.setVisible(profile.login());
                     if (profile.login()) {
                         holder.add(Art.thumb(cacheDir, profile.face(), 28));
                     }
-                    holder.revalidate();
+                    holder.getParent().revalidate();
                     holder.repaint();
                 }
             }
@@ -642,6 +737,22 @@ final class MusicPage {
 
     private void loadSettings() {
         style = readSetting("style.txt", "follow");
+        String qualityName = readSetting("quality.txt", null);
+        if (qualityName != null) {
+            for (Bili.Quality q : Bili.Quality.values()) {
+                if (q.name().equals(qualityName)) {
+                    quality = q;
+                }
+            }
+        }
+        String effectName = readSetting("effect.txt", null);
+        if (effectName != null) {
+            for (Effects.Preset preset : Effects.Preset.values()) {
+                if (preset.name().equals(effectName)) {
+                    player.effects().preset(preset);
+                }
+            }
+        }
         String reverbName = readSetting("reverb.txt", null);
         if (reverbName != null) {
             for (Reverb.Preset preset : Reverb.Preset.values()) {
