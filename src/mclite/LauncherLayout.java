@@ -18,7 +18,7 @@ public final class LauncherLayout {
 
     public static JPanel pageHeader(String title, String subtitle, JComponent right) {
         JPanel top = new JPanel(new BorderLayout(16, 0));
-        top.setBackground(Theme.CARD);
+        top.setBackground(Theme.BG);
         top.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(0, 0, 1, 0, Theme.BORDER),
                 new EmptyBorder(9, 14, 9, 14)));
@@ -35,6 +35,21 @@ public final class LauncherLayout {
         top.add(info, BorderLayout.CENTER);
         if (right != null) {
             top.add(right, BorderLayout.EAST);
+        }
+        return top;
+    }
+
+    public static JPanel pageHeader(String title, String subtitle, JComponent right, Runnable onBack) {
+        JPanel top = pageHeader(title, subtitle, right);
+        if (onBack != null) {
+            JPanel left = new JPanel();
+            left.setOpaque(false);
+            left.setLayout(new BoxLayout(left, BoxLayout.X_AXIS));
+            javax.swing.JButton back = Ui.smallButton("< 返回", Ui.AccentButton.Style.GHOST);
+            back.addActionListener(e -> onBack.run());
+            left.add(back);
+            left.add(Ui.hgap(10));
+            top.add(left, BorderLayout.WEST);
         }
         return top;
     }

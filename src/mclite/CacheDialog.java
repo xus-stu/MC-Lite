@@ -52,7 +52,7 @@ final class CacheDialog {
     }
 
     private void open() {
-        items.addAll(scan(config.cacheDir()));
+        items.addAll(scan(config.cacheDir(), PluginLoader.pluginsDir(config.appHome())));
         dialog = new JDialog(parentFrame(), "清理缓存", true);
         dialog.setUndecorated(true);
         dialog.setBackground(new java.awt.Color(0, 0, 0, 0));
@@ -73,7 +73,7 @@ final class CacheDialog {
         body.setOpaque(false);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBorder(new EmptyBorder(2, 0, 2, 0));
-        JLabel hint = Ui.label("勾选要删除的项目，只删勾中的；游戏文件、存档和 Java 运行时都不受影响。",
+        JLabel hint = Ui.label("勾选要删除的项目，只删勾中的；插件删掉后重启生效。游戏文件、存档和 Java 运行时都不受影响。",
                 Theme.TINY, Theme.DIM);
         hint.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(hint);
@@ -175,7 +175,7 @@ final class CacheDialog {
         return window instanceof java.awt.Frame frame ? frame : null;
     }
 
-    private static List<Item> scan(Path cache) {
+    private static List<Item> scan(Path cache, Path pluginsDir) {
         List<Item> list = new ArrayList<>();
         if (cache == null || !Files.isDirectory(cache)) {
             return list;
@@ -196,6 +196,17 @@ final class CacheDialog {
         long iconSize = CacheCleaner.size(icons);
         if (iconSize > 0) {
             list.add(new Item("图标缓存（" + countFiles(icons) + " 个文件）", icons, iconSize));
+        }
+        if (pluginsDir != null && Files.isDirectory(pluginsDir)) {
+            try (Stream<Path> stream = Files.list(pluginsDir)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(path -> path.getFileName().toString().endsWith(".jar"))
+                        .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                        .forEach(path -> list.add(new Item("启动器插件 · " + path.getFileName(),
+                                path, fileSize(path))));
+            } catch (IOException ignored) {
+                // 读不了就跳过。
+            }
         }
         addIfPresent(list, cache.resolve("loader-installer.jar"), "加载器安装器");
         addIfPresent(list, cache.resolve("authlib-injector.jar"), "外置登录注入");

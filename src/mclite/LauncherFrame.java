@@ -112,6 +112,8 @@ public final class LauncherFrame extends JFrame {
     private Ui.NavTab featureTab;
     private Ui.NavTab settingsTab;
     private HeaderBar headerBar;
+    private JComponent headerIdentity;
+    private JComponent headerBadges;
     private Ui.AccentButton instanceButton;
     private Ui.AccentButton sidebarSwitchButton;
     private String pendingLaunchId = "";
@@ -189,6 +191,7 @@ public final class LauncherFrame extends JFrame {
         }
         updateAccountLabels();
         loadPlugins();
+        applyDisplayMode();
         setLocationRelativeTo(null);
         addWindowListener(new WindowAdapter() {
             @Override
@@ -315,6 +318,8 @@ public final class LauncherFrame extends JFrame {
         JPanel badges = new JPanel();
         badges.setOpaque(false);
         badges.setLayout(new BoxLayout(badges, BoxLayout.X_AXIS));
+        headerBadges = badges;
+        headerIdentity = identity;
         bar.bind(identity, leftTabs, featureTab, rightTabs, badges);
         return bar;
     }
@@ -512,7 +517,7 @@ public final class LauncherFrame extends JFrame {
         instanceButton.setToolTipText("查看游戏文件夹中的全部实例");
         instanceButton.addActionListener(e -> selectPage("instances"));
         section.add(instanceButton);
-        section.add(Ui.vgap(6));
+        section.add(Ui.vgap(8));
         sidebarSwitchButton = Ui.smallButton("切换启动版本", Ui.AccentButton.Style.GHOST);
         sidebarSwitchButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         sidebarSwitchButton.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -528,6 +533,13 @@ public final class LauncherFrame extends JFrame {
                     entry -> useVersion(entry, false)).setVisible(true);
         });
         section.add(sidebarSwitchButton);
+        section.add(Ui.vgap(8));
+        Ui.AccentButton sidebarLaunch = Ui.smallButton("▶ 启动游戏", Ui.AccentButton.Style.PRIMARY);
+        sidebarLaunch.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+        sidebarLaunch.setAlignmentX(Component.LEFT_ALIGNMENT);
+        sidebarLaunch.setToolTipText("用当前版本启动游戏");
+        sidebarLaunch.addActionListener(e -> startLaunch());
+        section.add(sidebarLaunch);
         return section;
     }
 
@@ -556,7 +568,10 @@ public final class LauncherFrame extends JFrame {
         launchPage = new LaunchPage(this, config);
         launchPage.setVersionListAction(() -> selectPage("instances"));
         contentCardsPanel.add(launchPage.build(), "launch");
-        seedPage = new SeedPage(config, () -> selectedEntry == null ? null : selectedEntry.id());
+        seedPage = new SeedPage(config, () -> selectedEntry == null ? null : selectedEntry.id(),
+                () -> showPage("features"),
+                () -> !"standard".equals(config.displayMode()),
+                () -> "bare".equals(config.displayMode()));
         contentCardsPanel.add(seedPage.build(), "seed");
         featuresPage = new FeaturesPage(featureEntries());
         contentCardsPanel.add(featuresPage.build(), "features");
@@ -568,6 +583,7 @@ public final class LauncherFrame extends JFrame {
         contentCardsPanel.add(configPage.build(), "config");
         settingsPage = new SettingsPage(this, config, taskCenter, this::updateLaunchInfo,
                 this::canRestartUi);
+        settingsPage.setDisplayModeAction(this::applyDisplayMode);
         launcherPluginsPanel.setPythonActions(settingsPage::installPythonModule,
                 settingsPage::startPythonBridge);
         contentCardsPanel.add(settingsPage.build(), "settings");
@@ -2857,6 +2873,7 @@ public final class LauncherFrame extends JFrame {
             seedPage.onShown();
         }
         currentTop = page;
+        updateHeaderVisibility();
         contentCards.show(contentCardsPanel, page);
         if (contentCardsPanel instanceof Ui.FadePanel fade) {
             fade.fadeIn();
@@ -3063,8 +3080,64 @@ public final class LauncherFrame extends JFrame {
         }
 
         @Override
+        public boolean exclusiveChrome() {
+            return !"standard".equals(config.displayMode());
+        }
+
+        @Override
+        public boolean bareChrome() {
+            return "bare".equals(config.displayMode());
+        }
+
+        @Override
+        public void backToFeatures() {
+            javax.swing.SwingUtilities.invokeLater(() -> selectTab(featureTab, "features"));
+        }
+
+        @Override
         public void runOnUiThread(Runnable task) {
             javax.swing.SwingUtilities.invokeLater(task);
+        }
+    }
+
+    /** 切换显示模式：标准 / 独占（保留 bar）/ 独占（无 bar）。 */
+    void applyDisplayMode() {
+        for (JComponent mounted : pluginComponents.values()) {
+            contentCardsPanel.remove(mounted);
+        }
+        pluginComponents.clear();
+        boolean standard = "standard".equals(config.displayMode());
+        if (sidebar != null) {
+            sidebar.setVisible(standard);
+        }
+        if (headerIdentity != null) {
+            headerIdentity.setVisible(!"bare".equals(config.displayMode()));
+        }
+        if (headerBadges != null) {
+            headerBadges.setVisible(!"bare".equals(config.displayMode()));
+        }
+        updateHeaderVisibility();
+        if (contentCardsPanel != null) {
+            contentCardsPanel.revalidate();
+            contentCardsPanel.repaint();
+        }
+    }
+
+    private static boolean isMainPage(String page) {
+        return "download".equals(page) || "launch".equals(page) || "features".equals(page)
+                || "config".equals(page) || "settings".equals(page);
+    }
+
+    private void updateHeaderVisibility() {
+        if (headerBar == null) {
+            return;
+        }
+        String mode = config.displayMode();
+        boolean visible = "bare".equals(mode) || !"exclusive".equals(mode) || isMainPage(currentTop);
+        if (headerBar.isVisible() != visible) {
+            headerBar.setVisible(visible);
+            headerBar.revalidate();
+            headerBar.repaint();
         }
     }
 

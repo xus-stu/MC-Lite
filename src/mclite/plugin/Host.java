@@ -36,6 +36,15 @@ public interface Host {
     /** 已注册入口有变化时调用，刷新「功能」页。 */
     void refreshFeatures();
 
+    /** 是否处于独占显示模式（隐藏侧边栏；子页面需要自己的返回键）。 */
+    boolean exclusiveChrome();
+
+    /** 是否处于「无 bar」模式（页面标题栏也应隐藏）。 */
+    boolean bareChrome();
+
+    /** 回到「功能」列表。 */
+    void backToFeatures();
+
     /** 切到 UI 线程执行。 */
     void runOnUiThread(Runnable task);
 }

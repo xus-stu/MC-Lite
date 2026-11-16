@@ -243,6 +243,35 @@ final class Bili {
         return resolve(video, Quality.VERY_HIGH);
     }
 
+    /** 从 bvid 重新取播放地址（队列恢复/链接过期时用）。 */
+    Song resolveByBvid(String bvid, Quality quality) throws IOException {
+        Map<String, Object> view = data(get("/x/web-interface/view?bvid=" + enc(bvid), true));
+        if (view == null) {
+            throw new IOException("取视频信息失败");
+        }
+        long cid = Json.lng(view, "cid", 0);
+        if (cid == 0) {
+            List<Object> pages = Json.arr(view.get("pages"));
+            if (pages != null && !pages.isEmpty()) {
+                cid = Json.lng(Json.obj(pages.get(0)), "cid", 0);
+            }
+        }
+        if (cid == 0) {
+            throw new IOException("找不到 cid");
+        }
+        Map<String, Object> play = data(get("/x/player/playurl?bvid=" + enc(bvid)
+                + "&cid=" + cid + "&fnval=16&fourk=1", true));
+        if (play == null) {
+            throw new IOException("取播放地址失败");
+        }
+        String[] picked = bestAudio(play, quality);
+        if (picked[0].isBlank()) {
+            throw new IOException("没有可用的音频流");
+        }
+        return new Song(bvid, Json.str(view, "title", bvid), Json.str(Json.obj(view.get("owner")), "name", ""),
+                picked[0], Art.normalize(Json.str(view, "pic", "")), picked[1]);
+    }
+
     Song resolve(Video video, Quality quality) throws IOException {
         Map<String, Object> view = data(get("/x/web-interface/view?bvid=" + enc(video.bvid()), true));
         if (view == null) {

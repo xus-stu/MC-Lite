@@ -30,6 +30,7 @@ final class SettingsPage {
     private final Runnable updateLaunchInfo;
     private final java.util.function.BooleanSupplier canRestart;
     private JLabel cacheLabel;
+    private Runnable displayModeAction = () -> { };
     private javax.swing.JTextField jvmArgsField;
     private Ui.ValueSlider memorySlider;
     private Ui.ToggleChip autoMemoryToggle;
@@ -522,6 +523,31 @@ final class SettingsPage {
         form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
+        JPanel display = LauncherLayout.section("显示模式",
+                "独占会隐藏侧边栏；子页面自带返回。无 bar 只留 5 个页签。");
+        JPanel displayChips = new JPanel();
+        displayChips.setOpaque(false);
+        displayChips.setLayout(new javax.swing.BoxLayout(displayChips, javax.swing.BoxLayout.X_AXIS));
+        displayChips.setAlignmentX(Component.LEFT_ALIGNMENT);
+        javax.swing.ButtonGroup displayGroup = new javax.swing.ButtonGroup();
+        String[][] modes = {{"standard", "标准"}, {"exclusive", "独占（保留 bar）"}, {"bare", "独占（无 bar）"}};
+        for (String[] mode : modes) {
+            Ui.SegmentButton chip = new Ui.SegmentButton(mode[1]);
+            chip.setSelected(mode[0].equals(config.displayMode()));
+            chip.addActionListener(e -> {
+                config.displayMode(mode[0]);
+                config.save();
+                displayModeAction.run();
+            });
+            displayGroup.add(chip);
+            displayChips.add(chip);
+        }
+        display.add(displayChips);
+        display.add(Ui.vgap(8));
+        display.add(LauncherLayout.sidebarNote("独占模式下主页面显示导航栏，子页面自己画标题和返回。"));
+        form.add(display);
+        form.add(Ui.vgap(18));
+
         JPanel data = LauncherLayout.section("数据目录", "启动器配置、缓存、账户和官方 Java 运行时");
         JLabel dataPath = Ui.label(config.appHome().toString(), Theme.MONO, Theme.MUTED);
         dataPath.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -575,6 +601,10 @@ final class SettingsPage {
     }
 
     /** 打开勾选式清理对话框；有任务在跑时先拒绝，避免删到正在用的中转文件。 */
+    void setDisplayModeAction(Runnable action) {
+        this.displayModeAction = action == null ? () -> { } : action;
+    }
+
     void openCacheDialog() {
         if (taskCenter != null && taskCenter.running() > 0) {
             ModernDialogs.message(owner, "先等一下", "还有下载或安装任务在跑，完成后再清理缓存。");

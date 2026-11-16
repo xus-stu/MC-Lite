@@ -33,7 +33,11 @@ final class MusicPage {
     private final Host host;
     private final Bili bili;
     private final Player player;
+    private final QueueStore store;
     private final Path cacheDir;
+    private final SeekBar seekBar = new SeekBar();
+    private final JLabel timeLabel = Ui.label("0:00 / 0:00", Theme.SMALL, Theme.DIM);
+    private final javax.swing.Timer ticker;
 
     private final java.util.List<JLabel> accountLabels = new ArrayList<>();
     private final java.util.List<JPanel> avatarHolders = new ArrayList<>();
@@ -55,18 +59,19 @@ final class MusicPage {
     private String style = "follow";
     private Bili.Quality quality = Bili.Quality.VERY_HIGH;
     private final java.util.List<JLabel> queueLabels = new ArrayList<>();
-    private JPanel modeRow;
 
-    MusicPage(Host host, Bili bili, Player player) {
+    MusicPage(Host host, Bili bili, Player player, QueueStore store) {
         this.host = host;
         this.bili = bili;
         this.player = player;
+        this.store = store;
         this.cacheDir = host.pluginDataDir();
+        this.ticker = new javax.swing.Timer(500, e -> updateProgress());
         player.listener(new Player.Listener() {
             @Override
-            public void onTrack(Bili.Song song, int index) {
+            public void onTrack(Player.Track song, int index) {
                 SwingUtilities.invokeLater(() -> {
-                    nowPlaying.setText("正在播放：" + song.title()
+                    nowPlaying.setText((player.playing() ? "正在播放：" : "当前：") + song.title()
                             + (song.quality().isBlank() ? "" : " · " + song.quality()));
                     updateHighlight();
                     playPause.setText("暂停");
@@ -86,6 +91,11 @@ final class MusicPage {
             @Override
             public void onQueueChanged() {
                 SwingUtilities.invokeLater(MusicPage.this::refreshQueueImpl);
+            }
+
+            @Override
+            public void onRetry(String message) {
+                SwingUtilities.invokeLater(() -> status.setText(message));
             }
         });
     }
@@ -148,6 +158,7 @@ final class MusicPage {
         page.setComponentZOrder(bar, 0);
 
         root = page;
+        ticker.start();
         alignLeft(page);
         String initial = System.getProperty("mclite.musicTab", "search");
         if (!"search".equals(initial)) {
@@ -160,8 +171,11 @@ final class MusicPage {
     }
 
     private JComponent header() {
+        if (host.exclusiveChrome() && host.bareChrome()) {
+            return new JPanel();
+        }
         JPanel header = new JPanel(new BorderLayout(12, 0));
-        header.setBackground(Theme.CARD);
+        header.setBackground(Theme.BG);
         header.setBorder(new EmptyBorder(9, 14, 9, 14));
         JPanel info = new JPanel();
         info.setOpaque(false);
@@ -169,7 +183,19 @@ final class MusicPage {
         info.add(Ui.label("音乐播放器", Theme.H1, Theme.TEXT));
         info.add(Ui.vgap(3));
         info.add(Ui.label("B 站音乐 · 队列播放 · 列表/单曲/随机/顺序循环 · 混响", Theme.TINY, Theme.DIM));
-        header.add(info, BorderLayout.WEST);
+        if (host.exclusiveChrome()) {
+            JPanel left = new JPanel();
+            left.setOpaque(false);
+            left.setLayout(new BoxLayout(left, BoxLayout.X_AXIS));
+            Ui.AccentButton back = Ui.smallButton("< 返回", Ui.AccentButton.Style.GHOST);
+            back.addActionListener(e -> host.backToFeatures());
+            left.add(back);
+            left.add(Ui.hgap(10));
+            left.add(info);
+            header.add(left, BorderLayout.WEST);
+        } else {
+            header.add(info, BorderLayout.WEST);
+        }
         return header;
     }
 
@@ -254,6 +280,7 @@ final class MusicPage {
         Ui.AccentButton clear = Ui.smallButton("清空队列", Ui.AccentButton.Style.GHOST);
         clear.addActionListener(e -> {
             player.clear();
+            store.clear();
             status.setText("队列已清空。");
         });
         head.add(clear);
@@ -414,11 +441,13 @@ final class MusicPage {
     }
 
     private JComponent playerBar() {
-        JPanel bar = new JPanel(new BorderLayout(12, 0));
+        JPanel bar = new JPanel(new BorderLayout(12, 4));
         bar.setOpaque(true);
         bar.setBackground(Theme.CARD);
-        bar.setBorder(new EmptyBorder(8, 16, 8, 16));
+        bar.setBorder(new EmptyBorder(8, 16, 10, 16));
 
+        JPanel topRow = new JPanel(new BorderLayout(12, 0));
+        topRow.setOpaque(false);
         JPanel info = new JPanel();
         info.setOpaque(false);
         info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
@@ -426,7 +455,22 @@ final class MusicPage {
         status.setAlignmentX(Component.LEFT_ALIGNMENT);
         info.add(Ui.vgap(2));
         info.add(status);
-        bar.add(info, BorderLayout.CENTER);
+        topRow.add(info, BorderLayout.CENTER);
+        bar.add(topRow, BorderLayout.NORTH);
+
+        JPanel progressRow = new JPanel(new BorderLayout(10, 0));
+        progressRow.setOpaque(false);
+        seekBar.setPreferredSize(new Dimension(360, 14));
+        seekBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 14));
+        seekBar.onSeek = fraction -> {
+            long duration = player.durationSeconds();
+            if (duration > 0) {
+                player.seek((long) (fraction * duration));
+            }
+        };
+        progressRow.add(seekBar, BorderLayout.CENTER);
+        progressRow.add(timeLabel, BorderLayout.EAST);
+        bar.add(progressRow, BorderLayout.SOUTH);
 
         JPanel controls = new JPanel();
         controls.setOpaque(false);
@@ -438,22 +482,26 @@ final class MusicPage {
         next.addActionListener(e -> player.next(true));
         Ui.AccentButton stop = Ui.smallButton("停止", Ui.AccentButton.Style.GHOST);
         stop.addActionListener(e -> player.stop());
-        modeRow = new JPanel();
-        modeRow.setOpaque(false);
-        modeRow.setLayout(new BoxLayout(modeRow, BoxLayout.X_AXIS));
-        ButtonGroup modeGroup = new ButtonGroup();
+        JComboBox<String> modeBox = new Ui.DarkCombo<>();
+        modeBox.setFont(Theme.SMALL);
         for (Player.Mode mode : Player.Mode.values()) {
-            Ui.SegmentButton chip = new Ui.SegmentButton(mode.label);
-            chip.setSelected(player.mode() == mode);
-            chip.setToolTipText("播放模式：" + mode.label);
-            chip.addActionListener(e -> {
-                player.mode(mode);
-                status.setText("播放模式：" + mode.label);
-            });
-            modeGroup.add(chip);
-            modeRow.add(chip);
+            modeBox.addItem(mode.label);
         }
-        controls.add(modeRow);
+        modeBox.setSelectedItem(player.mode().label);
+        modeBox.setPreferredSize(new Dimension(110, 28));
+        modeBox.setMaximumSize(new Dimension(110, 28));
+        modeBox.setToolTipText("播放模式");
+        modeBox.addActionListener(e -> {
+            String chosen = String.valueOf(modeBox.getSelectedItem());
+            for (Player.Mode mode : Player.Mode.values()) {
+                if (mode.label.equals(chosen)) {
+                    player.mode(mode);
+                    store.save(player.queue(), player.index(), player.positionSeconds(), mode);
+                    status.setText("播放模式：" + mode.label);
+                }
+            }
+        });
+        controls.add(modeBox);
         controls.add(Ui.hgap(10));
         controls.add(prev);
         controls.add(Ui.hgap(6));
@@ -464,7 +512,7 @@ final class MusicPage {
         controls.add(stop);
         controls.add(Ui.hgap(12));
         controls.add(reverbLabel);
-        bar.add(controls, BorderLayout.EAST);
+        topRow.add(controls, BorderLayout.EAST);
         return bar;
     }
 
@@ -534,28 +582,15 @@ final class MusicPage {
     }
 
     private void enqueue(Bili.Video video, boolean playNow) {
-        status.setText("解析播放地址…");
-        new javax.swing.SwingWorker<Bili.Song, Void>() {
-            @Override
-            protected Bili.Song doInBackground() throws Exception {
-                return bili.resolve(video, quality);
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    Bili.Song song = get();
-                    int index = player.queue().size();
-                    player.enqueue(List.of(song));
-                    if (playNow) {
-                        player.play(index);
-                    }
-                    status.setText(playNow ? "开始播放。" : "已加入队列。");
-                } catch (Exception ex) {
-                    status.setText("解析失败：" + ex.getMessage());
-                }
-            }
-        }.execute();
+        Player.Track track = new Player.Track(video.bvid(), video.title(), video.author(),
+                video.cover(), video.seconds(), quality.label);
+        int index = player.queue().size();
+        player.enqueue(List.of(track));
+        if (playNow) {
+            player.play(index);
+        }
+        store.save(player.queue(), player.index(), player.positionSeconds(), player.mode());
+        status.setText(playNow ? "开始播放。" : "已加入队列。");
     }
 
     private void refreshQueue() {
@@ -568,15 +603,16 @@ final class MusicPage {
         }
         queueRows.removeAll();
         queueLabels.clear();
-        List<Bili.Song> songs = player.queue();
+        List<Player.Track> songs = player.queue();
         for (int i = 0; i < songs.size(); i++) {
-            Bili.Song song = songs.get(i);
+            Player.Track song = songs.get(i);
             JPanel row = new JPanel(new BorderLayout(10, 0));
             row.setOpaque(false);
             row.setAlignmentX(Component.LEFT_ALIGNMENT);
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
             row.add(Art.thumb(cacheDir, song.cover(), 36), BorderLayout.WEST);
-            JLabel title = Ui.label((i + 1) + ". " + song.title(), Theme.SMALL,
+            JLabel title = Ui.label((i + 1) + ". " + song.title()
+                    + (song.seconds() > 0 ? "  " + mmss(song.seconds()) : ""), Theme.SMALL,
                     i == player.index() ? Theme.ACCENT : Theme.TEXT);
             queueLabels.add(title);
             row.add(title, BorderLayout.CENTER);
@@ -588,6 +624,7 @@ final class MusicPage {
             Ui.AccentButton remove = Ui.smallButton("删除", Ui.AccentButton.Style.GHOST);
             remove.addActionListener(e -> {
                 player.remove(index);
+                store.save(player.queue(), player.index(), player.positionSeconds(), player.mode());
                 status.setText("已从队列删除。");
             });
             actions.add(play);
@@ -620,6 +657,19 @@ final class MusicPage {
         who.add(label);
         who.add(Box.createHorizontalGlue());
         return who;
+    }
+
+    private void updateProgress() {
+        long duration = player.durationSeconds();
+        long position = Math.max(0L, player.positionSeconds());
+        if (duration > 0) {
+            seekBar.fraction = Math.min(1.0, (double) position / duration);
+            timeLabel.setText(mmss(position) + " / " + mmss(duration));
+        } else {
+            seekBar.fraction = 0;
+            timeLabel.setText(mmss(position) + " / --:--");
+        }
+        seekBar.repaint();
     }
 
     private void updateHighlight() {
@@ -733,7 +783,7 @@ final class MusicPage {
             return;
         }
         // 旧页面里的组件还挂在旧父容器上，必须整页重建，不能复用字段。
-        MusicPage fresh = new MusicPage(host, bili, player);
+        MusicPage fresh = new MusicPage(host, bili, player, store);
         fresh.style = style;
         JPanel next = fresh.build();
         JPanel hostRoot = root;
@@ -807,6 +857,53 @@ final class MusicPage {
     }
 
     // ---------------------------------------------------------------- 小工具
+
+    /** 圆角进度条：点击/拖动跳转。 */
+    private static final class SeekBar extends JComponent {
+        private double fraction;
+        private java.util.function.DoubleConsumer onSeek;
+
+        SeekBar() {
+            setOpaque(false);
+            setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+            java.awt.event.MouseAdapter handler = new java.awt.event.MouseAdapter() {
+                @Override
+                public void mousePressed(java.awt.event.MouseEvent e) {
+                    seek(e.getX());
+                }
+
+                @Override
+                public void mouseDragged(java.awt.event.MouseEvent e) {
+                    seek(e.getX());
+                }
+            };
+            addMouseListener(handler);
+            addMouseMotionListener(handler);
+        }
+
+        private void seek(int x) {
+            if (getWidth() <= 0 || onSeek == null) {
+                return;
+            }
+            onSeek.accept(Math.max(0.0, Math.min(1.0, (double) x / getWidth())));
+        }
+
+        @Override
+        protected void paintComponent(java.awt.Graphics g) {
+            java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                    java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            int height = 6;
+            int y = (getHeight() - height) / 2;
+            g2.setColor(Theme.CARD_ALT);
+            g2.fillRoundRect(0, y, getWidth(), height, height, height);
+            int filled = (int) Math.round(getWidth() * fraction);
+            g2.setColor(Theme.ACCENT);
+            g2.fillRoundRect(0, y, Math.max(2, filled), height, height, height);
+            g2.fillOval(Math.max(0, filled - 5), y - 3, 12, 12);
+            g2.dispose();
+        }
+    }
 
     private static String mmss(long seconds) {
         if (seconds <= 0) {

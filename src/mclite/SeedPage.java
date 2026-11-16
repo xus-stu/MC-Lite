@@ -102,9 +102,20 @@ final class SeedPage {
         }
     }
 
-    SeedPage(Config config, Supplier<String> instance) {
+    private final Runnable onBack;
+    private final java.util.function.BooleanSupplier showBack;
+    private final java.util.function.BooleanSupplier bareMode;
+    private JPanel headerPanel;
+    private Ui.AccentButton backButton;
+
+    SeedPage(Config config, Supplier<String> instance, Runnable onBack,
+             java.util.function.BooleanSupplier showBack,
+             java.util.function.BooleanSupplier bareMode) {
         this.config = config;
         this.instance = instance;
+        this.onBack = onBack;
+        this.showBack = showBack;
+        this.bareMode = bareMode;
     }
 
     // ------------------------------------------------------------------ 外壳
@@ -113,8 +124,18 @@ final class SeedPage {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        page.add(LauncherLayout.pageHeader("种子查询",
-                "当前实例的种子、已生成遗迹和史莱姆区块", null), BorderLayout.NORTH);
+        JPanel header = LauncherLayout.pageHeader("种子查询",
+                "当前实例的种子、已生成遗迹和史莱姆区块", null);
+        JPanel backBox = new JPanel();
+        backBox.setOpaque(false);
+        backBox.setLayout(new BoxLayout(backBox, BoxLayout.X_AXIS));
+        backButton = Ui.smallButton("< 返回", Ui.AccentButton.Style.GHOST);
+        backButton.addActionListener(e -> onBack.run());
+        backBox.add(backButton);
+        backButton.setVisible(showBack.getAsBoolean());
+        header.add(backBox, BorderLayout.WEST);
+        headerPanel = header;
+        page.add(header, BorderLayout.NORTH);
 
         JPanel middle = new JPanel(new BorderLayout());
         middle.setOpaque(false);
@@ -391,6 +412,12 @@ final class SeedPage {
     // ------------------------------------------------------------------ 数据
 
     void onShown() {
+        if (headerPanel != null) {
+            headerPanel.setVisible(!bareMode.getAsBoolean());
+        }
+        if (backButton != null) {
+            backButton.setVisible(showBack.getAsBoolean());
+        }
         String id = instance.get();
         instanceValue.setText(id == null || id.isBlank() ? "未选择版本" : id);
         Path dir = config.effectiveGameDir(id);
