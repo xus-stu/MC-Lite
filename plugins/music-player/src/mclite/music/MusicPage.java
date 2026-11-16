@@ -135,8 +135,17 @@ final class MusicPage {
         cards.add(searchPage(), "search");
         cards.add(queuePage(), "queue");
         cards.add(settingsPage(), "settings");
-        page.add(cards, BorderLayout.CENTER);
-        page.add(playerBar(), BorderLayout.SOUTH);
+        JPanel center = new JPanel(new BorderLayout());
+        center.setOpaque(true);
+        center.setBackground(Theme.BG);
+        center.add(cards, BorderLayout.CENTER);
+        page.add(center, BorderLayout.CENTER);
+
+        JComponent bar = playerBar();
+        page.add(bar, BorderLayout.SOUTH);
+        // 播放条永远压在最上层：某些缩放下滚动内容会越过视口边缘，
+        // 不设 z 序的话会把播放条文字盖住。
+        page.setComponentZOrder(bar, 0);
 
         root = page;
         alignLeft(page);
@@ -406,6 +415,7 @@ final class MusicPage {
 
     private JComponent playerBar() {
         JPanel bar = new JPanel(new BorderLayout(12, 0));
+        bar.setOpaque(true);
         bar.setBackground(Theme.CARD);
         bar.setBorder(new EmptyBorder(8, 16, 8, 16));
 
