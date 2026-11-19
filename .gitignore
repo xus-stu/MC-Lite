@@ -57,3 +57,13 @@ __pycache__/
 island/.gradle/
 island/**/.gradle/
 island/**/build/
+
+# 与本启动器无关、不再入库（本地保留）
+FlowMini/
+diskbench/
+math_exam_8a_bnu/
+cheer_docx/
+运动会加油稿/
+*.docx
+.cache/
+usb-speed-sandisk.png
