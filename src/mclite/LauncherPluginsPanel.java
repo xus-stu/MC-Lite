@@ -6,6 +6,7 @@ import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -123,9 +124,9 @@ public final class LauncherPluginsPanel extends JPanel {
                 "零登录、零联网的本地音乐播放器，支持 JEI/Jade 目标信息与可导入 LRC。",
                 () -> openIslandDetail()));
         list.add(Ui.vgap(10));
-        list.add(pluginCard("音乐播放器", "启动器扩展 · 可选安装",
-                "在启动器里搜 B 站音乐并播放：队列、列表/单曲/随机/顺序循环，登录可与游戏实例同步。",
-                this::openMusicExtensionDetail));
+        list.add(pluginCard("启动器扩展", "可选安装的启动器插件",
+                "音乐播放器（B 站音乐、队列、混响）、地形查询（扫描已生成生物群系，定位沼泽）。",
+                this::openExtensionsDetail));
         list.add(Ui.vgap(10));
         list.add(pluginCard("Python Bridge 模块", "让 PyCharm / 外部脚本连接启动器",
                 "把 mclite_bridge 安装到指定 Python 解释器，并可一键启动 Bridge 服务。",
@@ -135,56 +136,110 @@ public final class LauncherPluginsPanel extends JPanel {
         return outer;
     }
 
-    private void openMusicExtensionDetail() {
-        JPanel detail = detailShell("音乐播放器", this::showCatalog);
+    private void openExtensionsDetail() {
+        JPanel detail = detailShell("启动器扩展", this::showCatalog);
         JPanel body = new JPanel();
         body.setOpaque(false);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
 
-        JLabel status = Ui.label("检查安装状态…", Theme.SMALL, Theme.MUTED);
+        JLabel status = Ui.label("正在获取插件清单…", Theme.SMALL, Theme.MUTED);
         status.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
         body.add(status);
         body.add(Ui.vgap(10));
-        body.add(descLine("B 站登录：可与当前游戏实例里 mclite-island 的登录同步。"));
-        body.add(descLine("播放：队列播放，支持列表循环 / 单曲循环 / 随机播放 / 顺序播放。"));
-        body.add(descLine("界面：默认跟随启动器当前主题，也可在插件里单独选样式。"));
-        body.add(descLine("依赖：解码使用 ffmpeg（启动器会自动查找，找不到会提示）。"));
-        body.add(Ui.vgap(14));
+        body.add(descLine("插件是可选的：不装不影响启动器其它功能；装上后出现在「功能」里。"));
+        body.add(descLine("安装会走启动器下载（任务中心可见），校验 SHA-256，重启后生效。"));
+        body.add(Ui.vgap(12));
+
+        JPanel rows = new JPanel();
+        rows.setOpaque(false);
+        rows.setLayout(new BoxLayout(rows, BoxLayout.Y_AXIS));
+        rows.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        body.add(rows);
 
         JPanel actions = new JPanel();
         actions.setOpaque(false);
         actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
         actions.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
-        Ui.AccentButton install = Ui.smallButton("安装", Ui.AccentButton.Style.PRIMARY);
-        Ui.AccentButton remove = Ui.smallButton("卸载", Ui.AccentButton.Style.GHOST);
-        actions.add(install);
-        actions.add(Ui.hgap(10));
-        actions.add(remove);
+        Ui.AccentButton refresh = Ui.smallButton("刷新列表", Ui.AccentButton.Style.GHOST);
+        actions.add(refresh);
+        body.add(Ui.vgap(8));
         body.add(actions);
-        body.add(Ui.vgap(10));
-        JLabel hint = Ui.label("安装后重启启动器生效；不装不影响启动器其它功能。", Theme.TINY, Theme.DIM);
-        hint.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
-        body.add(hint);
 
-        Runnable refresh = () -> {
-            boolean installed = LauncherExtensions.installed(config, "music-player");
-            status.setText(installed ? "已安装：启动后出现在「功能」列表里。" : "未安装。");
-            install.setText(installed ? "重新安装" : "安装");
-            remove.setEnabled(installed);
+        Runnable[] reload = new Runnable[1];
+        reload[0] = () -> {
+            rows.removeAll();
+            rows.revalidate();
+            rows.repaint();
+            status.setText("正在获取插件清单…");
+            new javax.swing.SwingWorker<java.util.List<LauncherExtensions.Entry>, Void>() {
+                @Override
+                protected java.util.List<LauncherExtensions.Entry> doInBackground() throws Exception {
+                    return LauncherExtensions.fetch();
+                }
+
+                @Override
+                protected void done() {
+                    rows.removeAll();
+                    java.util.List<LauncherExtensions.Entry> entries;
+                    try {
+                        entries = get();
+                    } catch (Exception ex) {
+                        status.setText("获取清单失败：" + ex.getMessage());
+                        return;
+                    }
+                    if (entries.isEmpty()) {
+                        status.setText("清单里还没有插件。");
+                        return;
+                    }
+                    for (LauncherExtensions.Entry entry : entries) {
+                        rows.add(extensionRow(entry, reload[0], status));
+                        rows.add(Ui.vgap(6));
+                    }
+                    status.setText("共 " + entries.size() + " 个可选插件");
+                    rows.revalidate();
+                    rows.repaint();
+                }
+            }.execute();
         };
-        refresh.run();
+        refresh.addActionListener(e -> reload[0].run());
 
+        JScrollPane scroll = Ui.scroll(body);
+        detail.add(scroll, BorderLayout.CENTER);
+        deck.add(detail, "extensions");
+        cards.show(deck, "extensions");
+        reload[0].run();
+    }
+
+    private JComponent extensionRow(LauncherExtensions.Entry entry, Runnable reload, JLabel status) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 56));
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        text.add(Ui.label(entry.label(), Theme.BODY_BOLD, Theme.TEXT));
+        JLabel desc = Ui.label(entry.desc(), Theme.TINY, Theme.DIM);
+        text.add(desc);
+        row.add(text, BorderLayout.CENTER);
+
+        boolean installed = LauncherExtensions.installed(config, entry.id());
+        JPanel actions = new JPanel();
+        actions.setOpaque(false);
+        actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
+        actions.add(Ui.label(installed ? "已安装" : "未安装", Theme.TINY,
+                installed ? Theme.ACCENT : Theme.DIM));
+        actions.add(Ui.hgap(8));
+        Ui.AccentButton install = Ui.smallButton(installed ? "重新安装" : "安装",
+                Ui.AccentButton.Style.PRIMARY);
         install.addActionListener(e -> {
             install.setEnabled(false);
-            status.setText("正在获取插件清单…");
-            new javax.swing.SwingWorker<LauncherExtensions.Entry, Void>() {
+            status.setText("正在下载 " + entry.label() + "…");
+            new javax.swing.SwingWorker<Void, Void>() {
                 @Override
-                protected LauncherExtensions.Entry doInBackground() throws Exception {
-                    for (LauncherExtensions.Entry entry : LauncherExtensions.fetch()) {
-                        if (entry.id().equals("music-player")) {
-                            return entry;
-                        }
-                    }
+                protected Void doInBackground() throws Exception {
+                    LauncherExtensions.install(config, entry);
                     return null;
                 }
 
@@ -192,50 +247,32 @@ public final class LauncherPluginsPanel extends JPanel {
                 protected void done() {
                     install.setEnabled(true);
                     try {
-                        LauncherExtensions.Entry entry = get();
-                        if (entry == null) {
-                            status.setText("清单里没有音乐播放器插件。");
-                            return;
-                        }
-                        status.setText("正在下载 " + entry.label() + "…");
-                        new javax.swing.SwingWorker<Void, Void>() {
-                            @Override
-                            protected Void doInBackground() throws Exception {
-                                LauncherExtensions.install(config, entry);
-                                return null;
-                            }
-
-                            @Override
-                            protected void done() {
-                                try {
-                                    get();
-                                    status.setText("已安装 " + entry.label() + "，重启启动器后生效。");
-                                } catch (Exception ex) {
-                                    status.setText("安装失败：" + ex.getMessage());
-                                }
-                                refresh.run();
-                            }
-                        }.execute();
+                        get();
+                        status.setText("已安装 " + entry.label() + "，重启启动器后生效。");
                     } catch (Exception ex) {
-                        status.setText("获取清单失败：" + ex.getMessage());
+                        status.setText("安装失败：" + ex.getMessage());
                     }
+                    reload.run();
                 }
             }.execute();
         });
-        remove.addActionListener(e -> {
-            try {
-                LauncherExtensions.uninstall(config, "music-player");
-                status.setText("已卸载，重启启动器后消失。");
-            } catch (Exception ex) {
-                status.setText("卸载失败：" + ex.getMessage());
-            }
-            refresh.run();
-        });
-
-        JScrollPane scroll = Ui.scroll(body);
-        detail.add(scroll, BorderLayout.CENTER);
-        deck.add(detail, "music");
-        cards.show(deck, "music");
+        actions.add(install);
+        if (installed) {
+            actions.add(Ui.hgap(6));
+            Ui.AccentButton remove = Ui.smallButton("卸载", Ui.AccentButton.Style.GHOST);
+            remove.addActionListener(e -> {
+                try {
+                    LauncherExtensions.uninstall(config, entry.id());
+                    status.setText("已卸载 " + entry.label() + "，重启启动器后消失。");
+                } catch (Exception ex) {
+                    status.setText("卸载失败：" + ex.getMessage());
+                }
+                reload.run();
+            });
+            actions.add(remove);
+        }
+        row.add(actions, BorderLayout.EAST);
+        return row;
     }
 
     private JLabel descLine(String text) {
