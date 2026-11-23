@@ -68,6 +68,7 @@ final class TerrainPage {
     private final Ui.AccentButton scanButton =
             Ui.smallButton("扫描已生成地形", Ui.AccentButton.Style.PRIMARY);
     private String loadedInstance = "";
+    private Map<String, String> modNames = Map.of();
 
     TerrainPage(Host host) {
         this.host = host;
@@ -200,6 +201,8 @@ final class TerrainPage {
         new javax.swing.SwingWorker<List<Scan.BiomeHit>, Integer>() {
             @Override
             protected List<Scan.BiomeHit> doInBackground() {
+                // 模组会改地形/加群系：先从 mods/*.jar 的语言文件收集中文名。
+                modNames = ModNames.load(host.instanceDir());
                 return Scan.biomes(world, new Scan.Listener() {
                     @Override
                     public void progress(int done, int total) {
@@ -264,13 +267,31 @@ final class TerrainPage {
         if (hits.isEmpty()) {
             rows.add(Ui.label("没有扫到生物群系数据（可能是新存档还没生成区块）。", Theme.TINY, Theme.DIM));
         }
-        status.setText("共 " + hits.size() + " 种地形，已生成区块按覆盖数量排序");
+        status.setText("共 " + hits.size() + " 种地形（其中 " + moddedCount(hits) + " 种来自模组），"
+                + "按已生成区块覆盖数量排序；名字取自 mods 语言文件 " + modNames.size() + " 条");
         rows.revalidate();
         rows.repaint();
     }
 
     private boolean isSwamp(String id) {
-        return id.toLowerCase(Locale.ROOT).contains("swamp");
+        String key = id.toLowerCase(Locale.ROOT);
+        for (String part : new String[]{"swamp", "marsh", "bog", "bayou", "mangrove", "moor", "wetland"}) {
+            if (key.contains(part)) {
+                return true;
+            }
+        }
+        String zh = name(id);
+        return zh.contains("沼泽") || zh.contains("湿地") || zh.contains("红树") || zh.contains("泽地");
+    }
+
+    private int moddedCount(List<Scan.BiomeHit> hits) {
+        int count = 0;
+        for (Scan.BiomeHit hit : hits) {
+            if (hit.id().contains(":") && !hit.id().startsWith("minecraft:")) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private JComponent biomeRow(Scan.BiomeHit hit) {
@@ -298,9 +319,21 @@ final class TerrainPage {
         return row;
     }
 
-    private static String name(String id) {
-        String value = NAMES.get(id);
-        return value != null ? value : id;
+    private String name(String id) {
+        String mod = modNames.get(id);
+        if (mod != null && !mod.isBlank()) {
+            return mod;
+        }
+        String path = id.startsWith("minecraft:") ? id.substring("minecraft:".length()) : id;
+        String vanilla = NAMES.get(path);
+        if (vanilla != null) {
+            return vanilla;
+        }
+        String pretty = path.replace('_', ' ');
+        if (id.contains(":") && !id.startsWith("minecraft:")) {
+            return pretty + "（" + id.substring(0, id.indexOf(':')) + "）";
+        }
+        return pretty;
     }
 
     private static Ui.RoundedPanel card() {

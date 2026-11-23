@@ -64,7 +64,7 @@ rm -f "dist/${NORMAL_JAR}" "dist/${REGION_JAR}" "dist/${MAC_ZIP}" "dist/${REGION
 jar --create --file "dist/MCLiteTests_v${VERSION}.jar" -C build/tests-classes .
 
 # 启动器插件（可选下载，单独 jar）：dist/plugins/<id>-<version>.jar + <id>.json
-TERRAIN_VERSION="1.0.0"
+TERRAIN_VERSION="1.1.0"
 rm -rf dist/plugins
 mkdir -p dist/plugins
 build_plugin() {

@@ -274,7 +274,7 @@ final class Scan {
                     ? List.of() : Nbt.list(biomes.get("palette"))) {
                 String id = Nbt.text(entry);
                 if (id != null && !id.isBlank()) {
-                    found.add(id.contains(":") ? id.substring(id.indexOf(':') + 1) : id);
+                    found.add(id);
                 }
             }
         }
