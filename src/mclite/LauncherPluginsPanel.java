@@ -167,37 +167,30 @@ public final class LauncherPluginsPanel extends JPanel {
 
         Runnable[] reload = new Runnable[1];
         reload[0] = () -> {
-            rows.removeAll();
-            rows.revalidate();
-            rows.repaint();
-            status.setText("正在获取插件清单…");
+            // 先秒出本地缓存，再后台用镜像竞速刷新。
+            java.util.List<LauncherExtensions.Entry> cached = LauncherExtensions.cached(config);
+            fillExtensions(rows, cached, reload[0], status);
+            status.setText(cached.isEmpty() ? "正在获取插件清单…" : "已显示缓存，正在刷新…");
             new javax.swing.SwingWorker<java.util.List<LauncherExtensions.Entry>, Void>() {
                 @Override
                 protected java.util.List<LauncherExtensions.Entry> doInBackground() throws Exception {
-                    return LauncherExtensions.fetch();
+                    return LauncherExtensions.fetch(config);
                 }
 
                 @Override
                 protected void done() {
-                    rows.removeAll();
-                    java.util.List<LauncherExtensions.Entry> entries;
                     try {
-                        entries = get();
+                        java.util.List<LauncherExtensions.Entry> entries = get();
+                        fillExtensions(rows, entries, reload[0], status);
+                        status.setText("共 " + entries.size() + " 个可选插件");
                     } catch (Exception ex) {
-                        status.setText("获取清单失败：" + ex.getMessage());
-                        return;
+                        if (cached.isEmpty()) {
+                            status.setText("获取清单失败：" + ex.getMessage());
+                        } else {
+                            status.setText("刷新失败，显示的是上次缓存（" + cached.size() + " 个）。"
+                                    + ex.getMessage());
+                        }
                     }
-                    if (entries.isEmpty()) {
-                        status.setText("清单里还没有插件。");
-                        return;
-                    }
-                    for (LauncherExtensions.Entry entry : entries) {
-                        rows.add(extensionRow(entry, reload[0], status));
-                        rows.add(Ui.vgap(6));
-                    }
-                    status.setText("共 " + entries.size() + " 个可选插件");
-                    rows.revalidate();
-                    rows.repaint();
                 }
             }.execute();
         };
@@ -208,6 +201,20 @@ public final class LauncherPluginsPanel extends JPanel {
         deck.add(detail, "extensions");
         cards.show(deck, "extensions");
         reload[0].run();
+    }
+
+    private void fillExtensions(JPanel rows, java.util.List<LauncherExtensions.Entry> entries,
+                                Runnable reload, JLabel status) {
+        rows.removeAll();
+        for (LauncherExtensions.Entry entry : entries) {
+            rows.add(extensionRow(entry, reload, status));
+            rows.add(Ui.vgap(6));
+        }
+        if (entries.isEmpty()) {
+            rows.add(Ui.label("清单是空的：可以点「刷新列表」重试。", Theme.TINY, Theme.DIM));
+        }
+        rows.revalidate();
+        rows.repaint();
     }
 
     private JComponent extensionRow(LauncherExtensions.Entry entry, Runnable reload, JLabel status) {

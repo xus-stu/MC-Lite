@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -40,18 +41,77 @@ final class LauncherExtensions {
     private LauncherExtensions() {
     }
 
-    static List<Entry> fetch() throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(MANIFEST_URL))
-                .timeout(Duration.ofSeconds(20))
+    /** 清单缓存文件；网络慢时先显示上次结果。 */
+    static Path cacheFile(Config config) {
+        return config.cacheDir().resolve("plugin-manifest.json");
+    }
+
+    static List<Entry> cached(Config config) {
+        try {
+            Path file = cacheFile(config);
+            if (!Files.isRegularFile(file)) {
+                return List.of();
+            }
+            return parse(Files.readString(file, StandardCharsets.UTF_8), config);
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    /**
+     * 多镜像并发竞速：GitHub 直连经常超时，第一个成功的镜像结果直接返回。
+     *
+     * @param cachedOnly 只读缓存（不联网）
+     */
+    static List<Entry> fetch(Config config) throws IOException, InterruptedException {
+        List<String> urls = GithubSources.candidates(MANIFEST_URL);
+        java.util.concurrent.atomic.AtomicReference<String> winner = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        for (String url : urls) {
+            Thread thread = new Thread(() -> {
+                try {
+                    String body = getText(url, 8);
+                    if (body != null && body.contains("plugins") && winner.compareAndSet(null, body)) {
+                        latch.countDown();
+                    }
+                } catch (Exception ignored) {
+                    // 单个镜像失败不影响其它。
+                }
+            }, "mclite-plugin-manifest");
+            thread.setDaemon(true);
+            thread.start();
+        }
+        latch.await(9, java.util.concurrent.TimeUnit.SECONDS);
+        String body = winner.get();
+        if (body == null) {
+            throw new IOException("所有镜像都超时或失败（可用「刷新列表」重试）");
+        }
+        List<Entry> entries = parse(body, config);
+        if (entries.isEmpty()) {
+            throw new IOException("清单格式不正确");
+        }
+        try {
+            Files.createDirectories(cacheFile(config).getParent());
+            Files.writeString(cacheFile(config), body, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+            // 缓存失败不影响使用。
+        }
+        return entries;
+    }
+
+    private static String getText(String url, int timeoutSeconds) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .header("User-Agent", "MCLite/" + GameLauncher.LAUNCHER_VERSION)
                 .GET()
                 .build();
         HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) {
-            throw new IOException("清单 HTTP " + response.statusCode());
-        }
+        return response.statusCode() == 200 ? response.body() : null;
+    }
+
+    private static List<Entry> parse(String body, Config config) {
         List<Entry> out = new ArrayList<>();
-        Map<String, Object> root = Json.obj(Json.parse(response.body()));
+        Map<String, Object> root = Json.obj(Json.parse(body));
         for (Object raw : Json.arr(root == null ? null : root.get("plugins"))) {
             Map<String, Object> item = Json.obj(raw);
             if (item == null) {
@@ -90,20 +150,31 @@ final class LauncherExtensions {
         Files.createDirectories(dir);
         Path temp = Files.createTempFile(dir, entry.id(), ".part");
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(entry.url()))
-                    .timeout(Duration.ofMinutes(5))
-                    .header("User-Agent", "MCLite/" + GameLauncher.LAUNCHER_VERSION)
-                    .GET()
-                    .build();
-            HttpResponse<Path> response;
-            try {
-                response = CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(temp));
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                throw new IOException("下载被中断", ex);
+            boolean downloaded = false;
+            for (String url : GithubSources.candidates(entry.url())) {
+                try {
+                    HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                            .timeout(Duration.ofSeconds(30))
+                            .header("User-Agent", "MCLite/" + GameLauncher.LAUNCHER_VERSION)
+                            .GET()
+                            .build();
+                    HttpResponse<Path> response;
+                    try {
+                        response = CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(temp));
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("下载被中断", ex);
+                    }
+                    if (response.statusCode() == 200) {
+                        downloaded = true;
+                        break;
+                    }
+                } catch (IOException ignored) {
+                    // 换下一个镜像。
+                }
             }
-            if (response.statusCode() != 200) {
-                throw new IOException("下载 HTTP " + response.statusCode());
+            if (!downloaded) {
+                throw new IOException("所有镜像都下载失败");
             }
             String actual = sha256(temp);
             if (!actual.equalsIgnoreCase(entry.sha256())) {
