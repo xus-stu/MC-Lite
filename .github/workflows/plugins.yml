@@ -1,0 +1,29 @@
+name: launcher-plugins
+
+# 插件独立发布：改 plugins/ 下的东西或手动触发即可，不用发启动器版本。
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/**'
+      - '.github/workflows/plugins.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish-plugins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build plugins
+        run: bash plugins/ci-build.sh
+      - name: Publish plugins
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash plugins/publish.sh
