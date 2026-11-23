@@ -723,6 +723,8 @@ final class SeedPage {
         private Runnable action;
         private String flashText = "已复制";
         private float glow;
+        private float pointerX = -1f;
+        private float pointerY = -1f;
         private Timer anim;
 
         Row(String title, String text, String buttonText, String tooltip) {
@@ -740,6 +742,14 @@ final class SeedPage {
             add(name, BorderLayout.WEST);
             add(detail, BorderLayout.CENTER);
             add(button, BorderLayout.EAST);
+            addMouseMotionListener(new MouseAdapter() {
+                @Override
+                public void mouseMoved(MouseEvent event) {
+                    pointerX = event.getX();
+                    pointerY = event.getY();
+                    repaint();
+                }
+            });
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent event) {
@@ -748,6 +758,8 @@ final class SeedPage {
 
                 @Override
                 public void mouseExited(MouseEvent event) {
+                    pointerX = -1f;
+                    pointerY = -1f;
                     hover(false);
                 }
 
@@ -808,6 +820,18 @@ final class SeedPage {
                 Graphics2D g2 = Ui.prepare(g);
                 g2.setColor(new java.awt.Color(255, 255, 255, Math.round(glow * 16)));
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                if (pointerX >= 0) {
+                    java.awt.Shape oldClip = g2.getClip();
+                    g2.clip(new java.awt.geom.RoundRectangle2D.Float(0, 0, getWidth(),
+                            getHeight(), 10, 10));
+                    g2.setPaint(new java.awt.RadialGradientPaint(
+                            new java.awt.geom.Point2D.Float(pointerX, pointerY),
+                            Math.max(getWidth(), getHeight()) * 0.85f, new float[]{0f, 1f},
+                            new java.awt.Color[]{Theme.alpha(Theme.ACCENT, Math.round(42 * glow)),
+                                    Theme.alpha(Theme.ACCENT, 0)}));
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                    g2.setClip(oldClip);
+                }
                 g2.setColor(new java.awt.Color(255, 255, 255, Math.round(glow * 34)));
                 g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
                 g2.dispose();

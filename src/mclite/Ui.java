@@ -575,9 +575,8 @@ public final class Ui {
         private final Style style;
         private final int arc = 9;
         private float hoverProgress;
-        private float rippleX = -1f;
-        private float rippleY = -1f;
-        private long rippleAt;
+        private float pointerX = -1f;
+        private float pointerY = -1f;
         private float hoverFrom;
         private float hoverTo;
         private long hoverStarted;
@@ -594,16 +593,20 @@ public final class Ui {
             setRolloverEnabled(true);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             setForeground(style == Style.PRIMARY ? Theme.ACCENT_TEXT : Theme.TEXT);
+            addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+                @Override
+                public void mouseMoved(java.awt.event.MouseEvent e) {
+                    pointerX = e.getX();
+                    pointerY = e.getY();
+                    repaint();
+                }
+            });
             addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
-                public void mousePressed(java.awt.event.MouseEvent e) {
-                    if (!isEnabled() || !javax.swing.SwingUtilities.isLeftMouseButton(e)) {
-                        return;
-                    }
-                    rippleX = e.getX();
-                    rippleY = e.getY();
-                    rippleAt = System.currentTimeMillis();
-                    Pulse.add(AccentButton.this);
+                public void mouseExited(java.awt.event.MouseEvent e) {
+                    pointerX = -1f;
+                    pointerY = -1f;
+                    repaint();
                 }
             });
             addMouseListener(new java.awt.event.MouseAdapter() {
@@ -704,21 +707,17 @@ public final class Ui {
                 g2.drawRoundRect(inset, inset, width - 1 - inset * 2,
                         height - 1 - inset * 2, arc, arc);
             }
-            // 点击水波：从按压点扩散，450ms 淡出，只用一个共享 Pulse 驱动。
-            long rippleAge = System.currentTimeMillis() - rippleAt;
-            if (rippleX >= 0 && rippleAge >= 450) {
-                rippleX = -1f;
-                Pulse.remove(this);
-            }
-            if (rippleX >= 0 && rippleAge < 450) {
-                float t = rippleAge / 450f;
-                float radius = t * Math.max(width, height) * 0.9f;
-                int alpha = Math.round(70 * (1f - t));
+            // 指针柔光：鼠标停在哪，那里就有一点主题色渐变（只在移动/悬停时重绘）。
+            if (h > 0.02f && pointerX >= 0 && width > 0 && height > 0) {
+                float radius = Math.max(width, height) * 0.85f;
                 java.awt.Shape old = g2.getClip();
                 g2.clip(new java.awt.geom.RoundRectangle2D.Float(0, 0, width, height, arc, arc));
-                g2.setColor(new java.awt.Color(255, 255, 255, alpha));
-                g2.fill(new java.awt.geom.Ellipse2D.Float(rippleX - radius, rippleY - radius,
-                        radius * 2, radius * 2));
+                g2.setPaint(new java.awt.RadialGradientPaint(
+                        new java.awt.geom.Point2D.Float(pointerX, pointerY), radius,
+                        new float[]{0f, 1f},
+                        new java.awt.Color[]{Theme.alpha(Theme.ACCENT, Math.round(70 * h)),
+                                Theme.alpha(Theme.ACCENT, 0)}));
+                g2.fillRect(0, 0, width, height);
                 g2.setClip(old);
             }
             g2.setFont(getFont());
@@ -1185,38 +1184,6 @@ public final class Ui {
             if (!alive && timer != null) {
                 timer.stop();
             }
-        }
-    }
-
-    /** 页面标题下的流动高亮线（2px），用 Pulse 驱动，多个页面共用一套节拍。 */
-    public static final class AccentLine extends JComponent {
-        private static final long START = System.currentTimeMillis();
-
-        public AccentLine() {
-            setOpaque(false);
-            setPreferredSize(new Dimension(10, 2));
-            setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
-        }
-
-        @Override
-        public void addNotify() {
-            super.addNotify();
-            Pulse.add(this);
-        }
-
-        @Override
-        protected void paintComponent(java.awt.Graphics g) {
-            java.awt.Graphics2D g2 = prepare(g);
-            float phase = ((System.currentTimeMillis() - START) % 4200L) / 4200f;
-            int width = getWidth();
-            int x = Math.round(phase * (width + 240)) - 120;
-            java.awt.GradientPaint paint = new java.awt.GradientPaint(x - 120, 0, Theme.BG,
-                    x, 0, Theme.alpha(Theme.ACCENT, 220), true);
-            g2.setPaint(paint);
-            g2.fillRect(0, 0, width, 2);
-            g2.setColor(Theme.alpha(Theme.BORDER, 120));
-            g2.drawLine(0, 1, width, 1);
-            g2.dispose();
         }
     }
 

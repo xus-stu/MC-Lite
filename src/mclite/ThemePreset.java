@@ -65,8 +65,51 @@ public record ThemePreset(String name, String css, Color background, Color card,
                             + "card-alt: #E6EFF9\nfield: #FFFFFF\nbg-4: #D4E3F2\nhover: #D9E7F5\n"
                             + "text: #142B40\nmuted: #47647D\ndim: #71869A\naccent: #2F6FA8\n"
                             + "accent-text: #FFFFFF\nborder: #C9D9E8\nborder-light: #ADC5DA\n"
-                            + "danger: #9F4343\nwarning: #84621E\nfont-size: 13\n")
+                            + "danger: #9F4343\nwarning: #84621E\nfont-size: 13\n"),
+            compact("暖语 · 紫（暗）", "#140F1B", "#1D1626", "#B08CE8", "#EFE7F9"),
+            compact("暖语 · 紫（亮）", "#F7F3FD", "#FFFFFF", "#7B4FC0", "#2A1B3F"),
+            compact("暖语 · 青（暗）", "#0C1517", "#142124", "#5FC7C7", "#E3F7F7"),
+            compact("暖语 · 青（亮）", "#F0FAFA", "#FFFFFF", "#1F8A8A", "#123333"),
+            compact("暖语 · 红（暗）", "#1A0F0F", "#241616", "#E86F6F", "#F9E9E9"),
+            compact("暖语 · 红（亮）", "#FFF5F5", "#FFFFFF", "#C13C3C", "#3A1414")
     );
+
+    /**
+     * 精简主题：只给背景/卡片/强调/文字四个颜色，其余颜色按比例推导，
+     * 这样每加一套主题只多几十字节，不会让 JAR 膨胀。
+     */
+    private static ThemePreset compact(String name, String bgHex, String cardHex,
+                                       String accentHex, String textHex) {
+        Color bg = Color.decode(bgHex);
+        Color card = Color.decode(cardHex);
+        Color accent = Color.decode(accentHex);
+        Color text = Color.decode(textHex);
+        boolean dark = luminance(bg) < 0.5f;
+        String css = "background: " + hex(bg)
+                + "\nbackground-soft: " + hex(Theme.mix(bg, dark ? Color.BLACK : Color.WHITE, 0.06f))
+                + "\ncard: " + hex(card)
+                + "\ncard-alt: " + hex(Theme.mix(card, text, 0.08f))
+                + "\nfield: " + hex(Theme.mix(card, text, 0.08f))
+                + "\nbg-4: " + hex(Theme.mix(card, text, 0.16f))
+                + "\nhover: " + hex(Theme.mix(card, text, 0.12f))
+                + "\ntext: " + hex(text)
+                + "\nmuted: " + hex(Theme.mix(text, bg, 0.4f))
+                + "\ndim: " + hex(Theme.mix(text, bg, 0.6f))
+                + "\naccent: " + hex(accent)
+                + "\naccent-text: " + (luminance(accent) > 0.55f ? "#0B0B0B" : "#FFFFFF")
+                + "\nborder: " + hex(Theme.mix(card, text, 0.22f))
+                + "\nborder-light: " + hex(Theme.mix(card, text, 0.34f))
+                + "\ndanger: #D98A8A\nwarning: #D6C08A\nfont-size: 13\n";
+        return new ThemePreset(name, css, bg, card, accent, text);
+    }
+
+    private static float luminance(Color color) {
+        return (color.getRed() * 0.299f + color.getGreen() * 0.587f + color.getBlue() * 0.114f) / 255f;
+    }
+
+    private static String hex(Color color) {
+        return String.format("#%02X%02X%02X", color.getRed(), color.getGreen(), color.getBlue());
+    }
 
     private static ThemePreset preset(String name, String bg, String card, String accent,
                                       String text, String css) {

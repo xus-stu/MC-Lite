@@ -59,6 +59,8 @@ final class FeaturesPage {
     /** 一行功能：标题 + 说明 + 右侧「打开」，整行可点。 */
     private final class FeatureCard extends JPanel {
         private float glow;
+        private float pointerX = -1f;
+        private float pointerY = -1f;
         private Timer anim;
 
         FeatureCard(Feature feature) {
@@ -89,6 +91,14 @@ final class FeaturesPage {
             right.add(Ui.label("打开 ›", Theme.BODY_BOLD, Theme.ACCENT));
             add(right, BorderLayout.EAST);
 
+            addMouseMotionListener(new MouseAdapter() {
+                @Override
+                public void mouseMoved(MouseEvent event) {
+                    pointerX = event.getX();
+                    pointerY = event.getY();
+                    repaint();
+                }
+            });
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent event) {
@@ -97,6 +107,8 @@ final class FeaturesPage {
 
                 @Override
                 public void mouseExited(MouseEvent event) {
+                    pointerX = -1f;
+                    pointerY = -1f;
                     hover(false);
                 }
 
@@ -132,6 +144,18 @@ final class FeaturesPage {
             if (glow > 0.01f) {
                 g2.setColor(new java.awt.Color(255, 255, 255, Math.round(glow * 14)));
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
+            }
+            if (glow > 0.02f && pointerX >= 0) {
+                java.awt.Shape old = g2.getClip();
+                g2.clip(new java.awt.geom.RoundRectangle2D.Float(0, 0, getWidth(), getHeight(),
+                        arc, arc));
+                g2.setPaint(new java.awt.RadialGradientPaint(
+                        new java.awt.geom.Point2D.Float(pointerX, pointerY),
+                        Math.max(getWidth(), getHeight()) * 0.85f, new float[]{0f, 1f},
+                        new java.awt.Color[]{Theme.alpha(Theme.ACCENT, Math.round(46 * glow)),
+                                Theme.alpha(Theme.ACCENT, 0)}));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setClip(old);
             }
             g2.setColor(glow > 0.5f ? Theme.alpha(Theme.ACCENT, 120) : Theme.BORDER);
             g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
