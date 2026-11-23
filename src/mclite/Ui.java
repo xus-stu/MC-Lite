@@ -575,6 +575,9 @@ public final class Ui {
         private final Style style;
         private final int arc = 9;
         private float hoverProgress;
+        private float rippleX = -1f;
+        private float rippleY = -1f;
+        private long rippleAt;
         private float hoverFrom;
         private float hoverTo;
         private long hoverStarted;
@@ -591,6 +594,18 @@ public final class Ui {
             setRolloverEnabled(true);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             setForeground(style == Style.PRIMARY ? Theme.ACCENT_TEXT : Theme.TEXT);
+            addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mousePressed(java.awt.event.MouseEvent e) {
+                    if (!isEnabled() || !javax.swing.SwingUtilities.isLeftMouseButton(e)) {
+                        return;
+                    }
+                    rippleX = e.getX();
+                    rippleY = e.getY();
+                    rippleAt = System.currentTimeMillis();
+                    Pulse.add(AccentButton.this);
+                }
+            });
             addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
                 public void mouseEntered(java.awt.event.MouseEvent e) {
@@ -688,6 +703,23 @@ public final class Ui {
                 g2.setColor(border);
                 g2.drawRoundRect(inset, inset, width - 1 - inset * 2,
                         height - 1 - inset * 2, arc, arc);
+            }
+            // 点击水波：从按压点扩散，450ms 淡出，只用一个共享 Pulse 驱动。
+            long rippleAge = System.currentTimeMillis() - rippleAt;
+            if (rippleX >= 0 && rippleAge >= 450) {
+                rippleX = -1f;
+                Pulse.remove(this);
+            }
+            if (rippleX >= 0 && rippleAge < 450) {
+                float t = rippleAge / 450f;
+                float radius = t * Math.max(width, height) * 0.9f;
+                int alpha = Math.round(70 * (1f - t));
+                java.awt.Shape old = g2.getClip();
+                g2.clip(new java.awt.geom.RoundRectangle2D.Float(0, 0, width, height, arc, arc));
+                g2.setColor(new java.awt.Color(255, 255, 255, alpha));
+                g2.fill(new java.awt.geom.Ellipse2D.Float(rippleX - radius, rippleY - radius,
+                        radius * 2, radius * 2));
+                g2.setClip(old);
             }
             g2.setFont(getFont());
             FontMetrics metrics = g2.getFontMetrics();
@@ -1100,8 +1132,98 @@ public final class Ui {
         }
     }
 
+    /**
+     * 共享 60fps 动画驱动：所有需要连续重绘的组件挂到这里，
+     * 只用一个 Timer，避免每个组件各起一个定时器（省体积也省线程）。
+     */
+    public static final class Pulse implements java.awt.event.ActionListener {
+        private static final java.util.List<java.lang.ref.WeakReference<JComponent>> TARGETS =
+                new java.util.concurrent.CopyOnWriteArrayList<>();
+        private static Timer timer;
+
+        private Pulse() {
+        }
+
+        public static void add(JComponent component) {
+            for (java.lang.ref.WeakReference<JComponent> ref : TARGETS) {
+                if (ref.get() == component) {
+                    ensureRunning();
+                    return;
+                }
+            }
+            TARGETS.add(new java.lang.ref.WeakReference<>(component));
+            ensureRunning();
+        }
+
+        static void ensureRunning() {
+            if (timer == null) {
+                timer = new Timer(16, new Pulse());
+            }
+            if (!timer.isRunning()) {
+                timer.start();
+            }
+        }
+
+        public static void remove(JComponent component) {
+            TARGETS.removeIf(ref -> ref.get() == null || ref.get() == component);
+        }
+
+        @Override
+        public void actionPerformed(java.awt.event.ActionEvent event) {
+            boolean alive = false;
+            for (java.lang.ref.WeakReference<JComponent> ref : TARGETS) {
+                JComponent component = ref.get();
+                if (component == null) {
+                    TARGETS.remove(ref);
+                    continue;
+                }
+                if (component.isShowing()) {
+                    component.repaint();
+                    alive = true;
+                }
+            }
+            if (!alive && timer != null) {
+                timer.stop();
+            }
+        }
+    }
+
+    /** 页面标题下的流动高亮线（2px），用 Pulse 驱动，多个页面共用一套节拍。 */
+    public static final class AccentLine extends JComponent {
+        private static final long START = System.currentTimeMillis();
+
+        public AccentLine() {
+            setOpaque(false);
+            setPreferredSize(new Dimension(10, 2));
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
+        }
+
+        @Override
+        public void addNotify() {
+            super.addNotify();
+            Pulse.add(this);
+        }
+
+        @Override
+        protected void paintComponent(java.awt.Graphics g) {
+            java.awt.Graphics2D g2 = prepare(g);
+            float phase = ((System.currentTimeMillis() - START) % 4200L) / 4200f;
+            int width = getWidth();
+            int x = Math.round(phase * (width + 240)) - 120;
+            java.awt.GradientPaint paint = new java.awt.GradientPaint(x - 120, 0, Theme.BG,
+                    x, 0, Theme.alpha(Theme.ACCENT, 220), true);
+            g2.setPaint(paint);
+            g2.fillRect(0, 0, width, 2);
+            g2.setColor(Theme.alpha(Theme.BORDER, 120));
+            g2.drawLine(0, 1, width, 1);
+            g2.dispose();
+        }
+    }
+
     public static final class ThinProgress extends JComponent {
         private double value;
+        private double shown;
+        private long valueAt;
         private boolean indeterminate;
         private long phase = System.currentTimeMillis();
         private final Timer timer;
@@ -1132,6 +1254,8 @@ public final class Ui {
 
         public void setValue(double value) {
             this.value = Math.max(0, Math.min(1, value));
+            this.valueAt = System.currentTimeMillis();
+            Pulse.add(this);
             repaint();
         }
 
@@ -1158,8 +1282,15 @@ public final class Ui {
                 double t = ((System.currentTimeMillis() - phase) % 1600) / 1600.0;
                 int x = (int) ((width + segment) * t) - segment;
                 g2.fillRoundRect(x, 0, segment, height, height, height);
-            } else if (value > 0) {
-                int filled = Math.max(height, (int) Math.round(width * value));
+            } else if (value > 0 || shown > 0) {
+                float t = Math.min(1f, (System.currentTimeMillis() - valueAt) / 220f);
+                float eased = 1f - (1f - t) * (1f - t) * (1f - t);
+                shown = shown + (value - shown) * eased;
+                if (t >= 1f) {
+                    shown = value;
+                    Pulse.remove(this);
+                }
+                int filled = Math.max(height, (int) Math.round(width * shown));
                 g2.fillRoundRect(0, 0, filled, height, height, height);
             }
             g2.dispose();
