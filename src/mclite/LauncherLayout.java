@@ -21,7 +21,7 @@ public final class LauncherLayout {
         top.setBackground(Theme.BG);
         top.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(9, 14, 9, 14)));
+                new EmptyBorder(5, 14, 6, 14)));
         JPanel info = new JPanel();
         info.setOpaque(false);
         info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));

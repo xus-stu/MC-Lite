@@ -207,7 +207,7 @@ final class DownloadPage {
         top.setBackground(Theme.CARD);
         top.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(8, 14, 8, 14)));
+                new EmptyBorder(5, 14, 5, 14)));
 
         JPanel info = new JPanel();
         info.setOpaque(false);

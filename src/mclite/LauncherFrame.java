@@ -177,6 +177,7 @@ public final class LauncherFrame extends JFrame {
             // 标题栏透明 + 内容延伸到标题栏：保留系统红绿灯，标题栏底色透出主题背景。
             getRootPane().putClientProperty("apple.awt.fullWindowContent", true);
             getRootPane().putClientProperty("apple.awt.transparentTitleBar", true);
+            getRootPane().putClientProperty("apple.awt.windowTitleVisible", false);
         }
         ImageCache.configure(config.cacheDir().resolve("icons"));
         this.gamePaths = new GamePaths(config.gameDir());
@@ -268,11 +269,11 @@ public final class LauncherFrame extends JFrame {
         HeaderBar bar = new HeaderBar();
         headerBar = bar;
         bar.setBackground(Theme.BG_SOFT);
-        bar.setPreferredSize(new Dimension(0, 40));
+        bar.setPreferredSize(new Dimension(0, 36));
         // macOS 上标题栏透明：左边留出红绿灯宽度，品牌区紧跟其后（导航整体上提）。
         bar.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(0, isMac() ? 84 : 12, 0, 12)));
+                new EmptyBorder(0, isMac() ? 78 : 12, 0, 12)));
 
         JPanel identity = new JPanel();
         identity.setOpaque(false);
@@ -322,7 +323,7 @@ public final class LauncherFrame extends JFrame {
         JPanel brand = new JPanel();
         brand.setOpaque(false);
         brand.setLayout(new BoxLayout(brand, BoxLayout.X_AXIS));
-        JLabel brandIcon = new JLabel(new ImageIcon(AppIcon.image(18)));
+        JLabel brandIcon = new JLabel(new ImageIcon(AppIcon.glyph(17)));
         brandIcon.setBorder(new EmptyBorder(0, 0, 0, 7));
         brand.add(brandIcon);
         brand.add(Ui.label("BeaconMCL", Theme.SMALL, Theme.TEXT));
@@ -463,7 +464,7 @@ public final class LauncherFrame extends JFrame {
         JPanel left = new JPanel();
         left.setOpaque(false);
         left.setLayout(new BoxLayout(left, BoxLayout.X_AXIS));
-        JLabel sidebarIcon = new JLabel(new ImageIcon(AppIcon.image(22)));
+        JLabel sidebarIcon = new JLabel(new ImageIcon(AppIcon.glyph(22)));
         sidebarIcon.setBorder(new EmptyBorder(0, 0, 0, 8));
         left.add(sidebarIcon);
         left.add(Ui.label("BeaconMCL", Theme.BODY_BOLD, Theme.TEXT));

@@ -30,6 +30,45 @@ public final class AppIcon {
         return draw(size);
     }
 
+    /** 标题栏/侧边栏用：透明底 + 主题色信标，小尺寸也清晰。 */
+    public static BufferedImage glyph(int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.scale(size / 32f, size / 32f);
+
+        // 光束
+        Path2D beam = new Path2D.Float();
+        beam.moveTo(13.5f, 2f);
+        beam.lineTo(18.5f, 2f);
+        beam.lineTo(21f, 13f);
+        beam.lineTo(11f, 13f);
+        beam.closePath();
+        g.setColor(new Color(Theme.ACCENT.getRGB() | 0xFF000000, true));
+        g.setColor(Theme.alpha(Theme.ACCENT, 150));
+        g.fill(beam);
+
+        // 三层底座
+        g.setColor(Theme.mix(Theme.ACCENT, Theme.BG, 0.25f));
+        tier(g, 16f, 29.5f, 26f, 24.5f);
+        g.setColor(Theme.mix(Theme.ACCENT, Theme.BG, 0.05f));
+        tier(g, 16f, 24.5f, 19f, 20f);
+        g.setColor(Theme.ACCENT);
+        tier(g, 16f, 20f, 12f, 15.5f);
+
+        // 核心宝石
+        Path2D gem = new Path2D.Float();
+        gem.moveTo(16f, 10.5f);
+        gem.lineTo(19f, 14f);
+        gem.lineTo(16f, 17.5f);
+        gem.lineTo(13f, 14f);
+        gem.closePath();
+        g.setColor(Theme.TEXT);
+        g.fill(gem);
+        g.dispose();
+        return image;
+    }
+
     private static BufferedImage draw(int size) {
         BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
@@ -84,6 +123,17 @@ public final class AppIcon {
 
         g.dispose();
         return image;
+    }
+
+    private static void tier(Graphics2D g, float centerX, float baseY, float width, float topY) {
+        float topW = width * 0.6f;
+        Path2D shape = new Path2D.Float();
+        shape.moveTo(centerX - width / 2f, baseY);
+        shape.lineTo(centerX + width / 2f, baseY);
+        shape.lineTo(centerX + topW / 2f, topY);
+        shape.lineTo(centerX - topW / 2f, topY);
+        shape.closePath();
+        g.fill(shape);
     }
 
     private static void tier(Graphics2D g, int centerX, int baseY, int width, int topY) {

@@ -12,7 +12,7 @@ public final class LauncherApp {
     }
 
     public static void main(String[] args) {
-        System.setProperty("apple.awt.application.name", "Beacon Minecraft Launcher");
+        System.setProperty("apple.awt.application.name", "BeaconMCL");
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
