@@ -320,15 +320,9 @@ public final class LauncherFrame extends JFrame {
         badges.setLayout(new BoxLayout(badges, BoxLayout.X_AXIS));
         headerBadges = badges;
         headerIdentity = identity;
-        JPanel brand = new JPanel();
-        brand.setOpaque(false);
-        brand.setLayout(new BoxLayout(brand, BoxLayout.X_AXIS));
-        brand.add(Ui.label("BeaconMCL", Theme.SMALL, Theme.TEXT));
-        brand.add(Ui.hgap(12));
         JPanel west = new JPanel();
         west.setOpaque(false);
         west.setLayout(new BoxLayout(west, BoxLayout.X_AXIS));
-        west.add(brand);
         west.add(identity);
         bar.bind(west, leftTabs, featureTab, rightTabs, badges);
         return bar;
