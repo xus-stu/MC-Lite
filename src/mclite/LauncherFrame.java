@@ -173,6 +173,11 @@ public final class LauncherFrame extends JFrame {
     public LauncherFrame(Config config) {
         super("MC Lite 启动器");
         this.config = config;
+        if (isMac()) {
+            // 标题栏透明 + 内容延伸到标题栏：保留系统红绿灯，标题栏底色透出主题背景。
+            getRootPane().putClientProperty("apple.awt.fullWindowContent", true);
+            getRootPane().putClientProperty("apple.awt.transparentTitleBar", true);
+        }
         ImageCache.configure(config.cacheDir().resolve("icons"));
         this.gamePaths = new GamePaths(config.gameDir());
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -253,7 +258,18 @@ public final class LauncherFrame extends JFrame {
     private JPanel buildRoot() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(Theme.BG);
-        root.add(buildHeader(), BorderLayout.NORTH);
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        if (isMac()) {
+            // 给系统红绿灯留出高度，同时这条区域的颜色就是主题背景色（不自己画标题栏）。
+            JPanel strip = new JPanel();
+            strip.setOpaque(true);
+            strip.setBackground(Theme.BG_SOFT);
+            strip.setPreferredSize(new Dimension(0, 28));
+            top.add(strip, BorderLayout.NORTH);
+        }
+        top.add(buildHeader(), BorderLayout.CENTER);
+        root.add(top, BorderLayout.NORTH);
         root.add(buildBody(), BorderLayout.CENTER);
         return root;
     }
