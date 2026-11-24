@@ -9,6 +9,7 @@ import javax.swing.DefaultListModel;
 import javax.swing.JComponent;
 import javax.swing.JEditorPane;
 import javax.swing.JFrame;
+import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.ListCellRenderer;
@@ -263,10 +264,22 @@ public final class LauncherFrame extends JFrame {
         top.setOpaque(false);
         if (isMac()) {
             // 给系统红绿灯留出高度，同时这条区域的颜色就是主题背景色（不自己画标题栏）。
-            JPanel strip = new JPanel();
+            JPanel strip = new JPanel(new BorderLayout());
             strip.setOpaque(true);
             strip.setBackground(Theme.BG_SOFT);
             strip.setPreferredSize(new Dimension(0, 28));
+            JPanel brand = new JPanel();
+            brand.setOpaque(false);
+            brand.setLayout(new BoxLayout(brand, BoxLayout.X_AXIS));
+            brand.setBorder(new EmptyBorder(0, 78, 0, 0));
+            JLabel brandIcon = new JLabel(new ImageIcon(AppIcon.image(18)));
+            brandIcon.setBorder(new EmptyBorder(0, 0, 0, 7));
+            brand.add(brandIcon);
+            JLabel brandText = Ui.label("MC Lite", Theme.SMALL, Theme.MUTED);
+            brandText.setBorder(new EmptyBorder(1, 0, 0, 0));
+            brand.add(brandText);
+            brand.add(Box.createHorizontalGlue());
+            strip.add(brand, BorderLayout.WEST);
             top.add(strip, BorderLayout.NORTH);
         }
         top.add(buildHeader(), BorderLayout.CENTER);
