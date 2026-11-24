@@ -31,3 +31,4 @@ cd island/versions/26.1.2/fabric && ./gradlew bundledJar
 - 音频走 Java Sound，独立于 MC 声音引擎，版本间共用
 - 核心 `common` 不 import 任何 Minecraft 类；外壳只做接线和渲染
 - 26.x 使用 `GuiGraphicsExtractor` / `HudElementRegistry` 新 API；3D 歌词在 26.x 上待移植
+- **26.1.2 每帧只允许模糊一次**：屏幕的背景模糊由框架统一调用，自己的 `extractRenderState` 里不要再调 `extractBackground` / `extractBlurredBackground`，否则会 `IllegalStateException: Can only blur once per frame`（0.1.3 的崩溃就是重复调用；0.3.9+ 已改为空的 `extractBackground` 覆写、完全自己画背景）
