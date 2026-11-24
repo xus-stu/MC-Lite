@@ -63,7 +63,7 @@ public final class GameLauncher {
         Path logFile = paths.gameLogsDir().resolve("mclite-" + meta.id() + "-" + stamp + ".log");
 
         StringBuilder header = new StringBuilder();
-        header.append("MC Lite ").append(LAUNCHER_VERSION).append('\n');
+        header.append("BeaconMCL ").append(LAUNCHER_VERSION).append('\n');
         header.append("Version: ").append(meta.id()).append('\n');
         header.append("Java: ").append(javaPath).append(" (Java ").append(java.major()).append(")\n");
         header.append("Game directory: ").append(instanceDir).append('\n');

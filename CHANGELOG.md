@@ -1,4 +1,11 @@
-# MC Lite 更新记录
+# Beacon 更新记录
+
+## v1.4.52
+
+- **改名：MC Lite → Beacon Minecraft Launcher（简称 BeaconMCL / BMCL）**
+  - 窗口标题、标题栏品牌、侧边栏、启动参数里的启动器名称都改了；技术标识（仓库名、release tag、`~/.mclite` 目录、`MCLite_v*.jar` 文件名）保持不变，更新和插件链接不会断。
+- **新图标：艺术感信标**（深色圆角底 + 渐隐光束 + 三层底座 + 发光核心），用于标题栏和 Dock。
+- 顶部导航栏上提：原来标题栏下有一条 28px 空条，现在品牌区（图标 + BeaconMCL）直接并进 40px 顶栏，导航整体上移 28px；macOS 红绿灯左侧留白自动避开。
 
 ## v1.4.51
 

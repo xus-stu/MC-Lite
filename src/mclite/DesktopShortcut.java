@@ -45,7 +45,7 @@ public final class DesktopShortcut {
                 Log.warn("安装目录缺少 javaw.exe，无法刷新快捷方式: " + java);
                 return target;
             }
-            String name = "MC Lite V" + version;
+            String name = "BeaconMCL V" + version;
             String arguments = "-jar \"" + target + "\"";
             String script = "$ErrorActionPreference='SilentlyContinue';"
                     + "$ws=New-Object -ComObject WScript.Shell;"

@@ -228,7 +228,7 @@ public final class LoaderInstaller {
                 {
                   "profiles": {
                     "mclite": {
-                      "name": "MC Lite",
+                      "name": "BeaconMCL",
                       "type": "custom",
                       "created": "%s",
                       "lastUsed": "%s",

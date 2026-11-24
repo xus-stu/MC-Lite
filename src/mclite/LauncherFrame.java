@@ -172,7 +172,7 @@ public final class LauncherFrame extends JFrame {
     private Path lastGameContentDir;
 
     public LauncherFrame(Config config) {
-        super("MC Lite 启动器");
+        super("Beacon Minecraft Launcher");
         this.config = config;
         if (isMac()) {
             // 标题栏透明 + 内容延伸到标题栏：保留系统红绿灯，标题栏底色透出主题背景。
@@ -260,30 +260,7 @@ public final class LauncherFrame extends JFrame {
     private JPanel buildRoot() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(Theme.BG);
-        JPanel top = new JPanel(new BorderLayout());
-        top.setOpaque(false);
-        if (isMac()) {
-            // 给系统红绿灯留出高度，同时这条区域的颜色就是主题背景色（不自己画标题栏）。
-            JPanel strip = new JPanel(new BorderLayout());
-            strip.setOpaque(true);
-            strip.setBackground(Theme.BG_SOFT);
-            strip.setPreferredSize(new Dimension(0, 28));
-            JPanel brand = new JPanel();
-            brand.setOpaque(false);
-            brand.setLayout(new BoxLayout(brand, BoxLayout.X_AXIS));
-            brand.setBorder(new EmptyBorder(0, 78, 0, 0));
-            JLabel brandIcon = new JLabel(new ImageIcon(AppIcon.image(18)));
-            brandIcon.setBorder(new EmptyBorder(0, 0, 0, 7));
-            brand.add(brandIcon);
-            JLabel brandText = Ui.label("MC Lite", Theme.SMALL, Theme.MUTED);
-            brandText.setBorder(new EmptyBorder(1, 0, 0, 0));
-            brand.add(brandText);
-            brand.add(Box.createHorizontalGlue());
-            strip.add(brand, BorderLayout.WEST);
-            top.add(strip, BorderLayout.NORTH);
-        }
-        top.add(buildHeader(), BorderLayout.CENTER);
-        root.add(top, BorderLayout.NORTH);
+        root.add(buildHeader(), BorderLayout.NORTH);
         root.add(buildBody(), BorderLayout.CENTER);
         return root;
     }
@@ -293,9 +270,10 @@ public final class LauncherFrame extends JFrame {
         headerBar = bar;
         bar.setBackground(Theme.BG_SOFT);
         bar.setPreferredSize(new Dimension(0, 40));
+        // macOS 上标题栏透明：左边留出红绿灯宽度，品牌区紧跟其后（导航整体上提）。
         bar.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(0, 12, 0, 12)));
+                new EmptyBorder(0, isMac() ? 84 : 12, 0, 12)));
 
         JPanel identity = new JPanel();
         identity.setOpaque(false);
@@ -350,7 +328,20 @@ public final class LauncherFrame extends JFrame {
         badges.setLayout(new BoxLayout(badges, BoxLayout.X_AXIS));
         headerBadges = badges;
         headerIdentity = identity;
-        bar.bind(identity, leftTabs, featureTab, rightTabs, badges);
+        JPanel brand = new JPanel();
+        brand.setOpaque(false);
+        brand.setLayout(new BoxLayout(brand, BoxLayout.X_AXIS));
+        JLabel brandIcon = new JLabel(new ImageIcon(AppIcon.image(18)));
+        brandIcon.setBorder(new EmptyBorder(0, 0, 0, 7));
+        brand.add(brandIcon);
+        brand.add(Ui.label("BeaconMCL", Theme.SMALL, Theme.TEXT));
+        brand.add(Ui.hgap(14));
+        JPanel west = new JPanel();
+        west.setOpaque(false);
+        west.setLayout(new BoxLayout(west, BoxLayout.X_AXIS));
+        west.add(brand);
+        west.add(identity);
+        bar.bind(west, leftTabs, featureTab, rightTabs, badges);
         return bar;
     }
 
@@ -473,7 +464,7 @@ public final class LauncherFrame extends JFrame {
         left.setLayout(new BoxLayout(left, BoxLayout.X_AXIS));
         left.add(new Ui.LogoMark(22));
         left.add(Ui.hgap(9));
-        left.add(Ui.label("MC Lite", Theme.BODY_BOLD, Theme.TEXT));
+        left.add(Ui.label("BeaconMCL", Theme.BODY_BOLD, Theme.TEXT));
         left.add(Box.createHorizontalGlue());
         row.add(left, BorderLayout.CENTER);
         return row;

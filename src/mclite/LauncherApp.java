@@ -12,7 +12,7 @@ public final class LauncherApp {
     }
 
     public static void main(String[] args) {
-        System.setProperty("apple.awt.application.name", "MC Lite");
+        System.setProperty("apple.awt.application.name", "Beacon Minecraft Launcher");
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
@@ -71,7 +71,7 @@ public final class LauncherApp {
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
             Log.error("未捕获异常（" + thread.getName() + "）", error);
             if (!GraphicsEnvironment.isHeadless()) {
-                SwingUtilities.invokeLater(() -> ModernDialogs.message(null, "MC Lite 错误",
+                SwingUtilities.invokeLater(() -> ModernDialogs.message(null, "BeaconMCL 错误",
                         "发生未预期的错误：\n" + error.getMessage()
                                 + "\n\n日志：" + Log.file()));
             }
@@ -104,7 +104,7 @@ public final class LauncherApp {
         }
 
         if (GraphicsEnvironment.isHeadless()) {
-            System.err.println("当前环境没有图形界面，无法启动 MC Lite。");
+            System.err.println("当前环境没有图形界面，无法启动 BeaconMCL。");
             System.exit(2);
         }
 
@@ -161,7 +161,7 @@ public final class LauncherApp {
                 }
             } catch (Throwable error) {
                 Log.error("启动界面失败", error);
-                ModernDialogs.message(null, "MC Lite",
+                ModernDialogs.message(null, "BeaconMCL",
                         "无法启动界面：" + error.getMessage());
                 System.exit(3);
             }
