@@ -278,7 +278,7 @@ public final class LauncherFrame extends JFrame {
         JPanel identity = new JPanel();
         identity.setOpaque(false);
         identity.setLayout(new BoxLayout(identity, BoxLayout.X_AXIS));
-        sidebarToggle = Ui.smallButton(config.sidebarCollapsed() ? "栏" : "<",
+        sidebarToggle = Ui.smallButton(config.sidebarCollapsed() ? "☰" : "<",
                 Ui.AccentButton.Style.GHOST);
         sidebarToggle.setPreferredSize(new Dimension(28, 26));
         sidebarToggle.setMaximumSize(new Dimension(28, 26));
@@ -323,11 +323,8 @@ public final class LauncherFrame extends JFrame {
         JPanel brand = new JPanel();
         brand.setOpaque(false);
         brand.setLayout(new BoxLayout(brand, BoxLayout.X_AXIS));
-        JLabel brandIcon = new JLabel(new ImageIcon(AppIcon.glyph(17)));
-        brandIcon.setBorder(new EmptyBorder(0, 0, 0, 7));
-        brand.add(brandIcon);
         brand.add(Ui.label("BeaconMCL", Theme.SMALL, Theme.TEXT));
-        brand.add(Ui.hgap(14));
+        brand.add(Ui.hgap(12));
         JPanel west = new JPanel();
         west.setOpaque(false);
         west.setLayout(new BoxLayout(west, BoxLayout.X_AXIS));
@@ -2934,6 +2931,7 @@ public final class LauncherFrame extends JFrame {
             int width = Math.round(from * (1f - eased));
             sidebar.setPreferredSize(new Dimension(width, 0));
             sidebar.setMinimumSize(new Dimension(width, 0));
+            sidebarToggle.setText("☰");
             getContentPane().revalidate();
             getContentPane().repaint();
             if (t >= 1f) {

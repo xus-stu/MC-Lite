@@ -104,7 +104,7 @@ final class DownloadPage {
     }
 
     void setSubtitle(String text) {
-        if (subtitle != null) {
+        if (subtitle != null && LauncherLayout.showSubtitles()) {
             subtitle.setText(text);
         }
     }
@@ -202,12 +202,12 @@ final class DownloadPage {
             }
         });
         backSlot.add(backButton);
-        backSlot.setBorder(new javax.swing.border.EmptyBorder(0, 0, 0, 12));
+        backSlot.setBorder(new javax.swing.border.EmptyBorder(0, 0, 0, 8));
         top.add(backSlot, BorderLayout.WEST);
         top.setBackground(Theme.CARD);
         top.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(5, 14, 5, 14)));
+                new EmptyBorder(5, 12, 5, 12)));
 
         JPanel info = new JPanel();
         info.setOpaque(false);
@@ -217,8 +217,10 @@ final class DownloadPage {
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         info.add(title);
-        info.add(Ui.vgap(1));
-        info.add(subtitle);
+        if (LauncherLayout.showSubtitles()) {
+            info.add(Ui.vgap(1));
+            info.add(subtitle);
+        }
         if (RegionGate.restricted()) {
             JLabel notice = Ui.label("<html>为遵守相关法律法规，不提供游戏本体和整合包下载；<br>"
                             + "模组、资源包、光影下载可用</html>", Theme.TINY, Theme.WARNING);

@@ -322,6 +322,26 @@ final class SettingsPage {
         transparencyRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         transparencyRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         window.add(transparencyRow);
+        window.add(Ui.vgap(8));
+        JPanel subtitleRow = new JPanel();
+        subtitleRow.setOpaque(false);
+        subtitleRow.setLayout(new BoxLayout(subtitleRow, BoxLayout.X_AXIS));
+        Ui.ToggleChip subtitleToggle = new Ui.ToggleChip("显示页面简介");
+        subtitleToggle.setSelected(config.showPageSubtitles());
+        subtitleToggle.setToolTipText("页面标题下的说明文字；默认关闭更清爽");
+        subtitleToggle.addActionListener(e -> {
+            config.showPageSubtitles(subtitleToggle.isSelected());
+            config.save();
+            LauncherLayout.setShowSubtitles(config.showPageSubtitles());
+            restartFrame();
+        });
+        subtitleRow.add(subtitleToggle);
+        subtitleRow.add(Ui.hgap(10));
+        subtitleRow.add(Ui.label("关闭后各页面只显示标题", Theme.TINY, Theme.DIM));
+        subtitleRow.add(Box.createHorizontalGlue());
+        subtitleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        subtitleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        window.add(subtitleRow);
         form.add(LauncherLayout.lockedHeight(window));
         form.add(Ui.vgap(30));
         form.add(LauncherLayout.divider());
@@ -865,6 +885,7 @@ final class SettingsPage {
     }
 
     private void restartFrame() {
+        LauncherLayout.setShowSubtitles(config.showPageSubtitles());
         if (!canRestart.getAsBoolean()) {
             ModernDialogs.message(owner, "暂时无法重建界面",
                     "下载、安装或启动正在进行，请等任务结束后再应用界面样式。");

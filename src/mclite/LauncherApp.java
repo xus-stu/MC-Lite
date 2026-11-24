@@ -68,6 +68,7 @@ public final class LauncherApp {
             Theme.setFontFamily(config.uiFontFamily());
         }
         Theme.install();
+        LauncherLayout.setShowSubtitles(config.showPageSubtitles());
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
             Log.error("未捕获异常（" + thread.getName() + "）", error);
             if (!GraphicsEnvironment.isHeadless()) {
