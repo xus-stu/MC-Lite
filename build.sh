@@ -66,8 +66,17 @@ jar --create --file "dist/MCLiteTests_v${VERSION}.jar" -C build/tests-classes .
 # 启动器插件（可选下载，单独 jar）：dist/plugins/<id>-<version>.jar + <id>.json
 bash plugins/build-plugins.sh
 
-jar --create --file "dist/${NORMAL_JAR}" --main-class Main -C build/classes .
-jar --create --file "dist/${REGION_JAR}" --main-class mclite.RegionLauncherApp -C build/classes . -C build/region-marker .
+# macOS 透明度：允许反射调用 AWT 平台窗口（java -jar 会读取清单里的 Add-Opens）
+cat > build/manifest-main.txt <<'MANIFEST'
+Main-Class: Main
+Add-Opens: java.desktop/java.awt java.desktop/sun.lwawt java.desktop/sun.lwawt.macosx
+MANIFEST
+cat > build/manifest-region.txt <<'MANIFEST'
+Main-Class: mclite.RegionLauncherApp
+Add-Opens: java.desktop/java.awt java.desktop/sun.lwawt java.desktop/sun.lwawt.macosx
+MANIFEST
+jar --create --file "dist/${NORMAL_JAR}" --manifest build/manifest-main.txt -C build/classes .
+jar --create --file "dist/${REGION_JAR}" --manifest build/manifest-region.txt -C build/classes . -C build/region-marker .
 JAR_LIMIT=900000
 for built in "dist/${NORMAL_JAR}" "dist/${REGION_JAR}"; do
   built_size=$(wc -c < "$built" | tr -d ' ')

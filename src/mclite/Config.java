@@ -19,6 +19,7 @@ public final class Config {
     private String username = "Steve";
     private String javaPath = "";
     private int memoryMb = 2048;
+    private int windowOpacity = 100;
     private String jvmArgs = "";
     private String curseForgeApiKey = "";
     private String uiFontFamily = "";
@@ -86,6 +87,8 @@ public final class Config {
             config.username = sanitizeUsername(properties.getProperty("username", config.username));
             config.javaPath = properties.getProperty("javaPath", "").trim();
             config.memoryMb = clampMemory(parseInt(properties.getProperty("memoryMb"), 2048));
+            config.windowOpacity = Math.max(80, Math.min(100,
+                    parseInt(properties.getProperty("windowOpacity"), 100)));
             config.jvmArgs = properties.getProperty("jvmArgs", "").trim();
             config.curseForgeApiKey = properties.getProperty("curseForgeApiKey", "").trim();
             config.uiFontFamily = properties.getProperty("uiFontFamily", "").trim();
@@ -157,6 +160,7 @@ public final class Config {
         copy.username = username;
         copy.javaPath = javaPath;
         copy.memoryMb = memoryMb;
+        copy.windowOpacity = windowOpacity;
         copy.jvmArgs = jvmArgs;
         copy.curseForgeApiKey = curseForgeApiKey;
         copy.uiFontFamily = uiFontFamily;
@@ -299,6 +303,14 @@ public final class Config {
 
     public void javaPath(String value) {
         this.javaPath = value == null ? "" : value.trim();
+    }
+
+    public int windowOpacity() {
+        return windowOpacity;
+    }
+
+    public void windowOpacity(int value) {
+        this.windowOpacity = Math.max(80, Math.min(100, value));
     }
 
     public int memoryMb() {
@@ -591,6 +603,7 @@ public final class Config {
             properties.setProperty("username", username);
             properties.setProperty("javaPath", javaPath);
             properties.setProperty("memoryMb", Integer.toString(memoryMb));
+            properties.setProperty("windowOpacity", Integer.toString(windowOpacity));
             properties.setProperty("jvmArgs", jvmArgs);
             properties.setProperty("curseForgeApiKey", curseForgeApiKey);
             properties.setProperty("uiFontFamily", uiFontFamily);

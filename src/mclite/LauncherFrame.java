@@ -197,6 +197,7 @@ public final class LauncherFrame extends JFrame {
         updateAccountLabels();
         loadPlugins();
         applyDisplayMode();
+        SwingUtilities.invokeLater(this::applyWindowOpacity);
         setLocationRelativeTo(null);
         addWindowListener(new WindowAdapter() {
             @Override
@@ -600,6 +601,7 @@ public final class LauncherFrame extends JFrame {
         settingsPage = new SettingsPage(this, config, taskCenter, this::updateLaunchInfo,
                 this::canRestartUi);
         settingsPage.setDisplayModeAction(this::applyDisplayMode);
+        settingsPage.setTransparencyAction(value -> applyWindowOpacity());
         launcherPluginsPanel.setPythonActions(settingsPage::installPythonModule,
                 settingsPage::startPythonBridge);
         contentCardsPanel.add(settingsPage.build(), "settings");
@@ -3117,6 +3119,14 @@ public final class LauncherFrame extends JFrame {
     }
 
     /** 切换显示模式：标准 / 独占（保留 bar）/ 独占（无 bar）。 */
+    private void applyWindowOpacity() {
+        if (config.windowOpacity() >= 100) {
+            WindowFx.opacity(this, 1f);
+            return;
+        }
+        WindowFx.opacity(this, config.windowOpacity() / 100f);
+    }
+
     void applyDisplayMode() {
         for (JComponent mounted : pluginComponents.values()) {
             contentCardsPanel.remove(mounted);

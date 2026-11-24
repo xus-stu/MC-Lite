@@ -31,6 +31,7 @@ final class SettingsPage {
     private final java.util.function.BooleanSupplier canRestart;
     private JLabel cacheLabel;
     private Runnable displayModeAction = () -> { };
+    private java.util.function.IntConsumer transparencyAction = value -> { };
     private javax.swing.JTextField jvmArgsField;
     private Ui.ValueSlider memorySlider;
     private Ui.ToggleChip autoMemoryToggle;
@@ -299,6 +300,28 @@ final class SettingsPage {
         windowRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         windowRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         window.add(windowRow);
+        window.add(Ui.vgap(8));
+        JPanel transparencyRow = new JPanel();
+        transparencyRow.setOpaque(false);
+        transparencyRow.setLayout(new BoxLayout(transparencyRow, BoxLayout.X_AXIS));
+        transparencyRow.add(Ui.label("窗口透明度", Theme.TINY, Theme.DIM));
+        transparencyRow.add(Ui.hgap(12));
+        Ui.ValueSlider transparencySlider = new Ui.ValueSlider(80, 100, 5,
+                config.windowOpacity(), " %");
+        transparencySlider.setPreferredSize(new Dimension(205, 30));
+        transparencySlider.setMaximumSize(new Dimension(205, 30));
+        transparencySlider.addChangeListener(value -> {
+            config.windowOpacity(value);
+            config.save();
+            transparencyAction.accept(value);
+        });
+        transparencyRow.add(transparencySlider);
+        transparencyRow.add(Ui.hgap(12));
+        transparencyRow.add(Ui.label("（macOS；最低 80% 保证文字可读）", Theme.TINY, Theme.DIM));
+        transparencyRow.add(Box.createHorizontalGlue());
+        transparencyRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        transparencyRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        window.add(transparencyRow);
         form.add(LauncherLayout.lockedHeight(window));
         form.add(Ui.vgap(30));
         form.add(LauncherLayout.divider());
@@ -601,6 +624,10 @@ final class SettingsPage {
     }
 
     /** 打开勾选式清理对话框；有任务在跑时先拒绝，避免删到正在用的中转文件。 */
+    void setTransparencyAction(java.util.function.IntConsumer action) {
+        this.transparencyAction = action == null ? value -> { } : action;
+    }
+
     void setDisplayModeAction(Runnable action) {
         this.displayModeAction = action == null ? () -> { } : action;
     }
