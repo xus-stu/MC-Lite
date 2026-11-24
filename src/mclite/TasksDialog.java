@@ -162,7 +162,7 @@ public final class TasksDialog extends JDialog {
             });
             progress.setIndeterminate(task.state() == DownloadTask.State.RUNNING
                     && task.total() <= 0);
-            progress.setValue(task.percent() >= 0 ? task.percent() / 100.0 : 0);
+            progress.setValue(task.percent() >= 0 ? task.percent() / 100.0 : 0, false);
             putClientProperty("selected", isSelected);
             return this;
         }

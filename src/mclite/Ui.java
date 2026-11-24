@@ -1191,6 +1191,7 @@ public final class Ui {
         private double value;
         private double shown;
         private long valueAt;
+        private boolean firstValue = true;
         private boolean indeterminate;
         private long phase = System.currentTimeMillis();
         private final Timer timer;
@@ -1220,8 +1221,22 @@ public final class Ui {
         }
 
         public void setValue(double value) {
+            setValue(value, true);
+        }
+
+        /**
+         * @param animate false 时直接到位：列表渲染器复用同一个进度条、每次绘制都会赋值，
+         *                这种情况下不能播放缓动，否则已完成的任务会反复"重跑"进度条。
+         */
+        public void setValue(double value, boolean animate) {
             this.value = Math.max(0, Math.min(1, value));
             this.valueAt = System.currentTimeMillis();
+            if (!animate || firstValue) {
+                firstValue = false;
+                shown = this.value;
+                repaint();
+                return;
+            }
             Pulse.add(this);
             repaint();
         }
