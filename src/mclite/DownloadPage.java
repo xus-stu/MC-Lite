@@ -190,10 +190,7 @@ final class DownloadPage {
     }
 
     private JPanel buildTopbar() {
-        JPanel top = new JPanel(new BorderLayout(16, 0));
-        JPanel backSlot = new JPanel();
-        backSlot.setOpaque(false);
-        backSlot.setLayout(new javax.swing.BoxLayout(backSlot, javax.swing.BoxLayout.X_AXIS));
+        JPanel top = new JPanel(new BorderLayout(12, 0));
         backButton = Ui.smallButton("< 返回", Ui.AccentButton.Style.GHOST);
         backButton.setVisible(false);
         backButton.addActionListener(e -> {
@@ -201,9 +198,6 @@ final class DownloadPage {
                 backAction.run();
             }
         });
-        backSlot.add(backButton);
-        backSlot.setBorder(new javax.swing.border.EmptyBorder(0, 0, 0, 8));
-        top.add(backSlot, BorderLayout.WEST);
         top.setBackground(Theme.CARD);
         top.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(0, 0, 1, 0, Theme.BORDER),
@@ -236,7 +230,13 @@ final class DownloadPage {
             info.add(Ui.vgap(3));
             info.add(notice);
         }
-        top.add(info, BorderLayout.CENTER);
+        JPanel headRow = new JPanel();
+        headRow.setOpaque(false);
+        headRow.setLayout(new javax.swing.BoxLayout(headRow, javax.swing.BoxLayout.X_AXIS));
+        backButton.setBorder(new javax.swing.border.EmptyBorder(0, 0, 0, 10));
+        headRow.add(backButton);
+        headRow.add(info);
+        top.add(headRow, BorderLayout.CENTER);
 
         JPanel toolRow = new JPanel();
         toolRow.setOpaque(false);
