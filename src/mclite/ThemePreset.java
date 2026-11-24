@@ -6,6 +6,7 @@ import java.util.List;
 public record ThemePreset(String name, String css, Color background, Color card,
                           Color accent, Color text) {
     public static final List<ThemePreset> ALL = List.of(
+            compact("暖语 · 青（暗）", "#0C1517", "#142124", "#5FC7C7", "#E3F7F7"),
             preset("暖语 · 绿（暗）", "#0D1411", "#142019", "#6FBF8B", "#E9F5EC",
                     "background: #0D1411\nbackground-soft: #08100C\ncard: #142019\n"
                             + "card-alt: #1B2B22\nfield: #1B2B22\nbg-4: #283A2F\nhover: #263C30\n"
@@ -68,7 +69,6 @@ public record ThemePreset(String name, String css, Color background, Color card,
                             + "danger: #9F4343\nwarning: #84621E\nfont-size: 13\n"),
             compact("暖语 · 紫（暗）", "#140F1B", "#1D1626", "#B08CE8", "#EFE7F9"),
             compact("暖语 · 紫（亮）", "#F7F3FD", "#FFFFFF", "#7B4FC0", "#2A1B3F"),
-            compact("暖语 · 青（暗）", "#0C1517", "#142124", "#5FC7C7", "#E3F7F7"),
             compact("暖语 · 青（亮）", "#F0FAFA", "#FFFFFF", "#1F8A8A", "#123333"),
             compact("暖语 · 红（暗）", "#1A0F0F", "#241616", "#E86F6F", "#F9E9E9"),
             compact("暖语 · 红（亮）", "#FFF5F5", "#FFFFFF", "#C13C3C", "#3A1414")

@@ -53,6 +53,10 @@ final class InstancesPage {
     }
 
     JPanel build() {
+        return build(null);
+    }
+
+    JPanel build(Runnable onBack) {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
@@ -108,7 +112,8 @@ final class InstancesPage {
         header.setOpaque(true);
         header.setBackground(Theme.BG);
         header.add(LauncherLayout.pageHeader("版本列表",
-                "查看并启动游戏文件夹中的版本、模组和资源包", null), BorderLayout.NORTH);
+                "查看并启动游戏文件夹中的版本、模组和资源包", null, onBack),
+                BorderLayout.NORTH);
 
         JPanel toolbarCard = new Ui.RoundedPanel(Theme.CARD, Theme.BORDER_LIGHT, 12);
         toolbarCard.setLayout(new BoxLayout(toolbarCard, BoxLayout.Y_AXIS));

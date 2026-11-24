@@ -54,6 +54,8 @@ public final class Theme {
 
     public static void loadCss(Path file) {
         if (file == null || !Files.isRegularFile(file)) {
+            // 没有自定义样式时用内置默认（青色主题）。
+            parseCss(defaultCss());
             return;
         }
         try {
@@ -84,18 +86,22 @@ public final class Theme {
 
     public static String defaultCss() {
         return """
-                background: #0D0D0D
-                background-soft: #070707
-                card: #151515
-                card-alt: #1F1F1F
-                field: #1F1F1F
-                text: #F5F5F5
-                muted: #C9C9C9
-                dim: #8E8E8E
-                accent: #F2F2F2
-                accent-text: #0A0A0A
-                border: #343434
-                danger: #C4C4C4
+                background: #0C1517
+                background-soft: #081012
+                card: #142124
+                card-alt: #1B2B2E
+                field: #1B2B2E
+                bg-4: #24393C
+                hover: #243A3D
+                text: #E3F7F7
+                muted: #A9C6C6
+                dim: #789497
+                accent: #5FC7C7
+                accent-text: #08181A
+                border: #24393C
+                border-light: #33504F
+                danger: #D98A8A
+                warning: #D6C08A
                 font-size: 13
                 """;
     }

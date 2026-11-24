@@ -84,6 +84,19 @@ final class DownloadPage {
         return page;
     }
 
+    private Ui.AccentButton backButton;
+    private Runnable backAction;
+
+    void setBackAction(Runnable action) {
+        this.backAction = action;
+    }
+
+    void setBackVisible(boolean visible) {
+        if (backButton != null) {
+            backButton.setVisible(visible);
+        }
+    }
+
     void setTitle(String text) {
         if (title != null) {
             title.setText(text);
@@ -178,6 +191,19 @@ final class DownloadPage {
 
     private JPanel buildTopbar() {
         JPanel top = new JPanel(new BorderLayout(16, 0));
+        JPanel backSlot = new JPanel();
+        backSlot.setOpaque(false);
+        backSlot.setLayout(new javax.swing.BoxLayout(backSlot, javax.swing.BoxLayout.X_AXIS));
+        backButton = Ui.smallButton("< 返回", Ui.AccentButton.Style.GHOST);
+        backButton.setVisible(false);
+        backButton.addActionListener(e -> {
+            if (backAction != null) {
+                backAction.run();
+            }
+        });
+        backSlot.add(backButton);
+        backSlot.setBorder(new javax.swing.border.EmptyBorder(0, 0, 0, 12));
+        top.add(backSlot, BorderLayout.WEST);
         top.setBackground(Theme.CARD);
         top.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(0, 0, 1, 0, Theme.BORDER),

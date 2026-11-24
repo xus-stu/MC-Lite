@@ -122,7 +122,6 @@ public final class LauncherFrame extends JFrame {
     private SettingsPage settingsPage;
 
     private final java.util.ArrayDeque<Runnable> installQueue = new java.util.ArrayDeque<>();
-    private Ui.AccentButton headerBackButton;
     private String currentTop = "download";
     private String currentDownloadCard = "versions";
     private DownloadPage downloadPage;
@@ -278,14 +277,6 @@ public final class LauncherFrame extends JFrame {
         JPanel identity = new JPanel();
         identity.setOpaque(false);
         identity.setLayout(new BoxLayout(identity, BoxLayout.X_AXIS));
-        headerBackButton = Ui.smallButton("< 返回", Ui.AccentButton.Style.SECONDARY);
-        headerBackButton.setPreferredSize(new Dimension(64, 26));
-        headerBackButton.setMaximumSize(new Dimension(64, 26));
-        headerBackButton.setEnabled(false);
-        headerBackButton.setToolTipText("返回上一级");
-        headerBackButton.addActionListener(e -> goBack());
-        identity.add(headerBackButton);
-        identity.add(Ui.hgap(6));
         sidebarToggle = Ui.smallButton(config.sidebarCollapsed() ? "栏" : "<",
                 Ui.AccentButton.Style.GHOST);
         sidebarToggle.setPreferredSize(new Dimension(28, 26));
@@ -462,8 +453,9 @@ public final class LauncherFrame extends JFrame {
         JPanel left = new JPanel();
         left.setOpaque(false);
         left.setLayout(new BoxLayout(left, BoxLayout.X_AXIS));
-        left.add(new Ui.LogoMark(22));
-        left.add(Ui.hgap(9));
+        JLabel sidebarIcon = new JLabel(new ImageIcon(AppIcon.image(22)));
+        sidebarIcon.setBorder(new EmptyBorder(0, 0, 0, 8));
+        left.add(sidebarIcon);
         left.add(Ui.label("BeaconMCL", Theme.BODY_BOLD, Theme.TEXT));
         left.add(Box.createHorizontalGlue());
         row.add(left, BorderLayout.CENTER);
@@ -582,6 +574,7 @@ public final class LauncherFrame extends JFrame {
         versionListCard = new VersionListCard(this::onVersionSelected, this::openVersionDetail);
         launcherPluginsPanel = new LauncherPluginsPanel(config, gamePaths);
         launcherPluginsPanel.setTaskCenter(taskCenter);
+        downloadPage.setBackAction(this::goBack);
         contentCardsPanel.add(downloadPage.build(versionListCard.build(new VersionRenderer()),
                 contentPage.build(new ContentRenderer()), versionDetailPage.build(),
                 projectDetailPage.build(new ProjectVersionRenderer()),
@@ -599,7 +592,7 @@ public final class LauncherFrame extends JFrame {
         instancesPage = new InstancesPage(this, this::copySelectedInstance,
                 this::exportSelectedInstance, this::importInstanceZip, this::editInstanceMeta,
                 config::gameDir);
-        contentCardsPanel.add(instancesPage.build(), "instances");
+        contentCardsPanel.add(instancesPage.build(this::goBack), "instances");
         configPage = new ConfigPage(this, config, this::applyGameDirFromField, this::updateJavaHint);
         contentCardsPanel.add(configPage.build(), "config");
         settingsPage = new SettingsPage(this, config, taskCenter, this::updateLaunchInfo,
@@ -2971,14 +2964,15 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
+    /** 返回按钮已下放到各子界面自己的页头，这里只负责切换它们的可见性。 */
     private void updateBackButton() {
-        if (headerBackButton == null) {
+        if (downloadPage == null) {
             return;
         }
-        boolean detail = "versionDetail".equals(currentDownloadCard)
-                || "projectDetail".equals(currentDownloadCard);
-        boolean content = "content".equals(currentDownloadCard);
-        headerBackButton.setEnabled(detail || content || !"download".equals(currentTop));
+        boolean sub = "versionDetail".equals(currentDownloadCard)
+                || "projectDetail".equals(currentDownloadCard)
+                || "content".equals(currentDownloadCard);
+        downloadPage.setBackVisible(sub && "download".equals(currentTop));
     }
 
     public void openFirstProjectForScreenshot() {
