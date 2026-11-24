@@ -237,12 +237,47 @@ final class InstancesPage {
         list.setForeground(Theme.MUTED);
         list.setFont(Theme.MONO);
         list.setFixedCellHeight(25);
-        list.setSelectionBackground(Theme.SEL);
+        list.setSelectionBackground(Theme.BG);
         list.setSelectionForeground(Theme.TEXT);
+        list.setCellRenderer(new RoundedRowRenderer());
         list.setBorder(new EmptyBorder(2, 8, 2, 8));
         box.add(header, BorderLayout.NORTH);
         box.add(Ui.scrollDark(list), BorderLayout.CENTER);
         return box;
+    }
+
+    /** 模组/资源包文件列表：选中行用圆角高亮。 */
+    private static final class RoundedRowRenderer extends JLabel
+            implements ListCellRenderer<String> {
+        private RoundedRowRenderer() {
+            setOpaque(false);
+            setFont(Theme.MONO);
+            setForeground(Theme.MUTED);
+            setBorder(new EmptyBorder(0, 8, 0, 8));
+        }
+
+        @Override
+        public java.awt.Component getListCellRendererComponent(
+                JList<? extends String> list, String value, int index,
+                boolean isSelected, boolean cellHasFocus) {
+            setText(value);
+            setForeground(isSelected ? Theme.TEXT : Theme.MUTED);
+            putClientProperty("selected", isSelected);
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(java.awt.Graphics g) {
+            java.awt.Graphics2D g2 = Ui.prepare(g);
+            if (Boolean.TRUE.equals(getClientProperty("selected"))) {
+                g2.setColor(Theme.SEL);
+                g2.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 9, 9);
+                g2.setColor(Theme.ACCENT);
+                g2.fillRoundRect(2, 6, 3, getHeight() - 12, 3, 3);
+            }
+            g2.dispose();
+            super.paintComponent(g);
+        }
     }
 
     JList<VersionManifest.VersionEntry> list() {

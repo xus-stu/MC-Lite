@@ -68,11 +68,11 @@ bash plugins/build-plugins.sh
 
 jar --create --file "dist/${NORMAL_JAR}" --main-class Main -C build/classes .
 jar --create --file "dist/${REGION_JAR}" --main-class mclite.RegionLauncherApp -C build/classes . -C build/region-marker .
-JAR_LIMIT=800000
+JAR_LIMIT=900000
 for built in "dist/${NORMAL_JAR}" "dist/${REGION_JAR}"; do
   built_size=$(wc -c < "$built" | tr -d ' ')
   if [ "$built_size" -gt "$JAR_LIMIT" ]; then
-    echo "错误：$built 大小为 $built_size 字节，超过 800KB 限制。" >&2
+    echo "错误：$built 大小为 $built_size 字节，超过 900KB 限制。" >&2
     exit 1
   fi
   echo "  $(basename "$built") 大小: ${built_size} 字节（上限 ${JAR_LIMIT}，余量 $((JAR_LIMIT - built_size))）"

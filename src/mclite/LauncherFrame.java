@@ -3972,17 +3972,18 @@ public final class LauncherFrame extends JFrame {
                             statusLabel.setText("游戏异常退出（代码 " + exited.exitValue() + "）· 正在分析崩溃");
                             statusLabel.setForeground(Theme.DANGER);
                             CrashAnalyzer.Result crash = CrashAnalyzer.analyze(crashLog, gameContentDir);
-                            StringBuilder crashMessage = new StringBuilder(crash.summary());
+                            java.util.List<String> advice =
+                                    new java.util.ArrayList<>(crash.advice());
                             Path report = LaunchDiagnostics.latestCrashReport(
                                     gamePaths.versionDir(entry == null ? "" : entry.id()));
                             if (report != null) {
                                 for (LaunchDiagnostics.Finding finding
                                         : LaunchDiagnostics.analyzeReport(report)) {
-                                    crashMessage.append("\n\n建议：").append(finding.action());
+                                    advice.add(finding.action());
                                 }
                             }
                             CrashAnalyzer.Result enriched = new CrashAnalyzer.Result(
-                                    crashMessage.toString(), crash.suspectMods(), crash.tail(),
+                                    crash.summary(), crash.suspectMods(), advice, crash.tail(),
                                     crash.source());
                             new CrashDialog(LauncherFrame.this, enriched,
                                     exited.exitValue()).setVisible(true);
@@ -4497,8 +4498,8 @@ public final class LauncherFrame extends JFrame {
     public void showCrashDemo() {
         new CrashDialog(this, new CrashAnalyzer.Result(
                 "Description: Exception in server tick loop",
-                java.util.List.of("examplemod-1.2.jar", "sodium-0.5.jar",
-                        "create-0.5.1.jar"),
+                java.util.List.of("examplemod（最可疑）", "sodium", "create"),
+                java.util.List.of("先禁用 examplemod 验证", "备份存档后清理崩溃坐标附近的方块"),
                 "java.lang.NullPointerException: Cannot invoke \"BlockState.getBlock()\" because \"state\" is null\n"
                         + "\tat com.example.examplemod.Foo.tick(Foo.java:42)\n"
                         + "\tat net.minecraft.client.Minecraft.tick(Minecraft.java:1)\n",
