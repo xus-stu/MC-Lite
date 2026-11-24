@@ -363,6 +363,16 @@ public final class LauncherFrame extends JFrame {
             add(badges);
         }
 
+        /** 只保留品牌区（图标 + 名称），隐藏导航/徽标；用于独占模式子页面。 */
+        void setChromeVisible(boolean visible) {
+            leftTabs.setVisible(visible);
+            centerTab.setVisible(visible);
+            rightTabs.setVisible(visible);
+            badges.setVisible(visible);
+            doLayout();
+            repaint();
+        }
+
         @Override
         public Dimension getPreferredSize() {
             return new Dimension(900, 40);
@@ -3157,12 +3167,14 @@ public final class LauncherFrame extends JFrame {
             return;
         }
         String mode = config.displayMode();
-        boolean visible = "bare".equals(mode) || !"exclusive".equals(mode) || isMainPage(currentTop);
-        if (headerBar.isVisible() != visible) {
-            headerBar.setVisible(visible);
-            headerBar.revalidate();
-            headerBar.repaint();
+        boolean chrome = "bare".equals(mode) || !"exclusive".equals(mode) || isMainPage(currentTop);
+        // 顶栏本身始终保留：独占模式的子页面也要能看到启动器图标和名称。
+        if (!headerBar.isVisible()) {
+            headerBar.setVisible(true);
         }
+        headerBar.setChromeVisible(chrome);
+        headerBar.revalidate();
+        headerBar.repaint();
     }
 
     /** 截图模式：打开设置页并弹出清理缓存对话框。 */
