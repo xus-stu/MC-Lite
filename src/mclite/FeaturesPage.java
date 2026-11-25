@@ -37,14 +37,12 @@ final class FeaturesPage {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        page.add(LauncherLayout.pageHeader("功能", "启动器内置的小工具，点开详情页使用", null),
-                BorderLayout.NORTH);
 
         JPanel body = new JPanel();
         body.setOpaque(true);
         body.setBackground(Theme.BG);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.setBorder(new EmptyBorder(20, 26, 28, 26));
+        body.setBorder(new EmptyBorder(12, 16, 16, 16));
         for (Feature feature : features) {
             body.add(new FeatureCard(feature));
             body.add(Ui.vgap(12));

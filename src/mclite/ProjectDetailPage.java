@@ -55,9 +55,6 @@ final class ProjectDetailPage {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        Ui.AccentButton back = Ui.smallButton("返回内容", Ui.AccentButton.Style.GHOST);
-        back.addActionListener(e -> onBack.run());
-        page.add(LauncherLayout.pageHeader("文件版本", "选择具体文件版本后安装", back), BorderLayout.NORTH);
 
         JPanel top = new JPanel(new BorderLayout(12, 0));
         top.setBackground(Theme.CARD);

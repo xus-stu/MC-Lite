@@ -42,7 +42,6 @@ final class ConfigPage {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        page.add(LauncherLayout.pageHeader("启动器配置", "账户、游戏目录和 Java 运行时", null), BorderLayout.NORTH);
         JScrollPane scroll = Ui.scroll(buildConfigForm());
         page.add(scroll, BorderLayout.CENTER);
         return page;
@@ -138,7 +137,7 @@ final class ConfigPage {
         JPanel form = new JPanel();
         form.setOpaque(false);
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(new EmptyBorder(30, 30, 30, 30));
+        form.setBorder(new EmptyBorder(14, 20, 18, 20));
 
         JPanel account = LauncherLayout.section("账户", "离线账户只用于单机 / 局域网，正版服务器仍需正版登录");
         JPanel accountRow = new JPanel(new BorderLayout(10, 0));

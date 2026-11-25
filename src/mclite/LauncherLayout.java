@@ -14,17 +14,6 @@ import java.awt.Dimension;
 /** Shared Swing layout primitives used by the launcher pages. */
 public final class LauncherLayout {
 
-    /** 页面标题下的简介是否显示（设置里可开关，默认关）。 */
-    private static boolean showSubtitles;
-
-    public static void setShowSubtitles(boolean value) {
-        showSubtitles = value;
-    }
-
-    public static boolean showSubtitles() {
-        return showSubtitles;
-    }
-
     private LauncherLayout() {
     }
 
@@ -40,12 +29,6 @@ public final class LauncherLayout {
         JLabel titleLabel = Ui.label(title, Theme.H2, Theme.TEXT);
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         info.add(titleLabel);
-        if (showSubtitles) {
-            JLabel subtitleLabel = Ui.label(subtitle, Theme.MONO, Theme.DIM);
-            subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            info.add(Ui.vgap(1));
-            info.add(subtitleLabel);
-        }
         top.add(info, BorderLayout.CENTER);
         if (right != null) {
             top.add(right, BorderLayout.EAST);

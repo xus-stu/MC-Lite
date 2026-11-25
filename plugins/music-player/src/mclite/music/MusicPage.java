@@ -46,6 +46,13 @@ final class MusicPage {
     private final JPanel results = column();
     private final JPanel queueRows = column();
     private final JTextField keyword = new JTextField();
+    private Ui.SegmentButton favTab;
+    private final JPanel favFolderRows = column();
+    private final JPanel favVideoRows = column();
+    private JLabel favStatus;
+    private long favMediaId;
+    private int favPage;
+    private Ui.AccentButton favMore;
     private final Ui.AccentButton playPause =
             Ui.smallButton("播放", Ui.AccentButton.Style.PRIMARY);
     private final JLabel reverbLabel = Ui.label("", Theme.TINY, Theme.DIM);
@@ -143,6 +150,7 @@ final class MusicPage {
         cards = new Ui.FadePanel(cardsLayout);
         cards.setOpaque(false);
         cards.add(searchPage(), "search");
+        cards.add(favoritesPage(), "fav");
         cards.add(queuePage(), "queue");
         cards.add(settingsPage(), "settings");
         JPanel center = new JPanel(new BorderLayout());
@@ -207,17 +215,24 @@ final class MusicPage {
         tabs.setOpaque(false);
         tabs.setLayout(new BoxLayout(tabs, BoxLayout.X_AXIS));
         searchTab = new Ui.SegmentButton("搜索");
+        favTab = new Ui.SegmentButton("收藏夹");
         queueTab = new Ui.SegmentButton("播放列表");
         settingsTab = new Ui.SegmentButton("设置");
         ButtonGroup group = new ButtonGroup();
         group.add(searchTab);
+        group.add(favTab);
         group.add(queueTab);
         group.add(settingsTab);
         searchTab.setSelected(true);
         searchTab.addActionListener(e -> selectTab("search"));
+        favTab.addActionListener(e -> {
+            selectTab("fav");
+            loadFavFolders();
+        });
         queueTab.addActionListener(e -> selectTab("queue"));
         settingsTab.addActionListener(e -> selectTab("settings"));
         tabs.add(searchTab);
+        tabs.add(favTab);
         tabs.add(queueTab);
         tabs.add(settingsTab);
         bar.add(tabs, BorderLayout.WEST);
@@ -230,6 +245,7 @@ final class MusicPage {
         }
         cardsLayout.show(cards, name);
         searchTab.setSelected("search".equals(name));
+        favTab.setSelected("fav".equals(name));
         queueTab.setSelected("queue".equals(name));
         settingsTab.setSelected("settings".equals(name));
         if (cards instanceof Ui.FadePanel fade) {
@@ -257,6 +273,7 @@ final class MusicPage {
         keyword.setBackground(Theme.CARD_ALT);
         keyword.setBorder(new EmptyBorder(4, 10, 4, 10));
         keyword.addActionListener(e -> search());
+        clipboardSupport(keyword);
         row.add(keyword);
         row.add(Ui.hgap(8));
         Ui.AccentButton find = Ui.smallButton("搜索", Ui.AccentButton.Style.PRIMARY);
@@ -514,6 +531,170 @@ final class MusicPage {
         controls.add(reverbLabel);
         topRow.add(controls, BorderLayout.EAST);
         return bar;
+    }
+
+    private JComponent favoritesPage() {
+        JPanel body = column();
+        body.setBorder(new EmptyBorder(18, 24, 22, 24));
+
+        Ui.RoundedPanel foldersCard = card();
+        foldersCard.add(Ui.label("收藏夹", Theme.BODY_BOLD, Theme.TEXT));
+        foldersCard.add(Ui.vgap(8));
+        favStatus = Ui.label("登录后可浏览自己的收藏夹", Theme.TINY, Theme.DIM);
+        favStatus.setAlignmentX(Component.LEFT_ALIGNMENT);
+        foldersCard.add(favStatus);
+        foldersCard.add(Ui.vgap(6));
+        foldersCard.add(favFolderRows);
+        body.add(foldersCard);
+        body.add(Ui.vgap(12));
+
+        Ui.RoundedPanel videosCard = card();
+        videosCard.add(Ui.label("收藏内容", Theme.BODY_BOLD, Theme.TEXT));
+        videosCard.add(Ui.vgap(8));
+        videosCard.add(favVideoRows);
+        favMore = Ui.smallButton("加载更多", Ui.AccentButton.Style.GHOST);
+        favMore.setVisible(false);
+        favMore.addActionListener(e -> {
+            if (favMediaId != 0) {
+                loadFavVideos(favMediaId, favPage + 1);
+            }
+        });
+        videosCard.add(Ui.vgap(6));
+        videosCard.add(favMore);
+        body.add(videosCard);
+        body.add(Box.createVerticalGlue());
+        return scroll(body);
+    }
+
+    private void loadFavFolders() {
+        if (favStatus == null) {
+            return;
+        }
+        if (!bili.loggedIn()) {
+            favFolderRows.removeAll();
+            favVideoRows.removeAll();
+            favStatus.setText("登录 B 站账号后可以浏览自己的收藏夹。");
+            favFolderRows.revalidate();
+            favFolderRows.repaint();
+            return;
+        }
+        favStatus.setText("读取收藏夹…");
+        new javax.swing.SwingWorker<List<Bili.FavFolder>, Void>() {
+            @Override
+            protected List<Bili.FavFolder> doInBackground() throws Exception {
+                Bili.Profile profile = bili.profile();
+                if (!profile.login()) {
+                    throw new IllegalStateException("未登录或登录已失效");
+                }
+                return bili.favFolders(profile.mid());
+            }
+
+            @Override
+            protected void done() {
+                favFolderRows.removeAll();
+                try {
+                    List<Bili.FavFolder> folders = get();
+                    if (folders.isEmpty()) {
+                        favStatus.setText("没有收藏夹（可能未登录或接口限流）。");
+                    } else {
+                        favStatus.setText("共 " + folders.size() + " 个收藏夹，点一个查看内容。");
+                        for (Bili.FavFolder folder : folders) {
+                            favFolderRows.add(folderRow(folder));
+                            favFolderRows.add(Ui.vgap(4));
+                        }
+                    }
+                } catch (Exception ex) {
+                    favStatus.setText("读取收藏夹失败：" + ex.getMessage());
+                }
+                favFolderRows.revalidate();
+                favFolderRows.repaint();
+            }
+        }.execute();
+    }
+
+    private JComponent folderRow(Bili.FavFolder folder) {
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+        row.add(Ui.label(folder.title(), Theme.SMALL, Theme.TEXT), BorderLayout.CENTER);
+        row.add(Ui.label(folder.count() + " 个视频", Theme.TINY, Theme.DIM), BorderLayout.EAST);
+        row.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        row.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                loadFavVideos(folder.id(), 1);
+            }
+        });
+        return row;
+    }
+
+    private void loadFavVideos(long mediaId, int page) {
+        favMediaId = mediaId;
+        favPage = page;
+        status.setText("读取收藏内容（第 " + page + " 页）…");
+        new javax.swing.SwingWorker<List<Bili.Video>, Void>() {
+            @Override
+            protected List<Bili.Video> doInBackground() throws Exception {
+                return bili.favVideos(mediaId, page);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<Bili.Video> videos = get();
+                    if (page == 1) {
+                        favVideoRows.removeAll();
+                    }
+                    for (Bili.Video video : videos) {
+                        favVideoRows.add(resultRow(video));
+                        favVideoRows.add(Ui.vgap(4));
+                    }
+                    if (favMore != null) {
+                        favMore.setVisible(videos.size() >= 20);
+                    }
+                    status.setText(videos.isEmpty() && page == 1
+                            ? "这个收藏夹是空的。" : "已显示第 " + page + " 页（" + videos.size() + " 个）");
+                } catch (Exception ex) {
+                    status.setText("读取收藏内容失败：" + ex.getMessage());
+                }
+                favVideoRows.revalidate();
+                favVideoRows.repaint();
+            }
+        }.execute();
+    }
+
+    /** 给输入框加 Cmd/Ctrl 复制粘贴剪切全选和右键菜单。 */
+    private static void clipboardSupport(javax.swing.text.JTextComponent field) {
+        String[] names = {"copy", "paste", "cut", "select-all"};
+        int[] keys = {java.awt.event.KeyEvent.VK_C, java.awt.event.KeyEvent.VK_V,
+                java.awt.event.KeyEvent.VK_X, java.awt.event.KeyEvent.VK_A};
+        for (int i = 0; i < names.length; i++) {
+            field.getInputMap().put(javax.swing.KeyStroke.getKeyStroke(
+                    keys[i], java.awt.event.InputEvent.META_DOWN_MASK), names[i]);
+            field.getInputMap().put(javax.swing.KeyStroke.getKeyStroke(
+                    keys[i], java.awt.event.InputEvent.CTRL_DOWN_MASK), names[i]);
+        }
+        javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+        menu.add(item("剪切", field, "cut"));
+        menu.add(item("复制", field, "copy"));
+        menu.add(item("粘贴", field, "paste"));
+        menu.addSeparator();
+        menu.add(item("全选", field, "select-all"));
+        field.setComponentPopupMenu(menu);
+    }
+
+    private static javax.swing.JMenuItem item(String text,
+                                              javax.swing.text.JTextComponent field, String action) {
+        javax.swing.JMenuItem menuItem = new javax.swing.JMenuItem(text);
+        menuItem.addActionListener(e -> {
+            javax.swing.Action value = field.getActionMap().get(action);
+            if (value != null) {
+                value.actionPerformed(new java.awt.event.ActionEvent(field,
+                        java.awt.event.ActionEvent.ACTION_PERFORMED, action));
+            }
+        });
+        return menuItem;
     }
 
     // ---------------------------------------------------------------- 数据

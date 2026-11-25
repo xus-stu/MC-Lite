@@ -233,6 +233,57 @@ final class Bili {
         return out;
     }
 
+    // ---------------------------------------------------------------- 收藏夹
+
+    record FavFolder(long id, String title, int count) {
+    }
+
+    /** 当前登录用户创建的全部收藏夹（含默认收藏夹）。 */
+    List<FavFolder> favFolders(long mid) throws IOException {
+        Map<String, Object> data = get("/x/v3/fav/folder/created/list-all?up_mid=" + mid, true);
+        List<FavFolder> out = new ArrayList<>();
+        if (data == null) {
+            return out;
+        }
+        for (Object raw : Json.arr(data.get("list"))) {
+            Map<String, Object> item = Json.obj(raw);
+            if (item == null) {
+                continue;
+            }
+            long id = Json.lng(item, "id", 0);
+            if (id == 0) {
+                continue;
+            }
+            out.add(new FavFolder(id, strip(Json.str(item, "title", "收藏夹")),
+                    (int) Json.lng(item, "media_count", 0)));
+        }
+        return out;
+    }
+
+    /** 某个收藏夹里的视频，每页 20 个。 */
+    List<Video> favVideos(long mediaId, int page) throws IOException {
+        Map<String, Object> data = get("/x/v3/fav/resource/list?media_id=" + mediaId
+                + "&pn=" + page + "&ps=20&order=mtime&type=0&platform=web", true);
+        List<Video> out = new ArrayList<>();
+        if (data == null) {
+            return out;
+        }
+        for (Object raw : Json.arr(data.get("medias"))) {
+            Map<String, Object> item = Json.obj(raw);
+            if (item == null) {
+                continue;
+            }
+            String bvid = Json.str(item, "bvid", "");
+            if (bvid.isBlank()) {
+                continue;
+            }
+            String author = Json.str(Json.obj(item.get("upper")), "name", "");
+            out.add(new Video(bvid, strip(Json.str(item, "title", bvid)), author,
+                    Json.lng(item, "duration", 0), Art.normalize(Json.str(item, "cover", ""))));
+        }
+        return out;
+    }
+
     int searchPageCount(String keyword) {
         return 0; // 简化：只取第一页。
     }

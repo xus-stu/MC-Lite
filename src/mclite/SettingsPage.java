@@ -30,6 +30,7 @@ final class SettingsPage {
     private final Runnable updateLaunchInfo;
     private final java.util.function.BooleanSupplier canRestart;
     private JLabel cacheLabel;
+    private JPanel otherSection;
     private Runnable displayModeAction = () -> { };
     private java.util.function.IntConsumer transparencyAction = value -> { };
     private javax.swing.JTextField jvmArgsField;
@@ -141,32 +142,7 @@ final class SettingsPage {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        Ui.AccentButton openData = Ui.smallButton("打开数据目录", Ui.AccentButton.Style.GHOST);
-        openData.addActionListener(e -> owner.openConfigDirectory());
-        Ui.AccentButton openLogs = Ui.smallButton("打开日志目录", Ui.AccentButton.Style.GHOST);
-        openLogs.addActionListener(e -> owner.openLogsDirectory());
-        JPanel settingsActions = new JPanel();
-        settingsActions.setOpaque(false);
-        settingsActions.setLayout(new BoxLayout(settingsActions, BoxLayout.X_AXIS));
-        settingsActions.add(openLogs);
-        Ui.AccentButton installPython = Ui.smallButton("安装 Python 模块…",
-                Ui.AccentButton.Style.GHOST);
-        installPython.setToolTipText("把 Bridge 的 Python 客户端安装到指定解释器，PyCharm 里可直接 import");
-        installPython.addActionListener(e -> installPythonModule());
-        settingsActions.add(installPython);
-        Ui.AccentButton startBridge = Ui.smallButton("启动 Python Bridge",
-                Ui.AccentButton.Style.GHOST);
-        startBridge.setToolTipText("后台启动 Bridge，生成 ~/.mclite/bridge.json 供 Python 脚本连接");
-        startBridge.addActionListener(e -> startPythonBridge());
-        settingsActions.add(startBridge);
-        settingsActions.add(Ui.hgap(6));
-        Ui.AccentButton checkUpdate = Ui.smallButton("检查更新", Ui.AccentButton.Style.GHOST);
-        checkUpdate.addActionListener(e -> Updater.checkNow(config, owner,
-                taskCenter, owner::refreshTasksUi));
-        settingsActions.add(checkUpdate);
-        settingsActions.add(Ui.hgap(6));
-        settingsActions.add(openData);
-        page.add(LauncherLayout.pageHeader("设置", "性能、窗口和下载选项会自动保存", settingsActions), BorderLayout.NORTH);
+        otherSection = buildOtherSection();
         JScrollPane scroll = Ui.scroll(buildSettingsForm());
         page.add(scroll, BorderLayout.CENTER);
         SwingUtilities.invokeLater(() -> {
@@ -181,11 +157,63 @@ final class SettingsPage {
         return page;
     }
 
+    /** 一行「名字 + 路径 + 打开」，用于列出数据存放位置。 */
+    private JPanel pathRow(String name, java.nio.file.Path path) {
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setOpaque(false);
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        JLabel nameLabel = Ui.label(name, Theme.TINY, Theme.DIM);
+        nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel pathLabel = Ui.label(path.toString(), Theme.MONO, Theme.MUTED);
+        pathLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pathLabel.setToolTipText(path.toString());
+        text.add(nameLabel);
+        text.add(pathLabel);
+        row.add(text, BorderLayout.CENTER);
+        Ui.AccentButton open = Ui.smallButton("打开", Ui.AccentButton.Style.GHOST);
+        open.setPreferredSize(new Dimension(52, 28));
+        open.setMaximumSize(new Dimension(52, 28));
+        open.addActionListener(e -> openPath(path));
+        row.add(open, BorderLayout.EAST);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        return row;
+    }
+
+    private void openPath(java.nio.file.Path path) {
+        try {
+            java.nio.file.Files.createDirectories(path);
+            java.awt.Desktop.getDesktop().open(path.toFile());
+        } catch (Exception ex) {
+            ModernDialogs.message(owner, "无法打开", path + "\n" + ex.getMessage());
+        }
+    }
+
+    private JPanel buildOtherSection() {
+        JPanel other = LauncherLayout.section("其他", "更新检查");
+        JPanel row = new JPanel();
+        row.setOpaque(false);
+        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
+        Ui.AccentButton checkUpdate = Ui.smallButton("检查更新", Ui.AccentButton.Style.GHOST);
+        checkUpdate.addActionListener(e -> Updater.checkNow(config, owner,
+                taskCenter, owner::refreshTasksUi));
+        row.add(checkUpdate);
+        row.add(Ui.hgap(8));
+        row.add(Ui.label("后台自动更新默认关闭，可在「启动器配置」里开启", Theme.TINY, Theme.DIM));
+        row.add(Box.createHorizontalGlue());
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        other.add(row);
+        return other;
+    }
+
     private JPanel buildSettingsForm() {
         JPanel form = new JPanel();
         form.setOpaque(false);
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(new EmptyBorder(30, 30, 30, 30));
+        form.setBorder(new EmptyBorder(14, 20, 18, 20));
 
         JPanel performance = LauncherLayout.section("性能", "修改后会在下一次启动游戏时生效");
         JPanel memoryRow = new JPanel();
@@ -323,25 +351,6 @@ final class SettingsPage {
         transparencyRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         window.add(transparencyRow);
         window.add(Ui.vgap(8));
-        JPanel subtitleRow = new JPanel();
-        subtitleRow.setOpaque(false);
-        subtitleRow.setLayout(new BoxLayout(subtitleRow, BoxLayout.X_AXIS));
-        Ui.ToggleChip subtitleToggle = new Ui.ToggleChip("显示页面简介");
-        subtitleToggle.setSelected(config.showPageSubtitles());
-        subtitleToggle.setToolTipText("页面标题下的说明文字；默认关闭更清爽");
-        subtitleToggle.addActionListener(e -> {
-            config.showPageSubtitles(subtitleToggle.isSelected());
-            config.save();
-            LauncherLayout.setShowSubtitles(config.showPageSubtitles());
-            restartFrame();
-        });
-        subtitleRow.add(subtitleToggle);
-        subtitleRow.add(Ui.hgap(10));
-        subtitleRow.add(Ui.label("关闭后各页面只显示标题", Theme.TINY, Theme.DIM));
-        subtitleRow.add(Box.createHorizontalGlue());
-        subtitleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        subtitleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        window.add(subtitleRow);
         form.add(LauncherLayout.lockedHeight(window));
         form.add(Ui.vgap(30));
         form.add(LauncherLayout.divider());
@@ -452,41 +461,6 @@ final class SettingsPage {
         form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
 
-        JPanel benchmark = LauncherLayout.section("跑分模块", "可选下载，不随启动器捆绑，不强制安装");
-        JLabel benchmarkStatus = Ui.label(BenchmarkManager.installed(config)
-                ? "已安装" : "未下载", Theme.TINY, Theme.DIM);
-        benchmarkStatus.setAlignmentX(Component.LEFT_ALIGNMENT);
-        benchmark.add(benchmarkStatus);
-        benchmark.add(Ui.vgap(8));
-        JPanel benchmarkActions = new JPanel();
-        benchmarkActions.setOpaque(false);
-        benchmarkActions.setLayout(new BoxLayout(benchmarkActions, BoxLayout.X_AXIS));
-        Ui.AccentButton benchmarkDownload = Ui.smallButton("下载跑分模块",
-                Ui.AccentButton.Style.SECONDARY);
-        benchmarkDownload.addActionListener(e -> {
-            benchmarkStatus.setText("下载中…");
-            BenchmarkManager.download(config, taskCenter, owner::refreshTasksUi,
-                    benchmarkStatus::setText);
-        });
-        Ui.AccentButton benchmarkRun = Ui.smallButton("运行跑分",
-                Ui.AccentButton.Style.GHOST);
-        benchmarkRun.addActionListener(e -> BenchmarkManager.run(config, benchmarkStatus::setText));
-        Ui.AccentButton benchmarkGame = Ui.smallButton("用当前实例跑分",
-                Ui.AccentButton.Style.SECONDARY);
-        benchmarkGame.addActionListener(e -> owner.runGameBenchmark(benchmarkStatus));
-        benchmarkActions.add(benchmarkDownload);
-        benchmarkActions.add(Ui.hgap(8));
-        benchmarkActions.add(benchmarkRun);
-        benchmarkActions.add(Ui.hgap(8));
-        benchmarkActions.add(benchmarkGame);
-        benchmarkActions.add(Box.createHorizontalGlue());
-        benchmarkActions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        benchmarkActions.setAlignmentX(Component.LEFT_ALIGNMENT);
-        benchmark.add(benchmarkActions);
-        benchmark.add(Ui.vgap(7));
-        benchmark.add(LauncherLayout.sidebarNote("模块独立运行，扫描 CPU、内存、系统和显卡；"
-                + "扫描不到硬件时显示未知硬件。"));
-        form.add(LauncherLayout.lockedHeight(benchmark));
         form.add(Ui.vgap(30));
         form.add(LauncherLayout.divider());
         form.add(Ui.vgap(30));
@@ -526,11 +500,19 @@ final class SettingsPage {
         fontRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
         style.add(fontRow);
         style.add(Ui.vgap(8));
+        Ui.ToggleChip cssToggle = new Ui.ToggleChip("自定义界面样式（CSS）");
+        cssToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cssToggle.setSelected(false);
+        JPanel cssPanel = new JPanel();
+        cssPanel.setOpaque(false);
+        cssPanel.setLayout(new BoxLayout(cssPanel, BoxLayout.Y_AXIS));
+        cssPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cssPanel.setVisible(false);
         JLabel cssHint = Ui.label("修改后点「应用界面样式」，界面会立即重建。字体大小也在这里配置。",
                 Theme.TINY, Theme.DIM);
         cssHint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        style.add(cssHint);
-        style.add(Ui.vgap(6));
+        cssPanel.add(cssHint);
+        cssPanel.add(Ui.vgap(6));
         uiCssArea = new JTextArea(loadUiCssText());
         uiCssArea.setFont(Theme.MONO);
         uiCssArea.setBackground(Theme.FIELD);
@@ -543,8 +525,8 @@ final class SettingsPage {
         cssScroll.setPreferredSize(new Dimension(720, 170));
         cssScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
         cssScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        style.add(cssScroll);
-        style.add(Ui.vgap(8));
+        cssPanel.add(cssScroll);
+        cssPanel.add(Ui.vgap(8));
         JPanel cssActions = new JPanel();
         cssActions.setOpaque(false);
         cssActions.setLayout(new BoxLayout(cssActions, BoxLayout.X_AXIS));
@@ -560,7 +542,15 @@ final class SettingsPage {
         cssActions.add(resetCssButton);
         cssActions.setAlignmentX(Component.LEFT_ALIGNMENT);
         cssActions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        style.add(cssActions);
+        cssPanel.add(cssActions);
+        cssToggle.addActionListener(e -> {
+            cssPanel.setVisible(cssToggle.isSelected());
+            style.revalidate();
+            style.repaint();
+        });
+        style.add(cssToggle);
+        style.add(Ui.vgap(6));
+        style.add(cssPanel);
         form.add(LauncherLayout.lockedHeight(style));
         form.add(Ui.vgap(30));
         form.add(LauncherLayout.divider());
@@ -591,40 +581,43 @@ final class SettingsPage {
         form.add(display);
         form.add(Ui.vgap(18));
 
-        JPanel data = LauncherLayout.section("数据目录", "启动器配置、缓存、账户和官方 Java 运行时");
-        JLabel dataPath = Ui.label(config.appHome().toString(), Theme.MONO, Theme.MUTED);
-        dataPath.setAlignmentX(Component.LEFT_ALIGNMENT);
-        data.add(dataPath);
-        data.add(Ui.vgap(12));
-        JPanel accountsRow = new JPanel(new BorderLayout(8, 0));
-        accountsRow.setOpaque(false);
-        accountsDirLabel = Ui.label(config.accountsDir().toString(), Theme.MONO, Theme.MUTED);
-        accountsDirLabel.setToolTipText(config.accountsDir().toString());
-        accountsRow.add(accountsDirLabel, BorderLayout.CENTER);
-        Ui.AccentButton changeAccounts = Ui.smallButton("修改账户目录",
-                Ui.AccentButton.Style.GHOST);
+        JPanel data = LauncherLayout.section("存储位置", "点「打开」直接在访达/资源管理器里显示");
+        data.add(pathRow("启动器数据", config.appHome()));
+        data.add(Ui.vgap(4));
+        data.add(pathRow("游戏目录", config.gameDir()));
+        data.add(Ui.vgap(4));
+        data.add(pathRow("帐户目录", config.accountsDir()));
+        data.add(Ui.vgap(4));
+        data.add(pathRow("缓存目录", config.cacheDir()));
+        data.add(Ui.vgap(4));
+        data.add(pathRow("日志目录", config.logsDir()));
+        data.add(Ui.vgap(8));
+        JPanel dataActions = new JPanel();
+        dataActions.setOpaque(false);
+        dataActions.setLayout(new BoxLayout(dataActions, BoxLayout.X_AXIS));
+        Ui.AccentButton changeAccounts = Ui.smallButton("修改账户目录", Ui.AccentButton.Style.GHOST);
         changeAccounts.addActionListener(e -> owner.chooseAccountsDirectory());
-        accountsRow.add(changeAccounts, BorderLayout.EAST);
-        accountsRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        accountsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        data.add(accountsRow);
-        data.add(Ui.vgap(5));
-        JPanel cacheRow = new JPanel(new BorderLayout(8, 0));
-        cacheRow.setOpaque(false);
-        cacheLabel = Ui.label("", Theme.MONO, Theme.MUTED);
-        cacheRow.add(cacheLabel, BorderLayout.CENTER);
+        dataActions.add(changeAccounts);
+        dataActions.add(Ui.hgap(8));
+        cacheLabel = Ui.label("", Theme.MONO, Theme.DIM);
+        dataActions.add(cacheLabel);
+        dataActions.add(Ui.hgap(8));
         Ui.AccentButton clearCache = Ui.smallButton("清理缓存…", Ui.AccentButton.Style.SECONDARY);
-        clearCache.setToolTipText("删除图标、内容索引和下载中转缓存");
         clearCache.addActionListener(e -> openCacheDialog());
-        cacheRow.add(clearCache, BorderLayout.EAST);
-        cacheRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        cacheRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        data.add(cacheRow);
-        data.add(Ui.vgap(5));
+        dataActions.add(clearCache);
+        dataActions.add(Box.createHorizontalGlue());
+        dataActions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        dataActions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        data.add(dataActions);
         updateCacheLabel();
-        data.add(LauncherLayout.sidebarNote("游戏文件不会放在这里，而是放在「启动器配置」中选择的游戏目录。"));
         form.add(LauncherLayout.lockedHeight(data));
         form.add(Box.createVerticalGlue());
+        if (otherSection != null) {
+            form.add(Ui.vgap(30));
+            form.add(LauncherLayout.divider());
+            form.add(Ui.vgap(30));
+            form.add(LauncherLayout.lockedHeight(otherSection));
+        }
         return form;
     }
 
@@ -660,10 +653,10 @@ final class SettingsPage {
         CacheDialog.show(owner, config, this::updateCacheLabel);
     }
 
-    private JScrollPane buildStyleStrip() {
+    private JPanel buildStyleStrip() {
         JPanel strip = new JPanel();
         strip.setOpaque(false);
-        strip.setLayout(new BoxLayout(strip, BoxLayout.X_AXIS));
+        strip.setLayout(new java.awt.GridLayout(0, 4, 8, 8));
         strip.setBorder(new EmptyBorder(2, 0, 6, 0));
         for (ThemePreset preset : ThemePreset.ALL) {
             JPanel tile = new JPanel(new BorderLayout(5, 2));
@@ -736,23 +729,9 @@ final class SettingsPage {
             card.add(tile);
             card.addMouseListener(click);
             strip.add(card);
-            strip.add(Ui.hgap(8));
         }
-        JScrollPane scroll = new JScrollPane(strip, JScrollPane.VERTICAL_SCROLLBAR_NEVER,
-                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scroll.setBorder(null);
-        scroll.setOpaque(true);
-        scroll.setBackground(Theme.BG);
-        scroll.getViewport().setOpaque(true);
-        scroll.getViewport().setBackground(Theme.BG);
-        scroll.getHorizontalScrollBar().setUI(new Ui.ThinScrollBarUI());
-        scroll.getHorizontalScrollBar().setOpaque(true);
-        scroll.getHorizontalScrollBar().setBackground(Theme.BG);
-        scroll.getHorizontalScrollBar().setUnitIncrement(32);
-        scroll.setPreferredSize(new Dimension(720, 84));
-        scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 84));
-        scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        return scroll;
+        strip.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return strip;
     }
 
     private String loadUiCssText() {
@@ -885,7 +864,6 @@ final class SettingsPage {
     }
 
     private void restartFrame() {
-        LauncherLayout.setShowSubtitles(config.showPageSubtitles());
         if (!canRestart.getAsBoolean()) {
             ModernDialogs.message(owner, "暂时无法重建界面",
                     "下载、安装或启动正在进行，请等任务结束后再应用界面样式。");

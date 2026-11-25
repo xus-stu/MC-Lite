@@ -84,6 +84,12 @@ public final class LauncherPluginsPanel extends JPanel {
         uninstallButton.addActionListener(e -> uninstallSelected());
     }
 
+    private Runnable benchmarkAction;
+
+    public void setBenchmarkAction(Runnable action) {
+        this.benchmarkAction = action;
+    }
+
     public void setPythonActions(Runnable install, Runnable start) {
         this.pythonInstall = install;
         this.pythonStart = start;
@@ -123,6 +129,14 @@ public final class LauncherPluginsPanel extends JPanel {
         list.add(pluginCard("MCLite Island", "本地音乐 + 3D 歌词 + 灵动岛",
                 "零登录、零联网的本地音乐播放器，支持 JEI/Jade 目标信息与可导入 LRC。",
                 () -> openIslandDetail()));
+        list.add(Ui.vgap(10));
+        list.add(pluginCard("跑分模块", "性能跑分（可选下载）",
+                "独立小工具，扫描 CPU / 内存 / 系统和显卡并给出跑分；不随启动器打包。",
+                () -> {
+                    if (benchmarkAction != null) {
+                        benchmarkAction.run();
+                    }
+                }));
         list.add(Ui.vgap(10));
         list.add(pluginCard("启动器扩展", "可选安装的启动器插件",
                 "音乐播放器（B 站音乐、队列、混响）、地形查询（扫描已生成生物群系，定位沼泽）。",

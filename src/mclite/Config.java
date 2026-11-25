@@ -41,7 +41,6 @@ public final class Config {
     private boolean recommendMods = true;
     private boolean integrityCheck = true;
     private boolean sidebarCollapsed;
-    private boolean showPageSubtitles;
     private String displayMode = "standard";
     private String filter = "release";
     private String lastVersion = "";
@@ -137,8 +136,6 @@ public final class Config {
                     properties.getProperty("integrityCheck", "true"));
             config.sidebarCollapsed = Boolean.parseBoolean(
                     properties.getProperty("sidebarCollapsed", "false"));
-            config.showPageSubtitles = Boolean.parseBoolean(
-                    properties.getProperty("showPageSubtitles", "false"));
             config.displayMode = properties.getProperty("displayMode", "standard").trim();
             String savedFilter = properties.getProperty("filter", "release");
             if (savedFilter.equals("release") || savedFilter.equals("snapshot") || savedFilter.equals("all")) {
@@ -185,7 +182,6 @@ public final class Config {
         copy.recommendMods = recommendMods;
         copy.integrityCheck = integrityCheck;
         copy.sidebarCollapsed = sidebarCollapsed;
-        copy.showPageSubtitles = showPageSubtitles;
         copy.displayMode = displayMode;
         copy.filter = filter;
         copy.lastVersion = lastVersion;
@@ -421,14 +417,6 @@ public final class Config {
         this.autoMemory = value;
     }
 
-    public boolean showPageSubtitles() {
-        return showPageSubtitles;
-    }
-
-    public void showPageSubtitles(boolean value) {
-        this.showPageSubtitles = value;
-    }
-
     public boolean sidebarCollapsed() {
         return sidebarCollapsed;
     }
@@ -638,7 +626,6 @@ public final class Config {
             properties.setProperty("recommendMods", Boolean.toString(recommendMods));
             properties.setProperty("integrityCheck", Boolean.toString(integrityCheck));
             properties.setProperty("sidebarCollapsed", Boolean.toString(sidebarCollapsed));
-            properties.setProperty("showPageSubtitles", Boolean.toString(showPageSubtitles));
             properties.setProperty("displayMode", displayMode);
             properties.setProperty("filter", filter);
             properties.setProperty("lastVersion", lastVersion);

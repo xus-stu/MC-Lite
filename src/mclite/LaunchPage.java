@@ -39,12 +39,11 @@ final class LaunchPage {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        page.add(LauncherLayout.pageHeader("启动游戏", "确认账户、版本和 Java 后启动", null), BorderLayout.NORTH);
 
         JPanel form = new JPanel();
         form.setOpaque(false);
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(new EmptyBorder(30, 30, 30, 30));
+        form.setBorder(new EmptyBorder(14, 20, 18, 20));
 
         JPanel account = LauncherLayout.section("账户", "离线账户，仅用于单机 / 局域网");
         JPanel accountRow = new JPanel(new BorderLayout(10, 0));

@@ -789,6 +789,13 @@ public final class Ui {
                 }
             }
         };
+        for (int key : new int[]{KeyEvent.VK_C, KeyEvent.VK_X, KeyEvent.VK_A}) {
+            String action = key == KeyEvent.VK_C ? "copy" : key == KeyEvent.VK_X ? "cut" : "select-all";
+            field.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+                    .put(javax.swing.KeyStroke.getKeyStroke(key, InputEvent.META_DOWN_MASK), action);
+            field.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+                    .put(javax.swing.KeyStroke.getKeyStroke(key, InputEvent.CTRL_DOWN_MASK), action);
+        }
         field.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
                 .put(javax.swing.KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.META_DOWN_MASK),
                         "mclite-paste");
@@ -1184,6 +1191,26 @@ public final class Ui {
             if (!alive && timer != null) {
                 timer.stop();
             }
+        }
+    }
+
+    /** 顶部工具条用的渐变背景：从标题栏色平滑过渡到页面底色，不带边框。 */
+    public static final class GradientPanel extends JPanel {
+        private GradientPanel() {
+            setOpaque(true);
+        }
+
+        public static GradientPanel of() {
+            return new GradientPanel();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = prepare(g);
+            g2.setPaint(new java.awt.GradientPaint(0, 0, Theme.BG_SOFT,
+                    0, Math.max(1, getHeight()), Theme.BG));
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            g2.dispose();
         }
     }
 

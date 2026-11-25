@@ -36,10 +36,6 @@ final class VersionDetailPage {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        Ui.AccentButton back = Ui.smallButton("返回列表", Ui.AccentButton.Style.GHOST);
-        back.addActionListener(e -> onBack.run());
-        page.add(LauncherLayout.pageHeader("安装选项", "先选加载器，再下载原版与加载器", back),
-                BorderLayout.NORTH);
 
         JPanel form = new JPanel();
         form.setOpaque(false);

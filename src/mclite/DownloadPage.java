@@ -65,7 +65,6 @@ final class DownloadPage {
         JPanel page = new JPanel(new BorderLayout());
         page.setOpaque(true);
         page.setBackground(Theme.BG);
-        page.add(buildTopbar(), BorderLayout.NORTH);
 
         JPanel middle = new JPanel(new BorderLayout());
         middle.setOpaque(false);
@@ -104,9 +103,7 @@ final class DownloadPage {
     }
 
     void setSubtitle(String text) {
-        if (subtitle != null && LauncherLayout.showSubtitles()) {
-            subtitle.setText(text);
-        }
+        // 页面已不显示简介，保留接口给旧调用方。
     }
 
     void setToolsVisible(boolean visible) {
@@ -189,119 +186,22 @@ final class DownloadPage {
         }
     }
 
-    private JPanel buildTopbar() {
-        JPanel top = new JPanel(new BorderLayout(12, 0));
+    private JPanel buildSubtabs() {
+        // 子标签 + 搜索/筛选/刷新合并成一行，不再单独占一条标题栏。
+        JPanel bar = Ui.GradientPanel.of();
+        bar.setLayout(new BorderLayout(12, 0));
+        bar.setBorder(new EmptyBorder(5, 12, 6, 12));
+
         backButton = Ui.smallButton("< 返回", Ui.AccentButton.Style.GHOST);
         backButton.setVisible(false);
+        backButton.setBorder(new javax.swing.border.EmptyBorder(0, 0, 0, 10));
         backButton.addActionListener(e -> {
             if (backAction != null) {
                 backAction.run();
             }
         });
-        top.setBackground(Theme.CARD);
-        top.setBorder(BorderFactory.createCompoundBorder(
-                new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(5, 12, 5, 12)));
+        bar.add(backButton, BorderLayout.WEST);
 
-        JPanel info = new JPanel();
-        info.setOpaque(false);
-        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
-        title = Ui.label("下载中心", Theme.H2, Theme.TEXT);
-        subtitle = Ui.label("Mojang 官方清单 · 选择版本下载或启动", Theme.MONO, Theme.DIM);
-        title.setAlignmentX(Component.LEFT_ALIGNMENT);
-        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        info.add(title);
-        if (LauncherLayout.showSubtitles()) {
-            info.add(Ui.vgap(1));
-            info.add(subtitle);
-        }
-        if (RegionGate.restricted()) {
-            JLabel notice = Ui.label("<html>为遵守相关法律法规，不提供游戏本体和整合包下载；<br>"
-                            + "模组、资源包、光影下载可用</html>", Theme.TINY, Theme.WARNING);
-            notice.setAlignmentX(Component.LEFT_ALIGNMENT);
-            notice.setCursor(java.awt.Cursor.getPredefinedCursor(
-                    java.awt.Cursor.HAND_CURSOR));
-            notice.addMouseListener(new java.awt.event.MouseAdapter() {
-                @Override
-                public void mouseClicked(java.awt.event.MouseEvent e) {
-                    onRegionNotice.run();
-                }
-            });
-            info.add(Ui.vgap(3));
-            info.add(notice);
-        }
-        JPanel headRow = new JPanel();
-        headRow.setOpaque(false);
-        headRow.setLayout(new javax.swing.BoxLayout(headRow, javax.swing.BoxLayout.X_AXIS));
-        backButton.setBorder(new javax.swing.border.EmptyBorder(0, 0, 0, 10));
-        headRow.add(backButton);
-        headRow.add(info);
-        top.add(headRow, BorderLayout.CENTER);
-
-        JPanel toolRow = new JPanel();
-        toolRow.setOpaque(false);
-        toolRow.setLayout(new BoxLayout(toolRow, BoxLayout.X_AXIS));
-        tools = toolRow;
-        searchField = Ui.field("搜索版本号，例如 1.20.1 / 26.3");
-        searchField.setPreferredSize(new Dimension(210, 30));
-        searchField.setMaximumSize(new Dimension(210, 30));
-        searchField.setAlignmentY(Component.CENTER_ALIGNMENT);
-        searchField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                onSearchChanged.run();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                onSearchChanged.run();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                onSearchChanged.run();
-            }
-        });
-        toolRow.add(searchField);
-        toolRow.add(Ui.hgap(8));
-
-        releaseFilter = new Ui.SegmentButton("正式版");
-        snapshotFilter = new Ui.SegmentButton("快照");
-        allFilter = new Ui.SegmentButton("全部");
-        ButtonGroup filters = new ButtonGroup();
-        filters.add(releaseFilter);
-        filters.add(snapshotFilter);
-        filters.add(allFilter);
-        releaseFilter.addActionListener(e -> onFilter.accept("release"));
-        snapshotFilter.addActionListener(e -> onFilter.accept("snapshot"));
-        allFilter.addActionListener(e -> onFilter.accept("all"));
-        toolRow.add(releaseFilter);
-        toolRow.add(snapshotFilter);
-        toolRow.add(allFilter);
-        toolRow.add(Ui.hgap(8));
-
-        detailButton = Ui.smallButton("详情", Ui.AccentButton.Style.SECONDARY);
-        detailButton.setPreferredSize(new Dimension(52, 30));
-        detailButton.setMaximumSize(new Dimension(52, 30));
-        detailButton.setEnabled(false);
-        detailButton.addActionListener(e -> onDetail.run());
-        toolRow.add(detailButton);
-        toolRow.add(Ui.hgap(6));
-        refreshButton = Ui.smallButton("刷新", Ui.AccentButton.Style.SECONDARY);
-        refreshButton.setPreferredSize(new Dimension(52, 30));
-        refreshButton.setMaximumSize(new Dimension(52, 30));
-        refreshButton.addActionListener(e -> onRefresh.run());
-        toolRow.add(refreshButton);
-        top.add(toolRow, BorderLayout.EAST);
-        return top;
-    }
-
-    private JPanel buildSubtabs() {
-        JPanel bar = new JPanel(new BorderLayout());
-        bar.setBackground(Theme.CARD);
-        bar.setBorder(BorderFactory.createCompoundBorder(
-                new MatteBorder(0, 0, 1, 0, Theme.BORDER),
-                new EmptyBorder(4, 14, 4, 14)));
         JPanel tabs = new JPanel();
         tabs.setOpaque(false);
         tabs.setLayout(new BoxLayout(tabs, BoxLayout.X_AXIS));
@@ -331,7 +231,63 @@ final class DownloadPage {
         tabs.add(modpacksTab);
         tabs.add(shadersTab);
         tabs.add(pluginsTab);
-        bar.add(tabs, BorderLayout.WEST);
+        bar.add(tabs, BorderLayout.CENTER);
+
+        JPanel toolRow = new JPanel();
+        toolRow.setOpaque(false);
+        toolRow.setLayout(new BoxLayout(toolRow, BoxLayout.X_AXIS));
+        tools = toolRow;
+        searchField = Ui.field("搜索版本号，例如 1.20.1 / 26.3");
+        searchField.setPreferredSize(new Dimension(200, 30));
+        searchField.setMaximumSize(new Dimension(200, 30));
+        searchField.setAlignmentY(Component.CENTER_ALIGNMENT);
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                onSearchChanged.run();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                onSearchChanged.run();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                onSearchChanged.run();
+            }
+        });
+        toolRow.add(searchField);
+        toolRow.add(Ui.hgap(6));
+
+        releaseFilter = new Ui.SegmentButton("正式版");
+        snapshotFilter = new Ui.SegmentButton("快照");
+        allFilter = new Ui.SegmentButton("全部");
+        ButtonGroup filters = new ButtonGroup();
+        filters.add(releaseFilter);
+        filters.add(snapshotFilter);
+        filters.add(allFilter);
+        releaseFilter.addActionListener(e -> onFilter.accept("release"));
+        snapshotFilter.addActionListener(e -> onFilter.accept("snapshot"));
+        allFilter.addActionListener(e -> onFilter.accept("all"));
+        toolRow.add(releaseFilter);
+        toolRow.add(snapshotFilter);
+        toolRow.add(allFilter);
+        toolRow.add(Ui.hgap(6));
+
+        detailButton = Ui.smallButton("详情", Ui.AccentButton.Style.SECONDARY);
+        detailButton.setPreferredSize(new Dimension(48, 30));
+        detailButton.setMaximumSize(new Dimension(48, 30));
+        detailButton.setEnabled(false);
+        detailButton.addActionListener(e -> onDetail.run());
+        toolRow.add(detailButton);
+        toolRow.add(Ui.hgap(6));
+        refreshButton = Ui.smallButton("刷新", Ui.AccentButton.Style.SECONDARY);
+        refreshButton.setPreferredSize(new Dimension(48, 30));
+        refreshButton.setMaximumSize(new Dimension(48, 30));
+        refreshButton.addActionListener(e -> onRefresh.run());
+        toolRow.add(refreshButton);
+        bar.add(toolRow, BorderLayout.EAST);
         return bar;
     }
 }

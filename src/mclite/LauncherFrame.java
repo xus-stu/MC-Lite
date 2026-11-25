@@ -603,6 +603,7 @@ public final class LauncherFrame extends JFrame {
         settingsPage.setTransparencyAction(value -> applyWindowOpacity());
         launcherPluginsPanel.setPythonActions(settingsPage::installPythonModule,
                 settingsPage::startPythonBridge);
+        launcherPluginsPanel.setBenchmarkAction(this::openBenchmark);
         contentCardsPanel.add(settingsPage.build(), "settings");
         updateButtons();
 
@@ -2985,11 +2986,29 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
+    private void openBenchmark() {
+        if (!BenchmarkManager.installed(config)) {
+            BenchmarkManager.download(config, taskCenter, this::refreshTasksUi,
+                    msg -> ModernDialogs.message(this, "跑分模块", msg));
+            return;
+        }
+        BenchmarkManager.run(config, msg -> ModernDialogs.message(this, "跑分", msg));
+    }
+
     private java.util.List<FeaturesPage.Feature> featureEntries() {
         java.util.List<FeaturesPage.Feature> list = new java.util.ArrayList<>();
         list.add(new FeaturesPage.Feature("种子查询",
                 "查看存档种子、已生成遗迹和史莱姆区块", "种子 · 遗迹 · 史莱姆",
                 () -> showPage("seed")));
+        list.add(new FeaturesPage.Feature("跑分",
+                "可选下载的跑分模块：扫描 CPU / 内存 / 系统和显卡", "性能 · 跑分",
+                this::openBenchmark));
+        list.add(new FeaturesPage.Feature("Python Bridge",
+                "后台启动 Bridge，生成 bridge.json 供 Python 脚本连接", "开发 · 自动化",
+                () -> settingsPage.startPythonBridge()));
+        list.add(new FeaturesPage.Feature("安装 Python 模块",
+                "把 Bridge 客户端安装到指定 Python 解释器（PyCharm 可直接 import）", "开发 · 自动化",
+                () -> settingsPage.installPythonModule()));
         for (PluginFeature meta : pluginFeatures.values()) {
             list.add(new FeaturesPage.Feature(meta.title(), meta.subtitle(), meta.tag(),
                     () -> showPage("plugin:" + meta.id())));
