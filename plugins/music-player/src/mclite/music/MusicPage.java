@@ -141,7 +141,8 @@ final class MusicPage {
         page.setBackground(Theme.BG);
 
         JPanel top = new JPanel(new BorderLayout(0, 0));
-        top.setOpaque(false);
+        top.setOpaque(true);
+        top.setBackground(Theme.BG);
         top.add(header(), BorderLayout.NORTH);
         top.add(subtabs(), BorderLayout.SOUTH);
         page.add(top, BorderLayout.NORTH);
@@ -161,9 +162,10 @@ final class MusicPage {
 
         JComponent bar = playerBar();
         page.add(bar, BorderLayout.SOUTH);
-        // 播放条永远压在最上层：某些缩放下滚动内容会越过视口边缘，
-        // 不设 z 序的话会把播放条文字盖住。
-        page.setComponentZOrder(bar, 0);
+        // 顶栏和播放条永远压在最上层：某些缩放下滚动内容会越过视口边缘，
+        // 不设 z 序的话会把顶栏/播放条盖住，出现图片碎片。
+        page.setComponentZOrder(top, 0);
+        page.setComponentZOrder(bar, 1);
 
         root = page;
         ticker.start();
@@ -209,7 +211,8 @@ final class MusicPage {
 
     private JComponent subtabs() {
         JPanel bar = new JPanel(new BorderLayout());
-        bar.setOpaque(false);
+        bar.setOpaque(true);
+        bar.setBackground(Theme.BG);
         bar.setBorder(new EmptyBorder(6, 14, 0, 14));
         JPanel tabs = new JPanel();
         tabs.setOpaque(false);

@@ -42,7 +42,8 @@ build/
 .test-*/
 *.log
 
-backup/
+/backup/
+/backrooms/
 
 神秘小文件/
 

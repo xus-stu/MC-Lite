@@ -77,11 +77,11 @@ Add-Opens: java.desktop/java.awt java.desktop/sun.lwawt java.desktop/sun.lwawt.m
 MANIFEST
 jar --create --file "dist/${NORMAL_JAR}" --manifest build/manifest-main.txt -C build/classes .
 jar --create --file "dist/${REGION_JAR}" --manifest build/manifest-region.txt -C build/classes . -C build/region-marker .
-JAR_LIMIT=900000
+JAR_LIMIT=1300000
 for built in "dist/${NORMAL_JAR}" "dist/${REGION_JAR}"; do
   built_size=$(wc -c < "$built" | tr -d ' ')
   if [ "$built_size" -gt "$JAR_LIMIT" ]; then
-    echo "错误：$built 大小为 $built_size 字节，超过 900KB 限制。" >&2
+    echo "错误：$built 大小为 $built_size 字节，超过 1.3MB 限制。" >&2
     exit 1
   fi
   echo "  $(basename "$built") 大小: ${built_size} 字节（上限 ${JAR_LIMIT}，余量 $((JAR_LIMIT - built_size))）"

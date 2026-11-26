@@ -341,6 +341,25 @@ public final class Ui {
         if (isMac()) {
             return macFileDialog(title, initial, directory);
         }
+        if (directory) {
+            // Windows/Linux 的 AWT FileDialog 不能选文件夹，改用 JFileChooser。
+            javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
+            chooser.setDialogTitle(title == null ? "选择文件夹" : title);
+            chooser.setFileSelectionMode(javax.swing.JFileChooser.DIRECTORIES_ONLY);
+            chooser.setAcceptAllFileFilterUsed(false);
+            if (initial != null) {
+                java.nio.file.Path dir = java.nio.file.Files.isDirectory(initial)
+                        ? initial : initial.getParent();
+                if (dir != null && java.nio.file.Files.exists(dir)) {
+                    chooser.setCurrentDirectory(dir.toFile());
+                }
+            }
+            if (chooser.showOpenDialog(parent) == javax.swing.JFileChooser.APPROVE_OPTION
+                    && chooser.getSelectedFile() != null) {
+                return chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
+            }
+            return null;
+        }
         String dialogTitle = title == null ? "选择" : title;
         FileDialog picker;
         if (parent instanceof Frame frame) {
@@ -438,60 +457,14 @@ public final class Ui {
         return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
     }
 
-    public static final class FadePanel extends JPanel {
-        private float alpha = 1f;
-        private int offset;
-        private long started;
-        private Timer timer;
-
+    /** 兼容入口：实现已下沉到 {@link mclite.ui.effects.FadePanel}（插件仍可用 Ui.FadePanel）。 */
+    public static final class FadePanel extends mclite.ui.effects.FadePanel {
         public FadePanel() {
-            this(new java.awt.BorderLayout());
+            super();
         }
 
         public FadePanel(java.awt.LayoutManager layout) {
             super(layout);
-            setOpaque(false);
-        }
-
-        public void fadeIn() {
-            if (!isShowing()) {
-                alpha = 1f;
-                offset = 0;
-                repaint();
-                return;
-            }
-            alpha = 0f;
-            offset = 10;
-            started = System.currentTimeMillis();
-            if (timer == null) {
-                timer = new Timer(16, e -> {
-                    float elapsed = (System.currentTimeMillis() - started) / 260f;
-                    float t = Math.min(1f, elapsed);
-                    float eased = 1f - (1f - t) * (1f - t) * (1f - t);
-                    alpha = eased;
-                    offset = Math.round((1f - eased) * 10f);
-                    repaint();
-                    if (t >= 1f) {
-                        ((Timer) e.getSource()).stop();
-                        offset = 0;
-                    }
-                });
-            }
-            timer.restart();
-        }
-
-        @Override
-        protected void paintChildren(Graphics g) {
-            if (alpha >= 0.999f && offset == 0) {
-                super.paintChildren(g);
-                return;
-            }
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.clipRect(0, 0, getWidth(), getHeight());
-            g2.setComposite(java.awt.AlphaComposite.SrcOver.derive(Math.max(0f, alpha)));
-            g2.translate(0, offset);
-            super.paintChildren(g2);
-            g2.dispose();
         }
     }
 
@@ -537,12 +510,62 @@ public final class Ui {
         private final Color fill;
         private final Color border;
         private final int radius;
+        private float glow;
+        private float glowFrom;
+        private float glowTo;
+        private long glowStarted;
+        private Timer glowTimer;
+        private float pointerX = -1f;
+        private float pointerY = -1f;
 
         public RoundedPanel(Color fill, Color border, int radius) {
             this.fill = fill;
             this.border = border;
             this.radius = radius;
             setOpaque(false);
+            addMouseMotionListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseMoved(java.awt.event.MouseEvent event) {
+                    pointerX = event.getX();
+                    pointerY = event.getY();
+                    repaint();
+                }
+            });
+            addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseEntered(java.awt.event.MouseEvent event) {
+                    animateGlow(1f);
+                }
+
+                @Override
+                public void mouseExited(java.awt.event.MouseEvent event) {
+                    pointerX = -1f;
+                    pointerY = -1f;
+                    animateGlow(0f);
+                }
+            });
+        }
+
+        private void animateGlow(float target) {
+            if (Math.abs(glow - target) < 0.01f) {
+                return;
+            }
+            glowFrom = glow;
+            glowTo = target;
+            glowStarted = System.currentTimeMillis();
+            if (glowTimer == null) {
+                glowTimer = new Timer(16, e -> {
+                    float t = Math.min(1f, (System.currentTimeMillis() - glowStarted) / 150f);
+                    float eased = 1f - (1f - t) * (1f - t);
+                    glow = glowFrom + (glowTo - glowFrom) * eased;
+                    if (t >= 1f) {
+                        ((Timer) e.getSource()).stop();
+                        glow = glowTo;
+                    }
+                    repaint();
+                });
+            }
+            glowTimer.restart();
         }
 
         public RoundedPanel() {
@@ -558,6 +581,19 @@ public final class Ui {
                 g2.setColor(fill);
                 g2.fill(new RoundRectangle2D.Float(0.5f, 0.5f, width - 1f, height - 1f,
                         radius, radius));
+            }
+            if (glow > 0.01f && pointerX >= 0f) {
+                java.awt.Shape oldClip = g2.getClip();
+                g2.clip(new RoundRectangle2D.Float(0.5f, 0.5f, width - 1f, height - 1f,
+                        radius, radius));
+                float r = Math.max(width, height) * 0.9f;
+                g2.setPaint(new java.awt.RadialGradientPaint(
+                        new java.awt.geom.Point2D.Float(pointerX, pointerY), r,
+                        new float[]{0f, 1f},
+                        new java.awt.Color[]{Theme.alpha(Theme.ACCENT, Math.round(26 * glow)),
+                                Theme.alpha(Theme.ACCENT, 0)}));
+                g2.fillRect(0, 0, width, height);
+                g2.setClip(oldClip);
             }
             if (border != null) {
                 g2.setColor(border);
@@ -930,6 +966,49 @@ public final class Ui {
         }
     }
 
+    /** 记录鼠标位置，配合 {@link #paintPointerGlow} 让按钮在鼠标处出现主题色渐变。 */
+    static void installPointerGlow(JComponent component) {
+        component.addMouseMotionListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseMoved(java.awt.event.MouseEvent event) {
+                component.putClientProperty("glowX", event.getX());
+                component.putClientProperty("glowY", event.getY());
+                component.repaint();
+            }
+        });
+        component.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent event) {
+                component.putClientProperty("glowX", null);
+                component.putClientProperty("glowY", null);
+                component.repaint();
+            }
+        });
+    }
+
+    /** 在按钮表面按鼠标位置画一层跟随的径向渐变（intensity 0~1）。 */
+    static void paintPointerGlow(Graphics2D g2, JComponent component, int width, int height,
+                                 int arc, float intensity) {
+        if (intensity <= 0.02f) {
+            return;
+        }
+        Object x = component.getClientProperty("glowX");
+        Object y = component.getClientProperty("glowY");
+        if (!(x instanceof Number) || !(y instanceof Number)) {
+            return;
+        }
+        float radius = Math.max(width, height) * 0.85f;
+        java.awt.Shape old = g2.getClip();
+        g2.clip(new java.awt.geom.RoundRectangle2D.Float(0, 0, width, height, arc, arc));
+        g2.setPaint(new java.awt.RadialGradientPaint(
+                new java.awt.geom.Point2D.Float(((Number) x).floatValue(),
+                        ((Number) y).floatValue()), radius, new float[]{0f, 1f},
+                new java.awt.Color[]{Theme.alpha(Theme.ACCENT, Math.round(70 * intensity)),
+                        Theme.alpha(Theme.ACCENT, 0)}));
+        g2.fillRect(0, 0, width, height);
+        g2.setClip(old);
+    }
+
     public static final class NavTab extends JToggleButton {
         private float selectedProgress;
         private float selectFrom;
@@ -949,6 +1028,7 @@ public final class Ui {
             setPreferredSize(new Dimension(92, 40));
             setMaximumSize(new Dimension(120, 40));
             getModel().addChangeListener(e -> animateSelection(180f));
+            installPointerGlow(this);
         }
 
         private void animateSelection(float durationMs) {
@@ -990,6 +1070,8 @@ public final class Ui {
                 g2.setColor(Theme.CARD_ALT);
                 g2.fillRoundRect(8, 6, width - 16, height - 12, 9, 9);
             }
+            paintPointerGlow(g2, this, width, height, 9,
+                    Math.max(selectedProgress, getModel().isRollover() ? 1f : 0f));
             g2.setFont(getFont());
             FontMetrics metrics = g2.getFontMetrics();
             String text = fitText(g2, getText(), width - 6);
@@ -1019,6 +1101,7 @@ public final class Ui {
             setRolloverEnabled(true);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             getModel().addChangeListener(e -> animateSelection());
+            installPointerGlow(this);
         }
 
         private void animateSelection() {
@@ -1057,6 +1140,8 @@ public final class Ui {
                 g2.setColor(Theme.BG_4);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 9, 9);
             }
+            paintPointerGlow(g2, this, getWidth(), getHeight(), 9,
+                    Math.max(selectedProgress, hover ? 1f : 0f));
             g2.setFont(getFont());
             FontMetrics metrics = g2.getFontMetrics();
             String text = fitText(g2, getText(), getWidth() - 6);
@@ -1086,6 +1171,7 @@ public final class Ui {
             setRolloverEnabled(true);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             getModel().addChangeListener(e -> animateSelection());
+            installPointerGlow(this);
         }
 
         private void animateSelection() {
@@ -1125,6 +1211,8 @@ public final class Ui {
                 g2.setColor(Theme.alpha(Theme.ACCENT, Math.round(255 * p)));
                 g2.fillOval(10, getHeight() / 2 - 2, 4, 4);
             }
+            paintPointerGlow(g2, this, getWidth(), getHeight(), 14,
+                    Math.max(p, getModel().isRollover() ? 1f : 0f));
             g2.setFont(getFont());
             FontMetrics metrics = g2.getFontMetrics();
             String text = fitText(g2, getText(), getWidth() - 24);

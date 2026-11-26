@@ -351,6 +351,24 @@ final class SettingsPage {
         transparencyRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         window.add(transparencyRow);
         window.add(Ui.vgap(8));
+        JPanel glowRow = new JPanel();
+        glowRow.setOpaque(false);
+        glowRow.setLayout(new BoxLayout(glowRow, BoxLayout.X_AXIS));
+        Ui.ToggleChip glowToggle = new Ui.ToggleChip("全局界面柔光（实验）");
+        glowToggle.setSelected(config.pointerGlow());
+        glowToggle.setToolTipText("整窗叠加的鼠标跟随渐变（个别情况下会闪烁，默认关闭；卡片本身的柔光不受影响）");
+        glowToggle.addActionListener(e -> {
+            config.pointerGlow(glowToggle.isSelected());
+            config.save();
+        });
+        glowRow.add(glowToggle);
+        glowRow.add(Ui.hgap(10));
+        glowRow.add(Ui.label("关闭可省一点 GPU", Theme.TINY, Theme.DIM));
+        glowRow.add(Box.createHorizontalGlue());
+        glowRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        glowRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        window.add(glowRow);
+        window.add(Ui.vgap(8));
         form.add(LauncherLayout.lockedHeight(window));
         form.add(Ui.vgap(30));
         form.add(LauncherLayout.divider());

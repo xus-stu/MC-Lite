@@ -170,9 +170,12 @@ public final class LauncherFrame extends JFrame {
     private boolean launching;
     private Path lastGameContentDir;
 
+    private mclite.ui.effects.PointerGlow pointerGlow;
+
     public LauncherFrame(Config config) {
         super("Beacon Minecraft Launcher");
         this.config = config;
+        pointerGlow = new mclite.ui.effects.PointerGlow(this, config::pointerGlow);
         if (isMac()) {
             // 标题栏透明 + 内容延伸到标题栏：保留系统红绿灯，标题栏底色透出主题背景。
             getRootPane().putClientProperty("apple.awt.fullWindowContent", true);
@@ -260,8 +263,11 @@ public final class LauncherFrame extends JFrame {
     private JPanel buildRoot() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(Theme.BG);
-        root.add(buildHeader(), BorderLayout.NORTH);
+        JPanel header = buildHeader();
+        root.add(header, BorderLayout.NORTH);
         root.add(buildBody(), BorderLayout.CENTER);
+        // 顶栏置顶：页面内容在个别缩放下可能越界，别让它盖住导航。
+        root.setComponentZOrder(header, 0);
         return root;
     }
 
@@ -3139,6 +3145,14 @@ public final class LauncherFrame extends JFrame {
     }
 
     /** 切换显示模式：标准 / 独占（保留 bar）/ 独占（无 bar）。 */
+    @Override
+    public void paint(java.awt.Graphics g) {
+        super.paint(g);
+        if (pointerGlow != null) {
+            pointerGlow.paint(g);
+        }
+    }
+
     private void applyWindowOpacity() {
         if (config.windowOpacity() >= 100) {
             WindowFx.opacity(this, 1f);
